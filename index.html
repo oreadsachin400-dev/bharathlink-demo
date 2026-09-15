@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BharatLink — Verified Digital Identity</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      color: #111827;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      margin: auto;
+      background: white;
+      padding: 24px;
+    }
+
+    .brand {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 15px;
+    }
+
+    .tagline {
+      color: #667085;
+      margin-top: 7px;
+      font-size: 15px;
+    }
+
+    .concept {
+      display: inline-block;
+      margin-top: 15px;
+      padding: 7px 11px;
+      border-radius: 20px;
+      background: #eef2ff;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .hero {
+      margin-top: 38px;
+    }
+
+    .hero h1 {
+      font-size: 30px;
+      line-height: 1.15;
+    }
+
+    .hero p {
+      color: #667085;
+      margin-top: 13px;
+      line-height: 1.6;
+    }
+
+    .inputBox {
+      margin-top: 30px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 16px;
+      font-size: 17px;
+      border: 1px solid #d0d5dd;
+      border-radius: 12px;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 14px;
+      background: #111827;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 13px;
+      background: #fff8e7;
+      border-radius: 10px;
+      color: #7a5412;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #identityScreen {
+      display: none;
+    }
+
+    .verifiedTitle {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .shield {
+      width: 74px;
+      height: 74px;
+      margin: 20px auto;
+      border-radius: 50%;
+      background: #e8f7ee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+    }
+
+    .status {
+      margin-top: 25px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 0;
+      border-bottom: 1px solid #eaecf0;
+    }
+
+    .row strong {
+      display: block;
+    }
+
+    .row small {
+      color: #667085;
+    }
+
+    .check {
+      color: #15803d;
+      font-weight: bold;
+    }
+
+    .identityCard {
+      margin-top: 28px;
+      padding: 20px;
+      background: #111827;
+      color: white;
+      border-radius: 18px;
+    }
+
+    .identityCard small {
+      color: #cbd5e1;
+    }
+
+    .identityCard h2 {
+      margin-top: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 7px 10px;
+      background: #166534;
+      border-radius: 20px;
+      font-size: 12px;
+    }
+
+    .services {
+      margin-top: 28px;
+    }
+
+    .service {
+      padding: 15px;
+      margin-top: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+
+    .demo {
+      margin-top: 30px;
+      text-align: center;
+      font-size: 11px;
+      color: #667085;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <div id="startScreen">
+
+    <div class="brand">BharatLink</div>
+    <div class="tagline">Moving Trust, Not Data.</div>
+
+    <div class="concept">CONCEPT STAGE · DEMO ONLY</div>
+
+    <div class="hero">
+      <h1>One verified identity for India's digital world.</h1>
+
+      <p>
+        Connect your mobile identity with trusted verification
+        signals to create a reusable digital trust identity.
+      </p>
+    </div>
+
+    <div class="inputBox">
+
+      <label>Mobile Number</label>
+
+      <input
+        id="mobile"
+        type="tel"
+        maxlength="10"
+        inputmode="numeric"
+        placeholder="Enter 10-digit mobile number"
+      >
+
+      <button onclick="verifyIdentity()">
+        Start Verification
+      </button>
+
+    </div>
+
+    <div class="note">
+      Prototype only. No real Aadhaar, telecom KYC, bank or UPI
+      verification is performed and no government database is accessed.
+    </div>
+
+  </div>
+
+
+  <div id="identityScreen">
+
+    <div class="verifiedTitle">
+
+      <div class="shield">✓</div>
+
+      <h1>Identity Verified</h1>
+
+      <p class="tagline">
+        Multiple independent trust signals confirmed
+      </p>
+
+    </div>
+
+
+    <div class="status">
+
+      <div class="row">
+        <div>
+          <strong>Mobile KYC</strong>
+          <small>Telecom identity signal</small>
+        </div>
+
+        <div class="check">VERIFIED ✓</div>
+      </div>
+
+
+      <div class="row">
+        <div>
+          <strong>Bank / UPI</strong>
+          <small>Financial identity signal</small>
+        </div>
+
+        <div class="check">VERIFIED ✓</div>
+      </div>
+
+
+      <div class="row">
+        <div>
+          <strong>Aadhaar Linkage</strong>
+          <small>Identity linkage signal</small>
+        </div>
+
+        <div class="check">VERIFIED ✓</div>
+      </div>
+
+    </div>
+
+
+    <div class="identityCard">
+
+      <small>BHARATLINK DIGITAL IDENTITY</small>
+
+      <h2>Verified User</h2>
+
+      <p id="maskedMobile"></p>
+
+      <div class="badge">
+        3-WAY VERIFIED
+      </div>
+
+    </div>
+
+
+    <div class="services">
+
+      <h3>Your Trust Identity</h3>
+
+      <div class="service">
+        ✓ Verified Calling
+      </div>
+
+      <div class="service">
+        ✓ Verified Messaging
+      </div>
+
+      <div class="service">
+        ✓ BharatMail
+      </div>
+
+      <div class="service">
+        ✓ Verified Payment
+      </div>
+
+      <div class="service">
+        ✓ Digital Identity
+      </div>
+
+    </div>
+
+
+    <div class="demo">
+      DEMO VERIFICATION — NO REAL KYC, AADHAAR OR BANK DATA
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+function verifyIdentity() {
+
+  const mobile =
+    document.getElementById("mobile").value.trim();
+
+  if (!/^[0-9]{10}$/.test(mobile)) {
+
+    alert("Please enter a valid 10-digit mobile number.");
+
+    return;
+  }
+
+  document.getElementById("maskedMobile").textContent =
+    "+91 ••••••" + mobile.slice(-4);
+
+  document.getElementById("startScreen").style.display =
+    "none";
+
+  document.getElementById("identityScreen").style.display =
+    "block";
+}
+
+</script>
+
+</body>
+</html>
