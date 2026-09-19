@@ -6,6 +6,9 @@
    No secrets or API keys live here. Anything secret belongs server-side.
    ===================================================================== */
 const CONFIG = Object.freeze({
+   SUPABASE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
+   
+SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co/rest/v1/',
   APP_NAME: 'BharathLink',
   VERSION: '1B.0.0',
   STORAGE_KEY: 'bharathlink.phase1a.state',
