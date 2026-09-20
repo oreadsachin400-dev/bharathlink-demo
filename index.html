@@ -264,7 +264,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
 </style>
-<meta name="bharathlink-build" content="phase1b-combined-final-test-r2-2026-09-20">
+<meta name="bharathlink-build" content="phase1b-combined-final-test-r3-2026-09-20">
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -280,7 +280,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1B.3.1',
+  VERSION: '1B.3.2',
   SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
   STORAGE_KEY: 'bharathlink.phase1a.v2.state',
@@ -514,14 +514,25 @@ const Supabase = {
   },
   async myProfile() {
     if (!this.accessToken) throw new Error('Real Supabase sign-in is required before profile sync.');
-    const rows = await this.request('/rest/v1/profiles?select=account_id,messaging_id,bharatmail_address,display_name,age_status,mobile_verified,aadhaar_verified,kyc_verified,verified_legal_name&limit=1');
+    const rows = await this.request('/rest/v1/profiles?select=user_id,account_id,messaging_id,bharatmail_address,display_name,age_status,mobile_verified,aadhaar_verified,kyc_verified,verified_legal_name&limit=1');
     return Array.isArray(rows) ? (rows[0] || null) : null;
+  },
+  async currentAuthUser() {
+    if (!this.accessToken) throw new Error('Real Supabase sign-in is required.');
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': CONFIG.SUPABASE_PUBLISHABLE_KEY,
+        'Authorization': `Bearer ${this.accessToken}`
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.id) throw new Error(data.msg || data.message || 'Authenticated user could not be loaded.');
+    return data;
   },
   async updateMyProfile({ displayName, ageStatus }) {
     if (!this.accessToken) throw new Error('Real Supabase sign-in is required before profile sync.');
-    const current = await this.myProfile();
-    if (!current || !current.user_id) throw new Error('Authenticated profile/user_id not found.');
-    const rows = await this.request(`/rest/v1/profiles?user_id=eq.${encodeURIComponent(current.user_id)}`, {
+    const authUser = await this.currentAuthUser();
+    const rows = await this.request(`/rest/v1/profiles?user_id=eq.${encodeURIComponent(authUser.id)}`, {
       method: 'PATCH',
       headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify({ display_name: displayName, age_status: ageStatus })
