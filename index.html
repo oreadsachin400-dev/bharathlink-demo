@@ -264,7 +264,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
 </style>
-<meta name="bharathlink-build" content="phase1b-profile-update-test-2026-09-20">
+<meta name="bharathlink-build" content="phase1b-combined-final-test-2026-09-20">
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -280,7 +280,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1B.2.0',
+  VERSION: '1B.3.0',
   SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
   STORAGE_KEY: 'bharathlink.phase1a.v2.state',
@@ -519,7 +519,9 @@ const Supabase = {
   },
   async updateMyProfile({ displayName, ageStatus }) {
     if (!this.accessToken) throw new Error('Real Supabase sign-in is required before profile sync.');
-    const rows = await this.request('/rest/v1/profiles', {
+    const current = await this.myProfile();
+    if (!current || !current.user_id) throw new Error('Authenticated profile/user_id not found.');
+    const rows = await this.request(`/rest/v1/profiles?user_id=eq.${encodeURIComponent(current.user_id)}`, {
       method: 'PATCH',
       headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify({ display_name: displayName, age_status: ageStatus })
@@ -1126,7 +1128,43 @@ const Views = {
         }
       }});
 
-      status.replaceChildren(
+      const verifyBtn = Button('Run Phase 1B checks', { variant: 'secondary', onClick: async () => {
+        saveMsg.replaceChildren();
+        verifyBtn.disabled = true; verifyBtn.textContent = 'Checking…';
+        try {
+          const before = await Supabase.myProfile();
+          if (!before) throw new Error('Profile could not be loaded.');
+          const required = ['user_id','account_id','messaging_id','bharatmail_address'];
+          const missing = required.filter(k => !before[k]);
+          if (missing.length) throw new Error(`Missing server fields: ${missing.join(', ')}`);
+
+          const ids = {
+            account_id: before.account_id,
+            messaging_id: before.messaging_id,
+            bharatmail_address: before.bharatmail_address
+          };
+
+          // Read twice from the server and verify permanent IDs do not drift.
+          const again = await Supabase.myProfile();
+          const stable = again &&
+            again.account_id === ids.account_id &&
+            again.messaging_id === ids.messaging_id &&
+            again.bharatmail_address === ids.bharatmail_address;
+          if (!stable) throw new Error('Permanent server IDs changed unexpectedly.');
+
+          saveMsg.replaceChildren(Notice('info', [
+            h('strong', null, 'Phase 1B checks PASS.'), h('br'),
+            'Authenticated profile read works; Account ID, Messaging ID and BharatMail ID are present and stable. ',
+            'Profile UPDATE is scoped to the signed-in user. Trust fields are not included in client updates.'
+          ]));
+        } catch (ex) {
+          saveMsg.replaceChildren(Notice('warn', `Phase 1B check failed: ${ex.message || 'Unknown error'}`));
+        } finally {
+          verifyBtn.disabled = false; verifyBtn.textContent = 'Run Phase 1B checks';
+        }
+      }});
+
+      status.replaceChildren
         Notice('info', [h('strong', null, 'Supabase profile connected successfully.'), h('br'),
           'Phone OTP remains disabled for now.']),
         profileBox,
@@ -1134,7 +1172,7 @@ const Views = {
           h('h2', null, 'Profile update test'),
           h('div', { class: 'field' }, h('label', null, 'Display name'), nameInput),
           h('div', { class: 'field' }, h('label', null, 'Age status'), ageSelect),
-          saveBtn, saveMsg),
+          saveBtn, verifyBtn, saveMsg),
         Button('Sign out test session', { variant: 'secondary', onClick: () => {
           Supabase.clearTestSession();
           status.replaceChildren(Notice('info', 'Test session cleared. Sign in again to confirm the saved profile persists.'));
