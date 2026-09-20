@@ -264,7 +264,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
 </style>
-<meta name="bharathlink-build" content="phase1b-test-login-2026-09-20">
+<meta name="bharathlink-build" content="phase1b-profile-update-test-2026-09-20">
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -280,7 +280,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1B.1.0',
+  VERSION: '1B.2.0',
   SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
   STORAGE_KEY: 'bharathlink.phase1a.v2.state',
@@ -1081,23 +1081,66 @@ const Views = {
       placeholder: 'Password', required: true, 'aria-describedby': 'password-err' });
     const btn = Button('Sign in & test Supabase', { type: 'submit' });
 
-    const showProfile = p => status.replaceChildren(
-      Notice('info', [h('strong', null, 'Supabase profile connected successfully.'), h('br'),
-        'Phone OTP remains disabled for now.']),
-      h('dl', { class: 'kv paycard section' },
-        KvRow('Account ID', p.account_id || '—'),
-        KvRow('Messaging ID', p.messaging_id || '—'),
-        KvRow('BharatMail ID', p.bharatmail_address || '—'),
-        KvRow('Display name', p.display_name || 'Not set'),
-        KvRow('Age status', p.age_status || 'unknown'),
-        KvRow('Mobile verified', p.mobile_verified ? 'Yes' : 'No'),
-        KvRow('Aadhaar verified', p.aadhaar_verified ? 'Yes' : 'No'),
-        KvRow('KYC verified', p.kyc_verified ? 'Yes' : 'No')),
-      Button('Sign out test session', { variant: 'secondary', onClick: () => {
-        Supabase.clearTestSession();
-        status.replaceChildren(Notice('info', 'Test session cleared. Sign in again to confirm the same server IDs return.'));
-      }})
-    );
+    const showProfile = p => {
+      const profileBox = h('div');
+      const nameInput = h('input', { class: 'input', type: 'text', maxlength: '80',
+        value: p.display_name || '', placeholder: 'Enter display name' });
+      const ageSelect = h('select', { class: 'input' },
+        h('option', { value: 'unknown' }, 'Unknown'),
+        h('option', { value: 'under_18' }, 'Under 18'),
+        h('option', { value: '18_plus' }, '18+')
+      );
+      ageSelect.value = p.age_status || 'unknown';
+
+      const renderProfile = q => profileBox.replaceChildren(
+        h('dl', { class: 'kv paycard section' },
+          KvRow('Account ID', q.account_id || '—'),
+          KvRow('Messaging ID', q.messaging_id || '—'),
+          KvRow('BharatMail ID', q.bharatmail_address || '—'),
+          KvRow('Display name', q.display_name || 'Not set'),
+          KvRow('Age status', q.age_status || 'unknown'),
+          KvRow('Mobile verified', q.mobile_verified ? 'Yes' : 'No'),
+          KvRow('Aadhaar verified', q.aadhaar_verified ? 'Yes' : 'No'),
+          KvRow('KYC verified', q.kyc_verified ? 'Yes' : 'No'))
+      );
+      renderProfile(p);
+
+      const saveMsg = h('div', { 'aria-live': 'polite' });
+      const saveBtn = Button('Save profile to Supabase', { onClick: async () => {
+        saveMsg.replaceChildren();
+        saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+        try {
+          const updated = await Supabase.updateMyProfile({
+            displayName: nameInput.value.trim() || null,
+            ageStatus: ageSelect.value
+          });
+          if (!updated) throw new Error('No updated profile was returned.');
+          renderProfile(updated);
+          nameInput.value = updated.display_name || '';
+          ageSelect.value = updated.age_status || 'unknown';
+          saveMsg.replaceChildren(Notice('info', 'Profile saved to Supabase successfully.'));
+        } catch (ex) {
+          saveMsg.replaceChildren(Notice('warn', `Profile save failed: ${ex.message || 'Unknown error'}`));
+        } finally {
+          saveBtn.disabled = false; saveBtn.textContent = 'Save profile to Supabase';
+        }
+      }});
+
+      status.replaceChildren(
+        Notice('info', [h('strong', null, 'Supabase profile connected successfully.'), h('br'),
+          'Phone OTP remains disabled for now.']),
+        profileBox,
+        h('div', { class: 'section' },
+          h('h2', null, 'Profile update test'),
+          h('div', { class: 'field' }, h('label', null, 'Display name'), nameInput),
+          h('div', { class: 'field' }, h('label', null, 'Age status'), ageSelect),
+          saveBtn, saveMsg),
+        Button('Sign out test session', { variant: 'secondary', onClick: () => {
+          Supabase.clearTestSession();
+          status.replaceChildren(Notice('info', 'Test session cleared. Sign in again to confirm the saved profile persists.'));
+        }})
+      );
+    };
 
     const form = h('form', { novalidate: 'novalidate', onSubmit: async e => {
       e.preventDefault(); emailErr.textContent = ''; passErr.textContent = ''; status.replaceChildren();
