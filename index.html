@@ -4,15 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!--
-  Content Security Policy (Phase 1A official demo):
-  - No network access at all (connect-src 'none'), no external scripts, fonts or images.
-  - JavaScript and CSS are external local files; inline execution is blocked.
+  Content Security Policy (Phase 1A):
+  - No network access at all (connect-src https://whpafxijzruynmivudbz.supabase.co), no external scripts, fonts or images.
+  - 'unsafe-inline' is needed only because Phase 1A is a single self-contained file.
+    Phase 1B should move JS/CSS to separate files and drop 'unsafe-inline'.
   - frame-ancestors cannot be set from a meta tag; send it as an HTTP header when deploying.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://whpafxijzruynmivudbz.supabase.co; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#14205A">
-<meta name="description" content="BharathLink: one verified identity for calling, messaging, mail and payments. Phase 1A synthetic official-demo baseline.">
+<meta name="description" content="BharathLink: one verified identity for calling, messaging, mail and payments. Phase 1A prototype.">
 <link rel="icon" href="data:,">
 <title>BharathLink</title>
 <style>
@@ -47,6 +48,8 @@ button{font:inherit}
 #app{max-width:480px;margin:0 auto;min-height:100vh;min-height:100dvh;background:var(--paper);position:relative}
 @media (min-width:520px){body{background:#DFE4EF}#app{box-shadow:0 0 0 1px var(--line)}}
 .screen{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.screen{padding-bottom:0}
+@supports(padding:max(0px)){.content{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}}
 
 /* ---------- Top bar ---------- */
 .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:4px;min-height:60px;padding:calc(var(--safe-t) + 6px) 8px 6px;background:var(--ink);color:#fff}
@@ -260,11 +263,8 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
-
-/* ---------- Persistent synthetic-demo marker ---------- */
-.demo-banner{position:sticky;top:60px;z-index:4;padding:7px 12px;background:var(--warn-bg);color:var(--warn);border-bottom:1px solid #E6C875;font-size:.75rem;font-weight:700;line-height:1.35;text-align:center}
-
 </style>
+<meta name="bharathlink-build" content="phase1b-supabase-foundation-2026-09-20">
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -276,12 +276,14 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 
 /* =====================================================================
    1. CONFIG
-   Offline official-demo configuration. No network/API credentials are embedded.
+   No secrets or API keys live here. Anything secret belongs server-side.
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1A.1.0',
-  STORAGE_KEY: 'bharathlink.phase1a.official-demo.state',
+  VERSION: '1B.0.0',
+  SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
+  STORAGE_KEY: 'bharathlink.phase1a.v2.state',
   SCHEMA_VERSION: 2,
   // RFC 2606 reserved TLD: can never route real mail. Replace when a real
   // domain and mail backend exist.
@@ -369,10 +371,10 @@ const Validate = {
     return new RegExp(`^\\d{${CONFIG.OTP_LENGTH}}$`).test(v) ? { ok: true, value: v }
       : { ok: false, error: `Enter the ${CONFIG.OTP_LENGTH}-digit code.` };
   },
-  realName(raw) {
+  displayName(raw) {
     const v = String(raw || '').normalize('NFC').replace(/\s+/g, ' ').trim();
-    if (v.length < 2) return { ok: false, error: 'Enter your full name.' };
-    if (v.length > 60) return { ok: false, error: 'Keep the name under 60 characters.' };
+    if (v.length < 2) return { ok: false, error: 'Enter your display name.' };
+    if (v.length > 60) return { ok: false, error: 'Keep the display name under 60 characters.' };
     if (!/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(v)) return { ok: false, error: 'Use letters, spaces, dots, apostrophes and hyphens only.' };
     return { ok: true, value: v };
   },
@@ -405,7 +407,7 @@ const Validate = {
    4. VERIFICATION VOCABULARY
    "verified" can only come from an authoritative provider whose result
    carries a server attestation that Attestation.verify() accepts.
-   In this offline Phase 1A demo nothing can reach that state.
+   In Phase 1A nothing can reach that state.
    ===================================================================== */
 const VStatus = Object.freeze({ NOT_CHECKED: 'not_checked', PENDING: 'pending', DEMO: 'demo', VERIFIED: 'verified', FAILED: 'failed' });
 const VStatusMeta = Object.freeze({
@@ -447,7 +449,8 @@ function defaultState() {
     schema: CONFIG.SCHEMA_VERSION,
     createdAt: Date.now(),
     account: null,     // { accountId, mobile, createdAt, authProvider, authAuthoritative }
-    identity: null,    // { realName, nameSource, nameLocked, displayAlias, ageStatus, ageSource, createdAt, updatedAt }
+    profile: null,     // { displayName, displayNameSource, ageStatus, ageSource, createdAt, updatedAt }
+    verifiedIdentity: null, // future server-only authoritative identity; null in Phase 1A
     verification: { mobile: blankVerification(), aadhaar: blankVerification(), kyc: blankVerification(), upi: blankVerification() },
     ids: null,         // { handle, messagingId, mailId, allocatedBy, provisional, allocatedAt }
     onboarding: { complete: false },
@@ -462,49 +465,67 @@ const Store = {
   persistOk: true,
   init() {
     const loaded = Storage.load();
-    const base = defaultState();
-    this.state = loaded && typeof loaded === 'object' ? Object.assign(base, loaded) : base;
-    // Fail closed: localStorage is untrusted input. An offline client can never
-    // restore an authoritative identity/payment result from persisted data.
-    const safeV = {};
-    for (const k of ['mobile', 'aadhaar', 'kyc', 'upi']) {
-      const v = this.state.verification && this.state.verification[k];
-      const allowedDemo = v && v.status === VStatus.DEMO;
-      safeV[k] = allowedDemo
-        ? { status: VStatus.DEMO, source: 'demo-restored', note: 'Demo / Test only. No real check was made.', authoritative: false, updatedAt: Number(v.updatedAt) || null }
-        : blankVerification();
+    this.state = loaded ? Object.assign(defaultState(), loaded) : defaultState();
+    // A check cannot still be running after a reload, so "pending" resets.
+    for (const k of Object.keys(this.state.verification)) {
+      if (this.state.verification[k].status === VStatus.PENDING) this.state.verification[k] = blankVerification();
     }
-    this.state.verification = safeV;
-    const accountOk = this.state.account && typeof this.state.account === 'object' && typeof this.state.account.accountId === 'string' && /^[0-9a-f-]{36}$/i.test(this.state.account.accountId) && typeof this.state.account.mobile === 'string';
-    const identityOk = this.state.identity && typeof this.state.identity === 'object' && typeof this.state.identity.realName === 'string' && this.state.identity.realName.trim().length >= 2 && ['adult','minor'].includes(this.state.identity.ageStatus);
-    if (!accountOk) this.state.account = null;
-    if (!identityOk) this.state.identity = null;
-    if (this.state.identity) {
-      this.state.identity.nameLocked = false;
-      this.state.identity.verifiedLegalName = null;
-      this.state.identity.legalNameSource = null;
-    }
-    if (!this.state.messaging || typeof this.state.messaging !== 'object') this.state.messaging = { conversations: {} };
-    if (!this.state.messaging.conversations || typeof this.state.messaging.conversations !== 'object') this.state.messaging.conversations = {};
-    if (!this.state.mail || typeof this.state.mail !== 'object') this.state.mail = { messages: [], seeded: false };
-    if (!Array.isArray(this.state.mail.messages)) this.state.mail.messages = [];
-    if (!this.state.payments || typeof this.state.payments !== 'object') this.state.payments = { requests: [] };
-    if (!Array.isArray(this.state.payments.requests)) this.state.payments.requests = [];
-    this.state.payments.requests = this.state.payments.requests.filter(r => r && typeof r === 'object').map(r => {
-      if (![PayStatus.CREATED, PayStatus.HANDED_OFF, PayStatus.CLIENT_SUCCESS, PayStatus.CLIENT_FAILURE].includes(r.status)) r.status = PayStatus.CREATED;
-      r.serverVerification = 'unavailable';
-      if (!Array.isArray(r.history)) r.history = [];
-      r.history = r.history.filter(x => x && x.status !== PayStatus.SERVER_VERIFIED);
-      return r;
-    });
-    if (this.state.ids && (typeof this.state.ids.messagingId !== 'string' || !/^@bl\.[a-z2-9]{10}$/.test(this.state.ids.messagingId) || typeof this.state.ids.mailId !== 'string' || !/^bm_[a-z2-9]{10}@bharatmail\.test$/.test(this.state.ids.mailId))) this.state.ids = null;
-    if (!this.state.onboarding || typeof this.state.onboarding !== 'object') this.state.onboarding = { complete: false };
-    if (!this.state.account || !this.state.identity || !this.state.ids) this.state.onboarding.complete = false;
     this.persist();
   },
   update(mutator) { mutator(this.state); this.persist(); },
   persist() { this.persistOk = Storage.save(this.state); },
   reset() { Storage.clear(); this.state = defaultState(); this.persist(); }
+};
+
+/* =====================================================================
+   5B. SUPABASE PHASE 1B FOUNDATION
+   Publishable key is intentionally safe for browser use. RLS remains the
+   authority: this client never uses a secret/service-role key.
+   Phase 1A's local OTP is retained until real phone auth is enabled in
+   Supabase. Profile reads/writes require a real Supabase access token.
+   ===================================================================== */
+const Supabase = {
+  accessToken: null,
+  setAccessToken(token) { this.accessToken = token || null; },
+  headers(extra = {}) {
+    return Object.assign({
+      'apikey': CONFIG.SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json'
+    }, this.accessToken ? { 'Authorization': `Bearer ${this.accessToken}` } : {}, extra);
+  },
+  async request(path, options = {}) {
+    const res = await fetch(`${CONFIG.SUPABASE_URL}${path}`, Object.assign({}, options, {
+      headers: this.headers(options.headers || {})
+    }));
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).message || ''; } catch (_) {}
+      throw new Error(detail || `Supabase request failed (${res.status})`);
+    }
+    if (res.status === 204) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  },
+  async health() {
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/`, {
+      headers: { 'apikey': CONFIG.SUPABASE_PUBLISHABLE_KEY }
+    });
+    return res.ok;
+  },
+  async myProfile() {
+    if (!this.accessToken) throw new Error('Real Supabase sign-in is required before profile sync.');
+    const rows = await this.request('/rest/v1/profiles?select=account_id,messaging_id,bharatmail_address,display_name,age_status,mobile_verified,aadhaar_verified,kyc_verified,verified_legal_name&limit=1');
+    return Array.isArray(rows) ? (rows[0] || null) : null;
+  },
+  async updateMyProfile({ displayName, ageStatus }) {
+    if (!this.accessToken) throw new Error('Real Supabase sign-in is required before profile sync.');
+    const rows = await this.request('/rest/v1/profiles', {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=representation' },
+      body: JSON.stringify({ display_name: displayName, age_status: ageStatus })
+    });
+    return Array.isArray(rows) ? (rows[0] || null) : null;
+  }
 };
 
 /* =====================================================================
@@ -601,8 +622,7 @@ const Verification = {
     Store.update(s => {
       s.verification[kind] = { status, source: provider ? provider.id : null, note: result.note || null,
         authoritative: status === VStatus.VERIFIED, updatedAt: Date.now() };
-      // Offline demo never writes a verified legal name. A future authoritative
-      // server response must populate that separate field.
+      // Phase 1A never writes verifiedIdentity. A future server adapter must create it only after authoritative verification.
     });
   },
   async runDemoChecks(onProgress) {
@@ -628,23 +648,27 @@ const Verification = {
 };
 
 /* =====================================================================
-   8. IDENTITY
-   Display name = self-declared profile label and is never authoritative.
-   verifiedLegalName is a separate slot populated only by an authoritative provider.
-   No government ID numbers are ever collected or stored.
+   8. IDENTITY / PROFILE
+   Display name is self-declared. Verified legal identity is a separate,
+   future server-only record and is never inferred from this profile.
    ===================================================================== */
 const Identity = {
-  create({ realName, ageStatus }) {
+  create({ displayName, ageStatus }) {
     Store.update(s => {
-      s.identity = { realName, nameSource: 'self_declared_display', nameLocked: false, verifiedLegalName: null, legalNameSource: null,
-        ageStatus, ageSource: 'self_declared', createdAt: Date.now(), updatedAt: Date.now() };
+      s.profile = { displayName, displayNameSource: 'self_declared', ageStatus, ageSource: 'self_declared',
+        createdAt: Date.now(), updatedAt: Date.now() };
+      s.verifiedIdentity = null;
     });
   },
-  async updateRealName(newName) {
-    Store.update(s => { s.identity.realName = newName; s.identity.updatedAt = Date.now(); });
-    return { ok: true, reissued: false };
+  updateDisplayName(newName) {
+    Store.update(s => { s.profile.displayName = newName; s.profile.updatedAt = Date.now(); });
+    return { ok: true };
   },
-  ageLabel(a) { return a === 'adult' ? '18+' : 'Under 18'; }
+  ageLabel(a) { return a === 'adult' ? '18+' : 'Under 18'; },
+  assurance(s = Store.state) { return s.verifiedIdentity ? 'Identity verified' : (s.verification.mobile.status === VStatus.DEMO ? 'Mobile test only' : 'Self-declared profile'); },
+  trustSnapshot(s = Store.state) {
+    return { assurance: s.verifiedIdentity ? 'identity_verified' : 'unverified', verificationId: s.verifiedIdentity ? s.verifiedIdentity.verificationId : null, capturedAt: Date.now() };
+  }
 };
 
 /* =====================================================================
@@ -654,38 +678,34 @@ const Identity = {
    Two "Ravi Kumar" entries demonstrate the duplicate-name strategy.
    ===================================================================== */
 const SAMPLE_CONTACTS = Object.freeze([
-  { id: 's-ravi-1', realName: 'Ravi Kumar',    handle: 'ravi.kumar.h7tq',    city: 'Patna' },
-  { id: 's-ravi-2', realName: 'Ravi Kumar',    handle: 'ravi.kumar.m2xe',    city: 'Coimbatore' },
-  { id: 's-priya',  realName: 'Priya Nair',    handle: 'priya.nair.c4wk',    city: 'Kochi' },
-  { id: 's-arjun',  realName: 'Arjun Mehta',   handle: 'arjun.mehta.p9rd',   city: 'Ahmedabad' },
-  { id: 's-fatima', realName: 'Fatima Shaikh', handle: 'fatima.shaikh.k3vy', city: 'Pune' }
+  { id: 's-ravi-1', displayName: 'Ravi Kumar', messagingId: 'BL-7K3M-9Q2X', city: 'Patna' },
+  { id: 's-ravi-2', displayName: 'Ravi Kumar', messagingId: 'BL-M8R4-T2QK', city: 'Coimbatore' },
+  { id: 's-priya', displayName: 'Priya Nair', messagingId: 'BL-C4WK-8P2R', city: 'Kochi' },
+  { id: 's-arjun', displayName: 'Arjun Mehta', messagingId: 'BL-P9RD-6M3K', city: 'Ahmedabad' },
+  { id: 's-fatima', displayName: 'Fatima Shaikh', messagingId: 'BL-K3VY-7Q4M', city: 'Pune' }
 ].map(Object.freeze));
 
 const Directory = {
   all() { return SAMPLE_CONTACTS; },
   byId(id) { return SAMPLE_CONTACTS.find(c => c.id === id) || null; },
-  byHandle(h) { const k = String(h || '').trim().toLowerCase().replace(/^@/, ''); return SAMPLE_CONTACTS.find(c => c.handle === k) || null; },
-  takenHandles() { return new Set(SAMPLE_CONTACTS.map(c => c.handle)); }
+  byHandle(h) { const k = String(h || '').trim().toUpperCase(); return SAMPLE_CONTACTS.find(c => c.messagingId.toUpperCase() === k) || null; },
+  takenHandles() { return new Set(SAMPLE_CONTACTS.map(c => c.messagingId.toUpperCase())); }
 };
 
 /* =====================================================================
    10. ID ALLOCATION
-   IdAllocator interface:
-     allocate({ accountId, realName, taken:Set }) -> Promise<{ handle, messagingId, mailId, allocatedBy, provisional }>
-   Handle = name slug + suffix derived from the account ID, so two people
-   with the same name get different suffixes. Collisions are detected and
-   re-derived. Production: the server allocates inside a uniqueness-
-   constrained transaction and the client only displays the result.
+   Permanent identifiers are name-independent. Display-name edits never
+   reissue them. Production allocation moves server-side with uniqueness.
    ===================================================================== */
 const LocalIdAllocator = {
-  id: 'local-provisional', authoritative: false,
+  id: 'local-provisional-v2', authoritative: false,
   async allocate({ accountId, taken }) {
-    // IDs are derived only from the permanent random account ID, never a name.
     for (let attempt = 0; attempt < 64; attempt++) {
-      const code = Util.toCode(Util.hash53(`bl|${accountId}|${attempt}`), 10);
-      const handle = `bl.${code}`;
-      if (!taken.has(handle)) {
-        return { handle, messagingId: `@${handle}`, mailId: `bm_${code}@${CONFIG.MAIL_DOMAIN}`,
+      const a = Util.toCode(Util.hash53(`${accountId}|msg|${attempt}`), 8).toUpperCase();
+      const messagingId = `BL-${a.slice(0,4)}-${a.slice(4,8)}`;
+      if (!taken.has(messagingId)) {
+        const m = Util.toCode(Util.hash53(`${accountId}|mail|${attempt}`), 10).toLowerCase();
+        return { handle: messagingId, messagingId, mailId: `${m}@${CONFIG.MAIL_DOMAIN}`,
           allocatedBy: this.id, provisional: true, allocatedAt: Date.now(), attempt };
       }
     }
@@ -694,12 +714,9 @@ const LocalIdAllocator = {
 };
 
 const IdService = {
-  allocator: LocalIdAllocator,
-  inflight: null,
+  allocator: LocalIdAllocator, inflight: null,
   allocateFor(state) {
-    if (!this.inflight) {
-      this.inflight = this.allocator.allocate({ accountId: state.account.accountId, taken: Directory.takenHandles() }).finally(() => { this.inflight = null; });
-    }
+    if (!this.inflight) this.inflight = this.allocator.allocate({ accountId: state.account.accountId, taken: Directory.takenHandles() }).finally(() => { this.inflight = null; });
     return this.inflight;
   }
 };
@@ -726,7 +743,7 @@ const Messaging = {
   },
   async send(convId, text) {
     const conv = this.get(convId);
-    const msg = { id: Util.uuid(), from: 'me', text, at: Date.now(), delivery: 'pending', encrypted: E2EE.isActive() };
+    const msg = { id: Util.uuid(), from: 'me', text, at: Date.now(), delivery: 'pending', encrypted: E2EE.isActive(), trustSnapshot: Identity.trustSnapshot() };
     msg.delivery = (await this.transport.send(conv, msg)).delivery;
     Store.update(s => {
       const c = s.messaging.conversations[convId];
@@ -741,7 +758,7 @@ const Messaging = {
 /* =====================================================================
    12. BHARATMAIL (local only)
    MailTransport interface: send(message) -> Promise<{ delivery }>, fetchInbox()
-   Nothing leaves the device in this offline Phase 1A demo.
+   Nothing leaves the device in Phase 1A.
    ===================================================================== */
 const LocalMailTransport = { id: 'local-only', async send() { return { delivery: 'not_delivered' }; } };
 
@@ -772,7 +789,7 @@ const Mail = {
 
 /* =====================================================================
    13. PAYMENTS
-   A simulated UPI handoff is kept
+   Initiation (UPI deep link, handled by the user's own UPI app) is kept
    strictly separate from verification (server confirmation via PSP/bank).
    PaymentVerifier interface: verify(request) -> Promise<{ available, status?, attestation? }>
    A client report is never treated as a verified result.
@@ -781,7 +798,7 @@ const PayStatus = Object.freeze({ CREATED: 'created', HANDED_OFF: 'handed_off',
   CLIENT_SUCCESS: 'client_reported_success', CLIENT_FAILURE: 'client_reported_failure', SERVER_VERIFIED: 'server_verified' });
 const PayStatusMeta = Object.freeze({
   created:                 { label: 'Request created', tone: 'none' },
-  handed_off:              { label: 'Opened in UPI app. Result unknown', tone: 'pending' },
+  handed_off:              { label: 'UPI hand-off attempted. Result unknown', tone: 'pending' },
   client_reported_success: { label: 'You reported: paid (unverified)', tone: 'pending' },
   client_reported_failure: { label: 'You reported: not paid', tone: 'failed' },
   server_verified:         { label: 'Confirmed by server', tone: 'verified' }
@@ -796,7 +813,7 @@ const Payments = {
     const now = Date.now();
     const req = { id: Util.uuid(), payeeVpa, payeeName: payeeName || null, amount, note: note || null,
       status: PayStatus.CREATED, beneficiaryTrust: VStatus.NOT_CHECKED, serverVerification: 'unavailable',
-      createdAt: now, updatedAt: now, history: [{ status: PayStatus.CREATED, at: now, by: 'client' }] };
+      trustSnapshot: Identity.trustSnapshot(), createdAt: now, updatedAt: now, history: [{ status: PayStatus.CREATED, at: now, by: 'client' }] };
     Store.update(s => {
       s.payments.requests.unshift(req);
       if (s.payments.requests.length > CONFIG.LIMITS.payments) s.payments.requests.length = CONFIG.LIMITS.payments;
@@ -816,6 +833,14 @@ const Payments = {
     });
     return true;
   },
+  upiLink(req) {
+    // Standard UPI intent parameters, URI-encoded. This only opens the user's UPI app.
+    const p = [['pa', req.payeeVpa]];
+    if (req.payeeName) p.push(['pn', req.payeeName]);
+    p.push(['am', req.amount], ['cu', 'INR']);
+    if (req.note) p.push(['tn', req.note]);
+    return 'upi://pay?' + p.map(([k, v]) => `${k}=${encodeURIComponent(v).replace(/%40/g, '@')}`).join('&');
+  }
 };
 
 /* =====================================================================
@@ -823,7 +848,7 @@ const Payments = {
    All DOM is built with createElement / textContent. innerHTML is never
    used, so user-controlled text is always rendered as plain text.
    ===================================================================== */
-const SAFE_HREF = /^(#|tel:|mailto:)/i;
+const SAFE_HREF = /^(#|tel:|upi:|mailto:)/i;
 
 function h(tag, props, ...children) {
   const el = document.createElement(tag);
@@ -952,19 +977,21 @@ function TrustThread(s) {
 
 /* Trust card: the minimal user-facing Digital Identity. */
 function TrustCard(s, { showIds = true } = {}) {
-  const i = s.identity, v = s.verification;
+  const i = s.profile, v = s.verification;
   const rows = [
     KvRow('Mobile number', [Util.formatMobile(s.account.mobile), StatusBadge(v.mobile.status, v.mobile.status === VStatus.DEMO ? 'Test OTP only' : null)]),
     KvRow('Age status', [Identity.ageLabel(i.ageStatus), h('span', { class: 'hint' }, 'Self-declared')]),
     KvRow('Aadhaar', StatusBadge(v.aadhaar.status)),
-    KvRow('KYC', StatusBadge(v.kyc.status))
+    KvRow('KYC', StatusBadge(v.kyc.status)),
+    KvRow('Verified legal name', s.verifiedIdentity ? s.verifiedIdentity.legalName : 'Not verified'),
+    KvRow('Assurance', Identity.assurance(s))
   ];
   if (showIds && s.ids) rows.push(KvRow('Messaging ID', breakable(s.ids.messagingId)), KvRow('BharatMail ID', breakable(s.ids.mailId)));
   return h('article', { class: 'trustcard', 'aria-label': 'Digital identity trust card' },
-    h('div', { class: 'trustcard__head' }, Avatar(i.realName, 'avatar--lg avatar--on-ink'),
+    h('div', { class: 'trustcard__head' }, Avatar(i.displayName, 'avatar--lg avatar--on-ink'),
       h('div', { class: 'trustcard__who' }, h('p', { class: 'trustcard__label' }, 'Display name'),
-        h('p', { class: 'trustcard__name' }, i.realName),
-        h('p', { class: 'trustcard__source' }, 'Self-declared. Not a verified legal name.'))),
+        h('p', { class: 'trustcard__name' }, i.displayName),
+        h('p', { class: 'trustcard__source' }, 'Self-declared. Never an identity-verified badge.'))),
     h('dl', { class: 'kv' }, rows),
     h('p', { class: 'trustcard__foot' }, 'Not checked and Demo / Test mean no real verification has happened. Authorised checks are not connected in this build.'));
 }
@@ -989,7 +1016,6 @@ function Screen({ title, back, actions = [], nav = null, children, header, foote
     back ? IconButton('back', 'Go back', () => Router.back(back)) : h('span', { class: 'topbar__spacer' }),
     h('h1', { id: 'screen-title', tabindex: '-1' }, title), actions);
   return h('div', { class: 'screen' }, top,
-    h('div', { class: 'demo-banner', role: 'note' }, 'Synthetic demo. Not a government, UIDAI, NPCI, bank or telecom service.'),
     h('main', { class: nav ? 'content' : 'content content--nonav', id: 'main' }, children),
     footer || null, nav ? BottomNav(nav) : null);
 }
@@ -1021,7 +1047,7 @@ const Views = {
           [['phone', 'Calls'], ['chat', 'Messages'], ['mail', 'Mail'], ['rupee', 'Pay']].map(([ic, l]) => h('li', null, Icon(ic), l)))),
       h('p', { class: 'welcome__lede' }, 'Calling, messaging, mail and payments, all anchored to your mobile number and one trusted identity.'),
       h('div', { class: 'welcome__actions' }, Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
-      h('p', { class: 'welcome__note' }, 'Synthetic demo. Not a government, UIDAI, NPCI, bank or telecom service. No real identity, KYC or payment checks happen in this build.'));
+      h('p', { class: 'welcome__note' }, 'Phase 1A prototype. No real identity, KYC or payment checks happen in this build.'));
   },
 
   /* ----- Onboarding 2: Mobile number ----- */
@@ -1094,27 +1120,27 @@ const Views = {
   /* ----- Onboarding 4: Activation / Identity setup ----- */
   setup() {
     const err = ErrorText('name-err'), ageErr = ErrorText('age-err');
-    const input = h('input', { class: 'input', id: 'realname', name: 'realname', type: 'text', autocomplete: 'name',
-      autocapitalize: 'words', maxlength: '60', required: true, 'aria-describedby': 'realname-hint name-err' });
+    const input = h('input', { class: 'input', id: 'displayname', name: 'displayname', type: 'text', autocomplete: 'name',
+      autocapitalize: 'words', maxlength: '60', required: true, 'aria-describedby': 'displayname-hint name-err' });
     const radio = (value, label) => h('label', { class: 'choice' }, h('input', { type: 'radio', name: 'age', value }), h('span', null, label));
     const form = h('form', { novalidate: 'novalidate', onSubmit: e => {
       e.preventDefault(); setError(err, input, ''); ageErr.textContent = '';
-      const v = Validate.realName(input.value);
+      const v = Validate.displayName(input.value);
       if (!v.ok) return setError(err, input, v.error);
       const age = form.querySelector('input[name="age"]:checked');
       if (!age) { ageErr.textContent = 'Choose your age group.'; return; }
-      Identity.create({ realName: v.value, ageStatus: age.value === 'adult' ? 'adult' : 'minor' });
+      Identity.create({ displayName: v.value, ageStatus: age.value === 'adult' ? 'adult' : 'minor' });
       Router.go('/onboard/identity', { replace: true });
     } },
-      Field({ id: 'realname', label: 'Display name', input, error: err,
-        hint: 'Self-declared and editable. This is not your verified legal name.' }),
+      Field({ id: 'displayname', label: 'Display name', input, error: err,
+        hint: 'Choose the name people will see. It is self-declared and is not your verified legal identity.' }),
       h('fieldset', { class: 'fieldset' }, h('legend', null, 'Age'),
         h('div', { class: 'choices' }, radio('adult', '18 or older'), radio('minor', 'Under 18')),
         h('p', { class: 'hint' }, 'Self-declared for now.'), ageErr),
       Notice('info', 'This prototype never asks for your Aadhaar number or any ID document number, and does not store them.', 'shield'),
       Button('Continue', { type: 'submit' }));
     return Screen({ title: 'Set up your identity', children: [
-      h('p', { class: 'lede' }, 'Your number is confirmed for this test session. Choose the display name shown in this demo.'), form] });
+      h('p', { class: 'lede' }, 'Your number is confirmed for this test session. Choose a display name. Legal identity verification is separate.'), form] });
   },
 
   /* ----- Onboarding 5: Digital identity + activation chain ----- */
@@ -1141,7 +1167,7 @@ const Views = {
       return Screen({ title: 'Your BharathLink IDs', back: '/onboard/identity', children: [status] });
     }
     return Screen({ title: 'Your BharathLink IDs', back: '/onboard/identity', children: [
-      h('p', { class: 'lede' }, 'These were created automatically from your permanent account ID. They do not depend on your display name.'),
+      h('p', { class: 'lede' }, 'These were created automatically from your account. They aren\u2019t usernames you pick, so two people with the same name always get different IDs.'),
       IdBlock('Messaging ID', s.ids.messagingId, 'chat'),
       IdBlock('BharatMail ID', s.ids.mailId, 'mail'),
       Notice('warn', 'Provisional: allocated on this device. In production the BharathLink server issues final IDs and guarantees they are unique.'),
@@ -1161,10 +1187,10 @@ const Views = {
       h('span', { class: 'tile__icon' }, Icon(icon)), h('span', { class: 'tile__title' }, title), h('span', { class: 'tile__desc' }, desc));
     return Screen({ header, nav: 'home', children: [
       h('section', { class: 'hero' },
-        h('h1', { id: 'screen-title', tabindex: '-1' }, `Namaste, ${Util.firstName(s.identity.realName)}`),
+        h('h1', { id: 'screen-title', tabindex: '-1' }, `Namaste, ${Util.firstName(s.profile.displayName)}`),
         h('a', { class: 'hero__strip', href: '#/identity', 'aria-label': 'Open your digital identity' },
-          Avatar(s.identity.realName, 'avatar--on-ink'),
-          h('span', { class: 'hero__who' }, h('span', { class: 'hero__name' }, s.identity.realName),
+          Avatar(s.profile.displayName, 'avatar--on-ink'),
+          h('span', { class: 'hero__who' }, h('span', { class: 'hero__name' }, s.profile.displayName),
             h('span', { class: 'hero__mobile' }, Util.maskMobile(s.account.mobile)),
             StatusBadge(sum.status, sum.label)))),
       Store.persistOk ? null : Notice('warn', 'This browser is blocking storage. Your data will be lost when you refresh.'),
@@ -1172,11 +1198,11 @@ const Views = {
         h('a', { class: 'tile tile--identity', href: '#/identity' }, h('span', { class: 'tile__icon' }, Icon('id')),
           h('span', { class: 'tile__text' }, h('span', { class: 'tile__title' }, 'Digital Identity'),
             h('span', { class: 'tile__desc' }, 'Your trust card and verification status'))),
-        tile('calls', '/calls', 'phone', 'Verified Calling', 'Preview identity-aware calling; verification is not connected'),
-        tile('chats', '/chats', 'chat', 'Verified Messaging', 'Preview identity-aware messaging; verification is not connected'),
-        tile('mail', '/mail', 'mail', 'BharatMail', 'Preview account-linked mail identity'),
-        tile('pay', '/pay', 'rupee', 'UPI / Verified Payment', 'Simulated payment trust preview; no money movement')),
-      h('p', { class: 'footnote' }, `Phase 1A official-demo baseline, version ${CONFIG.VERSION}. Data stays on this device.`)] });
+        tile('calls', '/calls', 'phone', 'Verified Calling', 'See who is calling, not just a number'),
+        tile('chats', '/chats', 'chat', 'Verified Messaging', 'Conversations with explicit trust status'),
+        tile('mail', '/mail', 'mail', 'BharatMail', 'Permanent mailbox, verification-aware'),
+        tile('pay', '/pay', 'rupee', 'UPI / Verified Payment', 'Know who you\u2019re paying before you pay')),
+      h('p', { class: 'footnote' }, `Phase 1A prototype, version ${CONFIG.VERSION}. Data stays on this device.`)] });
   },
 
   /* ----- Digital Identity ----- */
@@ -1184,22 +1210,22 @@ const Views = {
     const s = Store.state, running = Verification.running;
     const nameErr = ErrorText('edit-name-err');
     const nameInput = h('input', { class: 'input', id: 'edit-name', type: 'text', autocomplete: 'name', maxlength: '60',
-      value: s.identity.realName, 'aria-describedby': 'edit-name-hint edit-name-err' });
+      value: s.profile.displayName, 'aria-describedby': 'edit-name-hint edit-name-err' });
     let editBtn = null;
     const editForm = h('form', { hidden: true, novalidate: 'novalidate', onSubmit: async e => {
       e.preventDefault(); setError(nameErr, nameInput, '');
-      const v = Validate.realName(nameInput.value);
+      const v = Validate.displayName(nameInput.value);
       if (!v.ok) return setError(nameErr, nameInput, v.error);
-      const r = await Identity.updateRealName(v.value);
+      const r = await Identity.updateDisplayName(v.value);
       if (!r.ok) return setError(nameErr, nameInput, r.error);
-      Toast.show('Display name saved. Your IDs did not change.');
+      Toast.show('Display name saved. Your permanent IDs did not change.');
       App.render();
     } },
       Field({ id: 'edit-name', label: 'Display name', input: nameInput, error: nameErr,
-        hint: 'Editable. Changing it does not change your Account, Messaging or BharatMail IDs.' }),
+        hint: 'Self-declared. Changing it never changes your Messaging ID or BharatMail base address.' }),
       h('div', { class: 'btn-row' },
         Button('Cancel', { variant: 'secondary', onClick: () => { editForm.hidden = true; editBtn.hidden = false; } }),
-        Button('Save display name', { type: 'submit' })));
+        Button('Save name', { type: 'submit' })));
     editBtn = Button('Edit display name', { variant: 'secondary', icon: 'edit', onClick: () => { editForm.hidden = false; editBtn.hidden = true; nameInput.focus(); } });
     const anyDemo = ['aadhaar', 'kyc', 'upi'].some(k => s.verification[k].status === VStatus.DEMO);
 
@@ -1209,11 +1235,8 @@ const Views = {
         h('div', { class: 'btn-row section' },
           Button(running ? 'Simulating\u2026' : 'Simulate checks', { variant: 'secondary', disabled: running, onClick: () => Verification.runDemoChecks(() => App.refresh()) }),
           Button('Clear results', { variant: 'ghost', disabled: running || !anyDemo, onClick: () => { Verification.clearDemo(); App.refresh(); } }))),
-      Section('Names',
-        h('div', { class: 'stack' },
-          h('p', { class: 'hint' }, 'Display name: self-declared and editable. It is never treated as government verified.'),
-          editBtn, editForm,
-          h('dl', { class: 'kv' }, KvRow('Verified legal name', StatusBadge(VStatus.NOT_CHECKED, 'Not available in this offline demo'))))),
+      Section('Profile name',
+        h('div', { class: 'stack' }, h('p', { class: 'hint' }, 'Your display name is self-declared. A verified legal name can only be added later by an authorised server-side identity provider.'), editBtn, editForm)),
       Section('On this device',
         h('p', { class: 'hint' }, 'Your prototype data is stored only in this browser. No Aadhaar, PAN or other ID numbers are stored.'),
         h('div', { class: 'section' }, Button('Erase all prototype data', { variant: 'danger', onClick: () => {
@@ -1246,11 +1269,11 @@ const Views = {
       Button('Look up number', { type: 'submit', variant: 'secondary' }));
     return Screen({ title: 'Verified Calling', back: '/home', nav: 'home', children: [
       Section('Your caller card',
-        CallerCard({ name: s.identity.realName, sub: Util.formatMobile(s.account.mobile), badge: StatusBadge(sum.status, sum.label) }),
+        CallerCard({ name: s.profile.displayName, sub: Util.formatMobile(s.account.mobile), badge: StatusBadge(sum.status, sum.label) }),
         h('p', { class: 'hint section' }, 'This is how BharathLink plans to present you on a call once network-level caller verification exists. Nothing is shared with anyone yet.')),
       Section('Call a number', form, result),
       Section('Sample contacts', h('ul', { class: 'list' }, Directory.all().map(c => ListRow({
-        href: `/call/${c.id}`, avatar: Avatar(c.realName), title: c.realName, sub: `${c.city}, @${c.handle}`,
+        href: `/call/${c.id}`, avatar: Avatar(c.displayName), title: c.displayName, sub: `${c.city}, ${c.messagingId}`,
         trail: StatusBadge(VStatus.DEMO, 'Sample') }))))] });
   },
 
@@ -1258,9 +1281,9 @@ const Views = {
     const c = Directory.byId(id);
     if (!c) return Views.notFound('/calls');
     return Screen({ title: 'Caller identity', back: '/calls', children: [
-      CallerCard({ name: c.realName, sub: `@${c.handle}`, badge: StatusBadge(VStatus.DEMO, 'Sample contact') }),
+      CallerCard({ name: c.displayName, sub: `${c.messagingId}`, badge: StatusBadge(VStatus.DEMO, 'Sample contact') }),
       h('dl', { class: 'kv paycard section' },
-        KvRow('Real name', [c.realName, h('span', { class: 'hint' }, 'Sample data, not verified')]),
+        KvRow('Display name', [c.displayName, h('span', { class: 'hint' }, 'Sample data, not verified')]),
         KvRow('Mobile number', 'Hidden for sample contacts'),
         KvRow('Trust state', StatusBadge(VStatus.DEMO))),
       h('div', { class: 'stack section' },
@@ -1278,10 +1301,10 @@ const Views = {
       Notice('warn', 'Messages stay on this device. They are not sent to anyone and are not end-to-end encrypted.'),
       convs.length
         ? h('ul', { class: 'list' }, convs.map(cv => {
-            const c = Directory.byId(cv.contactId) || { realName: 'Unknown' };
+            const c = Directory.byId(cv.contactId) || { displayName: 'Unknown' };
             const last = cv.messages[cv.messages.length - 1];
-            return ListRow({ href: `/chat/${cv.id}`, avatar: Avatar(c.realName),
-              title: [c.realName, StatusBadge(VStatus.DEMO, 'Sample')],
+            return ListRow({ href: `/chat/${cv.id}`, avatar: Avatar(c.displayName),
+              title: [c.displayName, StatusBadge(VStatus.DEMO, 'Sample')],
               sub: last ? last.text : 'No messages yet', trail: last ? Util.time(last.at) : null });
           }))
         : h('div', { class: 'empty' }, h('p', null, 'No conversations yet. Start one with a sample contact.'),
@@ -1300,9 +1323,9 @@ const Views = {
     } }, Field({ id: 'find', label: 'Messaging ID', input, error: err }), Button('Start conversation', { type: 'submit', variant: 'secondary' }));
     return Screen({ title: 'New message', back: '/chats', children: [
       form,
-      Section('Sample contacts', h('p', { class: 'hint' }, 'Both Ravi Kumars have different IDs: the same name never means the same identity.'),
+      Section('Sample contacts', h('p', { class: 'hint' }, 'Names can match. The permanent Messaging ID is what distinguishes one BharatLink account from another.'),
         h('ul', { class: 'list section' }, Directory.all().map(c => ListRow({
-          avatar: Avatar(c.realName), title: c.realName, sub: `@${c.handle}, ${c.city}`,
+          avatar: Avatar(c.displayName), title: c.displayName, sub: `${c.messagingId}, ${c.city}`,
           onClick: () => Router.go(`/chat/${Messaging.openWith(c.id)}`, { replace: true }) }))))] });
   },
 
@@ -1327,10 +1350,10 @@ const Views = {
       list.appendChild(bubble(m)); box.value = ''; box.style.height = 'auto'; box.focus();
       list.lastChild.scrollIntoView({ block: 'end' });
     } }, box, h('button', { class: 'sendbtn', type: 'submit', 'aria-label': 'Send message' }, Icon('send', 22)));
-    const node = Screen({ title: c.realName, back: '/chats',
-      actions: [IconButton('phone', `Call ${c.realName}`, () => Router.go(`/call/${c.id}`))],
+    const node = Screen({ title: c.displayName, back: '/chats',
+      actions: [IconButton('phone', `Call ${c.displayName}`, () => Router.go(`/call/${c.id}`))],
       footer: composer, children: [
-        h('div', { class: 'chat-meta' }, StatusBadge(VStatus.DEMO, 'Sample contact'), h('span', null, `@${c.handle}, ${c.city}`)),
+        h('div', { class: 'chat-meta' }, StatusBadge(VStatus.DEMO, 'Sample contact'), h('span', null, `${c.messagingId}, ${c.city}`)),
         Notice('warn', E2EE.isActive() ? 'End-to-end encrypted.' : 'Not end-to-end encrypted. Messages are saved only on this device and are not delivered.'),
         err, empty, list] });
     setTimeout(() => { if (list.lastChild) list.lastChild.scrollIntoView({ block: 'end' }); }, 0);
@@ -1406,7 +1429,7 @@ const Views = {
       Section('How a payment works',
         h('ol', { class: 'steps' },
           step('Your identity', StatusBadge(sum.status, sum.label), 'Your trust card is attached to the request.'),
-          step('Payment request', ToneBadge('demo', 'Demo only'), 'Enter a UPI ID and amount.'),
+          step('Payment request', ToneBadge('verified', 'Available'), 'Enter a UPI ID and amount.'),
           step('Beneficiary trust', StatusBadge(VStatus.NOT_CHECKED, 'Not connected'), 'Checking who owns a UPI ID needs an authorised provider.'),
           step('UPI authorisation', ToneBadge('none', 'In your UPI app'), 'You approve with your UPI PIN in your own app. BharathLink never sees it.'),
           step('Verified result', StatusBadge(VStatus.NOT_CHECKED, 'Not connected'), 'Confirmation needs a server link to your bank or payment provider.'))),
@@ -1429,7 +1452,7 @@ const Views = {
     const form = h('form', { novalidate: 'novalidate', onSubmit: e => {
       e.preventDefault(); [vpa, name, amt, note].forEach(f => setError(f.err, f.input, ''));
       const vV = Validate.vpa(vpa.input.value), vA = Validate.amount(amt.input.value);
-      const vN = name.input.value.trim() ? Validate.realName(name.input.value) : { ok: true, value: '' };
+      const vN = name.input.value.trim() ? Validate.displayName(name.input.value) : { ok: true, value: '' };
       const vT = Validate.text(note.input.value.replace(/\n/g, ' '), CONFIG.LIMITS.payNote, 'note', { required: false });
       if (!vT.ok) setError(note.err, note.input, vT.error);
       if (!vA.ok) setError(amt.err, amt.input, vA.error);
@@ -1457,11 +1480,12 @@ const Views = {
           r.note ? KvRow('Note', r.note) : null)),
       Section('Beneficiary trust', StatusBadge(VStatus.NOT_CHECKED),
         h('p', { class: 'hint section' }, 'BharathLink can\u2019t yet confirm who owns this UPI ID. Your UPI app will show the registered name. Check it before you approve.')),
-      Section('Simulated UPI handoff',
-        Button('Simulate opening UPI app', { icon: 'rupee', onClick: () => {
-          if (r.status === PayStatus.CREATED) { Payments.setStatus(r.id, PayStatus.HANDED_OFF); App.refresh(); }
+      Section('Pay in your UPI app',
+        LinkButton('Open UPI app', Payments.upiLink(r), { icon: 'rupee', onClick: () => {
+          if (r.status === PayStatus.CREATED) setTimeout(() => { Payments.setStatus(r.id, PayStatus.HANDED_OFF); App.refresh(); }, 300);
         } }),
-        h('p', { class: 'hint section' }, 'Demo only. This button cannot open a UPI app or move real money.')),
+        h('p', { class: 'hint section' }, 'Works on a phone with a UPI app installed. Opening the app does not mean money was sent.'),
+        r.status === PayStatus.CREATED ? Button('I tried opening my UPI app', { variant: 'ghost', onClick: report(PayStatus.HANDED_OFF) }) : null),
       Section('Result',
         h('dl', { class: 'kv paycard' },
           KvRow('Status', ToneBadge(meta.tone, meta.label)),
@@ -1469,7 +1493,7 @@ const Views = {
         r.status !== PayStatus.CREATED ? h('div', { class: 'stack section' },
           h('p', { class: 'hint' }, reported
             ? 'Reported by you. Not confirmed by your bank, NPCI or BharathLink. Check your UPI app or bank statement for the real result.'
-            : 'What did your UPI app show? Your answer is recorded as your own report only.'),
+            : 'If a UPI app opened, what result did it show? Your answer is only a local, unverified report.'),
           h('div', { class: 'btn-row' },
             Button('It showed paid', { variant: 'secondary', disabled: r.status === PayStatus.CLIENT_SUCCESS, onClick: report(PayStatus.CLIENT_SUCCESS) }),
             Button('It failed', { variant: 'secondary', disabled: r.status === PayStatus.CLIENT_FAILURE, onClick: report(PayStatus.CLIENT_FAILURE) }))) : null)] });
@@ -1537,7 +1561,7 @@ const App = {
   stage() {
     const s = Store.state;
     if (!s.account) return 'auth';
-    if (!s.identity) return 'setup';
+    if (!s.profile) return 'setup';
     if (!s.onboarding.complete) return 'onboard';
     return 'app';
   },
@@ -1563,7 +1587,19 @@ const App = {
     this.root = document.getElementById('app');
     Toast.el = document.getElementById('toast');
     Store.init();
+    Supabase.health().then(ok => { window.__bharathlinkSupabaseReachable = !!ok; }).catch(() => { window.__bharathlinkSupabaseReachable = false; });
     window.addEventListener('hashchange', () => Router.onChange());
+    // Optional hooks for local testing only (open index.html?devtools=1). They expose no secrets
+    // and go through the same guards as the UI, so they cannot create a "verified" state.
+    if (new URLSearchParams(location.search).has('devtools')) {
+      window.BharathLinkDev = Object.freeze({
+        Validate,
+        allocate: (accountId, taken = []) => LocalIdAllocator.allocate({ accountId, taken: new Set(taken.map(x => String(x).toUpperCase())) }),
+        tryForceVerified: kind => Verification.record(kind, { status: VStatus.VERIFIED }, { id: 'rogue', authoritative: true }),
+        tryForcePaymentVerified: id => Payments.setStatus(id, PayStatus.SERVER_VERIFIED, { attestation: { fake: true } }),
+        snapshot: () => JSON.parse(JSON.stringify(Store.state))
+      });
+    }
     if (!Router.current()) Router.go(this.defaultRoute(), { replace: true });
     else { Router.stack = [Router.current()]; this.render(); }
   }
@@ -1571,7 +1607,6 @@ const App = {
 
 document.addEventListener('DOMContentLoaded', () => App.init());
 })();
-
 </script>
 </body>
 </html>
