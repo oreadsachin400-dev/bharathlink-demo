@@ -264,7 +264,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
 </style>
-<meta name="bharathlink-build" content="phase1c-phone-otp-ui-prep-r1-2026-09-21">
+<meta name="bharathlink-build" content="phase1b-combined-final-test-r3-2026-09-20">
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -280,8 +280,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1C.0.1',
-  PHONE_OTP_ENABLED: false, // Turn on only after a real Supabase SMS provider is configured and tested.
+  VERSION: '1B.4.0',
   SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
   STORAGE_KEY: 'bharathlink.phase1a.v2.state',
@@ -515,8 +514,44 @@ const Supabase = {
   },
   async myProfile() {
     if (!this.accessToken) throw new Error('Real Supabase sign-in is required before profile sync.');
-    const rows = await this.request('/rest/v1/profiles?select=user_id,account_id,messaging_id,bharatmail_address,display_name,age_status,mobile_verified,aadhaar_verified,kyc_verified,verified_legal_name&limit=1');
+    const rows = await this.request('/rest/v1/profiles?select=user_id,account_id,messaging_id,bharatmail_address,bharatmail_id,display_name,age_status,mobile,mobile_verified,aadhaar_verified,kyc_verified,verified_legal_name,legal_name,legal_name_verified,upi_verified&limit=1');
     return Array.isArray(rows) ? (rows[0] || null) : null;
+  },
+  applyProfileToStore(p) {
+    if (!p) return false;
+    const s = Store.state;
+    if (p.account_id) s.account.id = p.account_id;
+    if (p.display_name) s.profile.displayName = p.display_name;
+    if (p.age_status) s.profile.ageStatus = p.age_status;
+    if (p.mobile) {
+      const digits = String(p.mobile).replace(/\D/g, '');
+      s.account.mobile = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits.slice(-10);
+    }
+    if (p.messaging_id || p.bharatmail_address || p.bharatmail_id) {
+      s.ids = s.ids || {};
+      if (p.messaging_id) s.ids.messagingId = p.messaging_id;
+      if (p.bharatmail_address || p.bharatmail_id) s.ids.mailId = p.bharatmail_address || p.bharatmail_id;
+    }
+    const setTrust = (key, yes, source) => {
+      s.verification[key] = yes
+        ? { status: VStatus.VERIFIED, source, note: 'Server-controlled verification status.', authoritative: true, updatedAt: Date.now() }
+        : blankVerification();
+    };
+    setTrust('mobile', !!p.mobile_verified, 'BharathLink backend');
+    setTrust('aadhaar', !!p.aadhaar_verified, 'BharathLink backend');
+    setTrust('kyc', !!p.kyc_verified, 'BharathLink backend');
+    setTrust('upi', !!p.upi_verified, 'BharathLink backend');
+    const legalName = p.verified_legal_name || p.legal_name;
+    s.verifiedIdentity = (p.legal_name_verified && legalName)
+      ? { legalName, verificationId: `server:${p.account_id}`, source: 'BharathLink backend' }
+      : null;
+    Store.persist();
+    return true;
+  },
+  async syncMyProfile() {
+    const p = await this.myProfile();
+    if (p) this.applyProfileToStore(p);
+    return p;
   },
   async currentAuthUser() {
     if (!this.accessToken) throw new Error('Real Supabase sign-in is required.');
@@ -1028,7 +1063,7 @@ function TrustCard(s, { showIds = true } = {}) {
         h('p', { class: 'trustcard__name' }, i.displayName),
         h('p', { class: 'trustcard__source' }, 'Self-declared. Never an identity-verified badge.'))),
     h('dl', { class: 'kv' }, rows),
-    h('p', { class: 'trustcard__foot' }, 'Not checked and Demo / Test mean no real verification has happened. Authorised checks are not connected in this build.'));
+    h('p', { class: 'trustcard__foot' }, 'Verified appears only when the protected backend status is verified. Real OTP, Aadhaar/KYC and UPI provider APIs are not connected yet.'));
 }
 
 function CallerCard({ name, sub, badge }) {
@@ -1082,41 +1117,11 @@ const Views = {
           [['phone', 'Calls'], ['chat', 'Messages'], ['mail', 'Mail'], ['rupee', 'Pay']].map(([ic, l]) => h('li', null, Icon(ic), l)))),
       h('p', { class: 'welcome__lede' }, 'Calling, messaging, mail and payments, all anchored to your mobile number and one trusted identity.'),
       h('div', { class: 'welcome__actions' }, Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
-      h('p', { class: 'welcome__note' }, 'Phase 1A prototype. No real identity, KYC or payment checks happen in this build.'));
+      h('p', { class: 'welcome__note' }, 'Backend-connected prototype. Verification statuses come only from protected server-controlled fields; real provider APIs are not connected yet.'));
   },
 
-  /* ----- Phase 1C mobile-number entry (real SMS intentionally gated) ----- */
+  /* ----- Phase 1B temporary test login ----- */
   mobile() {
-    const err = ErrorText('mobile-err');
-    const status = h('div', { 'aria-live': 'polite' });
-    const input = h('input', { class: 'input', id: 'mobile', type: 'tel', inputmode: 'numeric',
-      autocomplete: 'tel', maxlength: '10', placeholder: '10-digit mobile number', 'aria-describedby': 'mobile-err' });
-    const sendBtn = Button('Send OTP', { type: 'submit' });
-    const form = h('form', { novalidate: 'novalidate', onSubmit: e => {
-      e.preventDefault(); err.textContent = ''; status.replaceChildren();
-      const v = Validate.mobile(input.value);
-      if (!v.ok) { err.textContent = v.error; input.setAttribute('aria-invalid', 'true'); return; }
-      input.removeAttribute('aria-invalid');
-      if (!CONFIG.PHONE_OTP_ENABLED) {
-        status.replaceChildren(Notice('warn', [h('strong', null, 'Real SMS OTP is not enabled yet.'), h('br'),
-          'No OTP was sent and this number was not verified. Configure and test an SMS provider in Supabase before enabling this button.']));
-        return;
-      }
-    }},
-      h('div', { class: 'field' }, h('label', { for: 'mobile' }, 'Mobile number'),
-        h('div', { class: 'prefix' }, h('span', { class: 'prefix__cc' }, '+91'), input), err), sendBtn);
-
-    return Screen({ title: 'Mobile number', back: '/welcome', children: [
-      Notice('info', 'Your mobile number will become the sign-in anchor after successful OTP verification.'),
-      form, status,
-      h('div', { class: 'section' },
-        Button('Phase 1B backend test login', { variant: 'secondary', onClick: () => Router.go('/phase1b-test') }),
-        h('p', { class: 'hint', style: 'margin-top:8px;text-align:center' }, 'Temporary test access; remove before production.'))
-    ]});
-  },
-
-  /* ----- Phase 1B temporary test login (preserved for regression testing) ----- */
-  phase1bTest() {
     const emailErr = ErrorText('email-err'), passErr = ErrorText('password-err');
     const status = h('div', { 'aria-live': 'polite' });
     const email = h('input', { class: 'input', id: 'test-email', type: 'email', autocomplete: 'username',
@@ -1145,7 +1150,9 @@ const Views = {
           KvRow('Age status', q.age_status || 'unknown'),
           KvRow('Mobile verified', q.mobile_verified ? 'Yes' : 'No'),
           KvRow('Aadhaar verified', q.aadhaar_verified ? 'Yes' : 'No'),
-          KvRow('KYC verified', q.kyc_verified ? 'Yes' : 'No'))
+          KvRow('KYC verified', q.kyc_verified ? 'Yes' : 'No'),
+          KvRow('UPI verified', q.upi_verified ? 'Yes' : 'No'),
+          KvRow('Verified legal name', q.legal_name_verified ? (q.verified_legal_name || q.legal_name || 'Verified') : 'Not verified'))
       );
       renderProfile(p);
 
@@ -1231,7 +1238,7 @@ const Views = {
       try {
         await Supabase.signInWithPassword(ev, password.value);
         password.value = '';
-        const profile = await Supabase.myProfile();
+        const profile = await Supabase.syncMyProfile();
         if (!profile) throw new Error('Signed in, but no profile row was returned.');
         showProfile(profile);
       } catch (ex) {
@@ -1246,11 +1253,11 @@ const Views = {
 
     setTimeout(async () => {
       if (!Supabase.restoreTestSession()) return;
-      try { const p = await Supabase.myProfile(); if (p) showProfile(p); }
+      try { const p = await Supabase.syncMyProfile(); if (p) { showProfile(p); App.refresh(); } }
       catch (_) { Supabase.clearTestSession(); }
     }, 0);
 
-    return Screen({ title: 'Phase 1B test login', back: '/mobile', children: [
+    return Screen({ title: 'Phase 1B test login', back: '/welcome', children: [
       Notice('dev', [h('strong', null, 'Temporary testing only. '),
         'Use an existing Supabase email test account. Do not share its password in chat.']),
       h('p', { class: 'lede' }, 'This verifies real Supabase Auth and the protected profiles table before phone OTP is connected at the end.'),
@@ -1698,7 +1705,6 @@ const Views = {
 const ROUTES = [
   { re: /^\/welcome$/,           stage: 'auth',    view: () => Views.welcome() },
   { re: /^\/mobile$/,            stage: 'auth',    view: () => Views.mobile() },
-  { re: /^\/phase1b-test$/,      stage: 'auth',    view: () => Views.phase1bTest() },
   { re: /^\/otp$/,               stage: 'auth',    view: () => Views.otp() },
   { re: /^\/setup$/,             stage: 'setup',   view: () => Views.setup() },
   { re: /^\/onboard\/identity$/, stage: 'onboard', view: () => Views.onboardIdentity() },
@@ -1773,6 +1779,10 @@ const App = {
     this.root = document.getElementById('app');
     Toast.el = document.getElementById('toast');
     Store.init();
+    Supabase.restoreTestSession();
+    if (Supabase.accessToken) {
+      Supabase.syncMyProfile().then(() => App.refresh()).catch(() => Supabase.clearTestSession());
+    }
     Supabase.health().then(ok => { window.__bharathlinkSupabaseReachable = !!ok; }).catch(() => { window.__bharathlinkSupabaseReachable = false; });
     window.addEventListener('hashchange', () => Router.onChange());
     // Optional hooks for local testing only (open index.html?devtools=1). They expose no secrets
