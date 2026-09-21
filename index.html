@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <meta name="bharathlink-build" content="phase1c-real-messaging-r3-routefix-2026-09-21">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!--
@@ -686,13 +687,22 @@ const E2EEBackend = {
     const salt=new Uint8Array(await crypto.subtle.digest('SHA-256',this.enc.encode(this.canon(header))));
     return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt,info:this.enc.encode(`bharathlink-wrap-v2|${myDeviceId}`)},material,{name:'AES-GCM',length:256},false,['decrypt']);
   },
-  async backendDirectConversation(){
-    const rows=await this.rpc('get_my_direct_conversations',{});
-    if(!Array.isArray(rows)||rows.length!==1)throw new Error(rows?.length?'More than one backend direct chat exists. Open-chat binding is required before sending.':'No backend direct conversation found.');
+  async directConversations(){
+    const rows=await this.rpc('get_my_direct_conversations_v2',{});
+    return Array.isArray(rows)?rows:[];
+  },
+  async backendDirectConversation(conversationId=null){
+    const rows=await this.directConversations();
+    if(conversationId){
+      const found=rows.find(r=>r.conversation_id===conversationId);
+      if(!found)throw new Error('This conversation is not available to the signed-in account.');
+      return found;
+    }
+    if(rows.length!==1)throw new Error(rows.length?'Choose a conversation before sending.':'No backend direct conversation found.');
     return rows[0];
   },
-  async sendV2(text){
-    const local=await this.activate(), me=await Supabase.currentAuthUser(), conv=await this.backendDirectConversation();
+  async sendV2(text,conversationId=null){
+    const local=await this.activate(), me=await Supabase.currentAuthUser(), conv=await this.backendDirectConversation(conversationId);
     const devices=await this.rpc('get_conversation_messaging_devices',{p_conversation_id:conv.conversation_id});
     if(!Array.isArray(devices)||!devices.length)throw new Error('No active E2EE devices in this conversation.');
     if(!devices.some(d=>d.device_id===local.deviceId))throw new Error('Current device is not active in the conversation.');
@@ -1633,20 +1643,56 @@ const Views = {
   /* ----- Verified Messaging ----- */
   chats() {
     const convs = Messaging.list();
-    return Screen({ title: 'Messages', back: '/home', nav: 'chats',
+    const backend = h('div', { class:'stack' });
+    const loadBackend = async () => {
+      backend.replaceChildren();
+      if (!Supabase.accessToken) {
+        backend.appendChild(Notice('info', 'Sign in from Identity → Phase 1B test session to use encrypted BharathLink messaging.'));
+        backend.appendChild(Button('Sign in for encrypted messaging', { icon:'lock', onClick:()=>Router.go('/test-login') }));
+        return;
+      }
+      backend.appendChild(h('p',{class:'hint'},'Loading encrypted conversations…'));
+      try {
+        const rows = await E2EEBackend.directConversations();
+        backend.replaceChildren(
+          Notice('info','BharathLink conversations below use the E2EE v2 backend. Sample contacts remain local demo chats.')
+        );
+        if (!rows.length) {
+          backend.appendChild(h('div',{class:'empty'},h('p',null,'No backend direct conversations yet.')));
+          return;
+        }
+        backend.appendChild(h('ul',{class:'list'},...rows.map(cv => {
+          const name = cv.peer_display_name || 'BharathLink user';
+          const sub = cv.peer_messaging_id || 'Encrypted direct conversation';
+          return ListRow({
+            href:`/e2ee-chat/${cv.conversation_id}`,
+            avatar:Avatar(name),
+            title:[name, StatusBadge(VStatus.NOT_CHECKED,'E2EE')],
+            sub,
+            trail:Icon('chevron-right',18)
+          });
+        })));
+      } catch(ex) {
+        backend.replaceChildren(Notice('warn', ex.message || 'Could not load encrypted conversations.'));
+      }
+    };
+    const node = Screen({ title: 'Messages', back: '/home', nav: 'chats',
       actions: [IconButton('plus', 'New message', () => Router.go('/chats/new'))], children: [
-      Notice('info', 'Sample contacts below are local demo chats. Use Encrypted test chat for the real Phase 1B E2EE backend test.'),
-      Button('Encrypted test chat', { icon: 'lock', onClick: () => Router.go('/e2ee-chat') }),
-      convs.length
-        ? h('ul', { class: 'list' }, convs.map(cv => {
-            const c = Directory.byId(cv.contactId) || { displayName: 'Unknown' };
-            const last = cv.messages[cv.messages.length - 1];
-            return ListRow({ href: `/chat/${cv.id}`, avatar: Avatar(c.displayName),
-              title: [c.displayName, StatusBadge(VStatus.DEMO, 'Sample')],
-              sub: last ? last.text : 'No messages yet', trail: last ? Util.time(last.at) : null });
-          }))
-        : h('div', { class: 'empty' }, h('p', null, 'No conversations yet. Start one with a sample contact.'),
-            Button('New message', { icon: 'plus', onClick: () => Router.go('/chats/new') }))] });
+      Section('Encrypted conversations', backend),
+      Section('Sample chats',
+        convs.length
+          ? h('ul', { class: 'list' }, convs.map(cv => {
+              const c = Directory.byId(cv.contactId) || { displayName: 'Unknown' };
+              const last = cv.messages[cv.messages.length - 1];
+              return ListRow({ href: `/chat/${cv.id}`, avatar: Avatar(c.displayName),
+                title: [c.displayName, StatusBadge(VStatus.DEMO, 'Sample')],
+                sub: last ? last.text : 'No messages yet', trail: last ? Util.time(last.at) : null });
+            }))
+          : h('div', { class: 'empty' }, h('p', null, 'No sample conversations yet.'),
+              Button('New sample message', { icon: 'plus', onClick: () => Router.go('/chats/new') }))
+      )] });
+    setTimeout(loadBackend,0);
+    return node;
   },
 
   chatsNew() {
@@ -1706,14 +1752,35 @@ const Views = {
     return node;
   },
 
-  e2eeChat() {
+  e2eeChat(conversationId) {
     const list=h('div',{class:'messages','aria-label':'Encrypted messages',role:'log'});
-    const status=h('div',{'aria-live':'polite'},Notice('info','Sign in with a Phase 1B test account. This controlled test screen uses the single authenticated backend direct conversation only.'));
+    const status=h('div',{'aria-live':'polite'},Notice('info','End-to-end encrypted BharathLink conversation. Plaintext is not sent to Supabase.'));
     const err=ErrorText('e2ee-chat-err');
     const box=h('textarea',{class:'input',rows:'1',maxlength:String(CONFIG.LIMITS.chatText),placeholder:'Write an encrypted message','aria-label':'Encrypted message'});
-    const render=async()=>{try{const conv=await E2EEBackend.backendDirectConversation();const rows=(await E2EEBackend.receiveV2()).filter(m=>m.conversation_id===conv.conversation_id);list.replaceChildren(...rows.map(m=>h('div',{class:'bubble'},m.text,h('span',{class:'bubble__meta'},m.decryptOk?'E2EE v2, decrypted':'cannot decrypt'))));}catch(ex){err.textContent=ex.message||'Could not load encrypted messages.';}};
-    const form=h('form',{class:'composer',novalidate:'novalidate',onSubmit:async e=>{e.preventDefault();err.textContent='';const v=Validate.text(box.value,CONFIG.LIMITS.chatText,'message');if(!v.ok){err.textContent=v.error;return;}const b=e.currentTarget.querySelector('.sendbtn');if(b)b.disabled=true;try{const r=await E2EEBackend.sendV2(v.value);box.value='';status.replaceChildren(Notice('info',`Encrypted message stored with ${r.envelopeCount} active-device envelope(s).`));await render();}catch(ex){err.textContent=ex.message||'Encrypted send failed.';}finally{if(b)b.disabled=false;}}},box,h('button',{class:'sendbtn',type:'submit','aria-label':'Send encrypted message'},Icon('send',22)));
-    const node=Screen({title:'Encrypted test chat',back:'/chats',footer:form,children:[status,err,list]});
+    let bound=null;
+    const render=async()=>{
+      try{
+        bound=await E2EEBackend.backendDirectConversation(conversationId);
+        const rows=(await E2EEBackend.receiveV2()).filter(m=>m.conversation_id===bound.conversation_id);
+        list.replaceChildren(...rows.map(m=>h('div',{class:'bubble'},m.text,
+          h('span',{class:'bubble__meta'},m.decryptOk?'E2EE v2, decrypted':'cannot decrypt'))));
+      }catch(ex){err.textContent=ex.message||'Could not load encrypted messages.';}
+    };
+    const form=h('form',{class:'composer',novalidate:'novalidate',onSubmit:async e=>{
+      e.preventDefault();err.textContent='';
+      const v=Validate.text(box.value,CONFIG.LIMITS.chatText,'message');
+      if(!v.ok){err.textContent=v.error;return;}
+      const b=e.currentTarget.querySelector('.sendbtn');if(b)b.disabled=true;
+      try{
+        if(!bound)bound=await E2EEBackend.backendDirectConversation(conversationId);
+        const r=await E2EEBackend.sendV2(v.value,bound.conversation_id);
+        box.value='';
+        status.replaceChildren(Notice('info',`Encrypted message stored with ${r.envelopeCount} active-device envelope(s).`));
+        await render();
+      }catch(ex){err.textContent=ex.message||'Encrypted send failed.';}
+      finally{if(b)b.disabled=false;}
+    }},box,h('button',{class:'sendbtn',type:'submit','aria-label':'Send encrypted message'},Icon('send',22)));
+    const node=Screen({title:'Encrypted conversation',back:'/chats',footer:form,children:[status,err,list]});
     setTimeout(render,0);return node;
   },
 
@@ -1879,7 +1946,8 @@ const ROUTES = [
   { re: /^\/test-login$/,        stage: 'app',     view: () => Views.mobile('/identity') },
   { re: /^\/calls$/,             stage: 'app',     view: () => Views.calls() },
   { re: /^\/call\/([\w-]+)$/,    stage: 'app',     view: id => Views.callDetail(id) },
-  { re: /^\/e2ee-chat$/,         stage: 'app',     view: () => Views.e2eeChat() },
+  { re: /^\/e2ee-chat\/([0-9a-f-]{36})$/, stage: 'app', view: id => Views.e2eeChat(id) },
+  { re: /^\/e2ee-chat$/,         stage: 'app',     view: () => Views.e2eeChat(null) },
   { re: /^\/chats$/,             stage: 'app',     view: () => Views.chats() },
   { re: /^\/chats\/new$/,        stage: 'app',     view: () => Views.chatsNew() },
   { re: /^\/chat\/([\w-]+)$/,    stage: 'app',     view: id => Views.chat(id) },
