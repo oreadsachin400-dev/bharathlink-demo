@@ -266,6 +266,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
 </style>
 <meta name="bharathlink-build" content="phase1b-combined-final-test-r3-2026-09-20">
+  <!-- phase1d-real-user-chat-2026-09-21 -->
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -1698,13 +1699,30 @@ const Views = {
   chatsNew() {
     const err = ErrorText('find-err');
     const input = h('input', { class: 'input', id: 'find', type: 'text', autocomplete: 'off', autocapitalize: 'none',
-      spellcheck: 'false', maxlength: '64', placeholder: '@name.abcd', 'aria-describedby': 'find-err' });
-    const form = h('form', { novalidate: 'novalidate', onSubmit: e => {
+      spellcheck: 'false', maxlength: '64', placeholder: 'bl_…', 'aria-describedby': 'find-err' });
+    const submit = Button('Start conversation', { type: 'submit', variant: 'secondary' });
+    const form = h('form', { novalidate: 'novalidate', onSubmit: async e => {
       e.preventDefault(); setError(err, input, '');
-      const c = Directory.byHandle(input.value);
-      if (!c) return setError(err, input, 'No BharathLink member with that Messaging ID was found on this device.');
-      Router.go(`/chat/${Messaging.openWith(c.id)}`, { replace: true });
-    } }, Field({ id: 'find', label: 'Messaging ID', input, error: err }), Button('Start conversation', { type: 'submit', variant: 'secondary' }));
+      const messagingId = String(input.value || '').trim();
+      if (!messagingId) return setError(err, input, 'Enter a Messaging ID.');
+      if (!Supabase.accessToken) return setError(err, input, 'Sign in first to start an encrypted conversation.');
+      submit.disabled = true;
+      try {
+        const found = await E2EEBackend.rpc('find_user_by_messaging_id', { p_messaging_id: messagingId });
+        const user = Array.isArray(found) ? found[0] : found;
+        if (!user?.user_id) return setError(err, input, 'No BharathLink member with that Messaging ID was found.');
+        const created = await E2EEBackend.rpc('create_direct_conversation', { p_other_user_id: user.user_id });
+        const conversationId = typeof created === 'string'
+          ? created
+          : (Array.isArray(created) ? (created[0]?.conversation_id || created[0]?.id || created[0]) : (created?.conversation_id || created?.id));
+        if (!conversationId) throw new Error('Conversation could not be created.');
+        Router.go(`/e2ee-chat/${conversationId}`, { replace: true });
+      } catch (ex) {
+        setError(err, input, ex.message || 'Could not start encrypted conversation.');
+      } finally {
+        submit.disabled = false;
+      }
+    } }, Field({ id: 'find', label: 'Messaging ID', input, error: err }), submit);
     return Screen({ title: 'New message', back: '/chats', children: [
       form,
       Section('Sample contacts', h('p', { class: 'hint' }, 'Names can match. The permanent Messaging ID is what distinguishes one BharatLink account from another.'),
