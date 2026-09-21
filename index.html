@@ -520,7 +520,12 @@ const Supabase = {
   applyProfileToStore(p) {
     if (!p) return false;
     const s = Store.state;
-    if (p.account_id) s.account.id = p.account_id;
+    // A fresh browser can sign in before local onboarding has created these
+    // objects. Build the local shells before applying server profile data.
+    if (!s.account) s.account = { accountId: null, mobile: '', createdAt: Date.now(), authProvider: 'supabase', authAuthoritative: true };
+    if (!s.profile) s.profile = { displayName: '', displayNameSource: 'supabase', ageStatus: 'unknown', ageSource: 'supabase', createdAt: Date.now(), updatedAt: Date.now() };
+    if (!s.verification) s.verification = { mobile: blankVerification(), aadhaar: blankVerification(), kyc: blankVerification(), upi: blankVerification() };
+    if (p.account_id) s.account.accountId = p.account_id;
     if (p.display_name) s.profile.displayName = p.display_name;
     if (p.age_status) s.profile.ageStatus = p.age_status;
     if (p.mobile) {
@@ -734,7 +739,11 @@ const Identity = {
     Store.update(s => { s.profile.displayName = newName; s.profile.updatedAt = Date.now(); });
     return { ok: true };
   },
-  ageLabel(a) { return a === 'adult' ? '18+' : 'Under 18'; },
+  ageLabel(a) {
+    if (a === 'adult' || a === '18_plus') return '18+';
+    if (a === 'minor' || a === 'under_18') return 'Under 18';
+    return 'Not set';
+  },
   assurance(s = Store.state) { return s.verifiedIdentity ? 'Identity verified' : (s.verification.mobile.status === VStatus.DEMO ? 'Mobile test only' : 'Self-declared profile'); },
   trustSnapshot(s = Store.state) {
     return { assurance: s.verifiedIdentity ? 'identity_verified' : 'unverified', verificationId: s.verifiedIdentity ? s.verifiedIdentity.verificationId : null, capturedAt: Date.now() };
