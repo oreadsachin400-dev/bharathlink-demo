@@ -280,7 +280,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1B.4.0',
+  VERSION: '1B.5.0-E2EE',
   SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
   STORAGE_KEY: 'bharathlink.phase1a.v2.state',
@@ -520,12 +520,7 @@ const Supabase = {
   applyProfileToStore(p) {
     if (!p) return false;
     const s = Store.state;
-    // A fresh browser can sign in before local onboarding has created these
-    // objects. Build the local shells before applying server profile data.
-    if (!s.account) s.account = { accountId: null, mobile: '', createdAt: Date.now(), authProvider: 'supabase', authAuthoritative: true };
-    if (!s.profile) s.profile = { displayName: '', displayNameSource: 'supabase', ageStatus: 'unknown', ageSource: 'supabase', createdAt: Date.now(), updatedAt: Date.now() };
-    if (!s.verification) s.verification = { mobile: blankVerification(), aadhaar: blankVerification(), kyc: blankVerification(), upi: blankVerification() };
-    if (p.account_id) s.account.accountId = p.account_id;
+    if (p.account_id) s.account.id = p.account_id;
     if (p.display_name) s.profile.displayName = p.display_name;
     if (p.age_status) s.profile.ageStatus = p.age_status;
     if (p.mobile) {
@@ -600,6 +595,65 @@ const Supabase = {
   clearTestSession() {
     this.setAccessToken(null);
     sessionStorage.removeItem('bharathlink.phase1b.test_access_token');
+  }
+};
+
+/* =====================================================================
+   5C. PHASE 1B E2EE DEVICE + BACKEND TEST TRANSPORT
+   - P-256 ECDH private key is non-extractable and stored only in IndexedDB.
+   - Only the public JWK is registered in messaging_devices.
+   - Message plaintext is encrypted separately for each recipient device.
+   - Server receives ciphertext/IV envelopes, never plaintext.
+   ===================================================================== */
+const E2EEBackend = {
+  DB: 'bharathlink-e2ee-v1', STORE: 'keys', SLOT: 'device',
+  b64(bytes) { let s=''; for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b); return btoa(s); },
+  unb64(v) { const s=atob(v); const a=new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i]=s.charCodeAt(i); return a; },
+  openDb() { return new Promise((resolve,reject)=>{ const r=indexedDB.open(this.DB,1); r.onupgradeneeded=()=>r.result.createObjectStore(this.STORE); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); },
+  async getLocal() { const db=await this.openDb(); return new Promise((resolve,reject)=>{ const tx=db.transaction(this.STORE,'readonly'); const r=tx.objectStore(this.STORE).get(this.SLOT); r.onsuccess=()=>resolve(r.result||null); r.onerror=()=>reject(r.error); }); },
+  async putLocal(v) { const db=await this.openDb(); return new Promise((resolve,reject)=>{ const tx=db.transaction(this.STORE,'readwrite'); tx.objectStore(this.STORE).put(v,this.SLOT); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error); }); },
+  async activate() {
+    if (!Supabase.accessToken) throw new Error('Sign in first.');
+    const me=await Supabase.currentAuthUser();
+    let local=await this.getLocal();
+    if (local && local.userId === me.id && local.privateKey && local.deviceId) return local;
+    const kp=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'}, false, ['deriveBits']);
+    const pub=await crypto.subtle.exportKey('jwk',kp.publicKey);
+    const rows=await Supabase.request('/rest/v1/messaging_devices', {method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify({user_id:me.id,device_label:'BharathLink web E2EE',public_key_jwk:pub,key_algorithm:'ECDH-P256'})});
+    if (!Array.isArray(rows) || !rows[0]?.id) throw new Error('Device registration failed.');
+    local={userId:me.id,deviceId:rows[0].id,privateKey:kp.privateKey,publicJwk:pub};
+    await this.putLocal(local); return local;
+  },
+  async rpc(name, body) { return Supabase.request(`/rest/v1/rpc/${name}`, {method:'POST',body:JSON.stringify(body)}); },
+  async directPeer() {
+    const me=await Supabase.currentAuthUser();
+    const convs=await Supabase.request('/rest/v1/conversations?select=id,conversation_type&conversation_type=eq.direct&limit=20');
+    for (const c of (convs||[])) {
+      const ms=await Supabase.request(`/rest/v1/conversation_members?select=user_id&conversation_id=eq.${encodeURIComponent(c.id)}`);
+      const peer=(ms||[]).find(x=>x.user_id!==me.id);
+      if (peer) return {conversationId:c.id, peerUserId:peer.user_id};
+    }
+    throw new Error('No direct backend conversation found.');
+  },
+  async sharedKey(privateKey, publicJwk) {
+    const pub=await crypto.subtle.importKey('jwk',publicJwk,{name:'ECDH',namedCurve:'P-256'},false,[]);
+    const bits=await crypto.subtle.deriveBits({name:'ECDH',public:pub},privateKey,256);
+    const digest=await crypto.subtle.digest('SHA-256',bits);
+    return crypto.subtle.importKey('raw',digest,{name:'AES-GCM'},false,['encrypt','decrypt']);
+  },
+  async sendTest(text) {
+    const local=await this.activate();
+    const {conversationId,peerUserId}=await this.directPeer();
+    const devices=await this.rpc('get_active_messaging_devices',{p_user_id:peerUserId});
+    if (!Array.isArray(devices)||!devices.length) throw new Error('Recipient has no active E2EE device. Sign in on the other test account and activate E2EE first.');
+    const enc=new TextEncoder(); const envelopes=[];
+    for (const d of devices) {
+      const key=await this.sharedKey(local.privateKey,d.public_key_jwk); const iv=crypto.getRandomValues(new Uint8Array(12));
+      const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(text));
+      envelopes.push({recipient_user_id:peerUserId,recipient_device_id:d.device_id,ciphertext:this.b64(ct),iv:this.b64(iv),encryption_version:1});
+    }
+    const id=await this.rpc('send_encrypted_message',{p_conversation_id:conversationId,p_sender_device_id:local.deviceId,p_envelopes:envelopes});
+    return {messageId:id, envelopeCount:envelopes.length};
   }
 };
 
@@ -739,11 +793,7 @@ const Identity = {
     Store.update(s => { s.profile.displayName = newName; s.profile.updatedAt = Date.now(); });
     return { ok: true };
   },
-  ageLabel(a) {
-    if (a === 'adult' || a === '18_plus') return '18+';
-    if (a === 'minor' || a === 'under_18') return 'Under 18';
-    return 'Not set';
-  },
+  ageLabel(a) { return a === 'adult' ? '18+' : 'Under 18'; },
   assurance(s = Store.state) { return s.verifiedIdentity ? 'Identity verified' : (s.verification.mobile.status === VStatus.DEMO ? 'Mobile test only' : 'Self-declared profile'); },
   trustSnapshot(s = Store.state) {
     return { assurance: s.verifiedIdentity ? 'identity_verified' : 'unverified', verificationId: s.verifiedIdentity ? s.verifiedIdentity.verificationId : null, capturedAt: Date.now() };
@@ -1222,6 +1272,22 @@ const Views = {
         }
       }});
 
+      const e2eeMsg = h('div', { 'aria-live': 'polite' });
+      const activateE2EE = Button('Activate E2EE on this browser', { variant: 'secondary', onClick: async () => {
+        activateE2EE.disabled=true; e2eeMsg.replaceChildren();
+        try { const d=await E2EEBackend.activate(); e2eeMsg.replaceChildren(Notice('info', `E2EE device active: ${d.deviceId}`)); }
+        catch(ex){ e2eeMsg.replaceChildren(Notice('warn', `E2EE activation failed: ${ex.message||'Unknown error'}`)); }
+        finally { activateE2EE.disabled=false; }
+      }});
+      const e2eeText = h('input', { class:'input', type:'text', maxlength:'5000', placeholder:'Encrypted test message' });
+      const sendE2EE = Button('Send encrypted backend test', { onClick: async () => {
+        const text=e2eeText.value.trim(); if(!text){ e2eeMsg.replaceChildren(Notice('warn','Enter a test message.')); return; }
+        sendE2EE.disabled=true; e2eeMsg.replaceChildren();
+        try { const r=await E2EEBackend.sendTest(text); e2eeText.value=''; e2eeMsg.replaceChildren(Notice('info', `Encrypted message stored with ${r.envelopeCount} device envelope(s). No plaintext was sent.`)); }
+        catch(ex){ e2eeMsg.replaceChildren(Notice('warn', `Encrypted send failed: ${ex.message||'Unknown error'}`)); }
+        finally { sendE2EE.disabled=false; }
+      }});
+
       status.replaceChildren(
         Notice('info', [h('strong', null, 'Supabase profile connected successfully.'), h('br'),
           'Phone OTP remains disabled for now.']),
@@ -1231,6 +1297,10 @@ const Views = {
           h('div', { class: 'field' }, h('label', null, 'Display name'), nameInput),
           h('div', { class: 'field' }, h('label', null, 'Age status'), ageSelect),
           saveBtn, verifyBtn, saveMsg),
+        h('div', { class: 'section' },
+          h('h2', null, 'Phase 1B E2EE backend test'),
+          h('p', { class: 'hint' }, 'Private key stays non-extractable in this browser. Activate E2EE on both test accounts before sending.'),
+          activateE2EE, e2eeText, sendE2EE, e2eeMsg),
         Button('Sign out test session', { variant: 'secondary', onClick: () => {
           Supabase.clearTestSession();
           status.replaceChildren(Notice('info', 'Test session cleared. Sign in again to confirm the saved profile persists.'));
