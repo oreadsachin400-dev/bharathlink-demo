@@ -235,6 +235,8 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 .chat-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);margin-bottom:14px;font-size:.875rem;color:var(--muted);overflow-wrap:anywhere}
 .messages{display:flex;flex-direction:column;gap:8px;padding-bottom:12px}
 .bubble{align-self:flex-end;max-width:82%;padding:10px 12px 6px;border-radius:16px 16px 4px 16px;background:var(--ink);color:#fff;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble--incoming{align-self:flex-start;border-radius:16px 16px 16px 4px;background:var(--surface);color:var(--text);border:1px solid var(--line)}
+.bubble--incoming .bubble__meta{color:var(--muted);text-align:left}
 .bubble__meta{display:block;text-align:right;font-size:.75rem;color:#C9D0EA;margin-top:2px}
 .composer{position:sticky;bottom:0;z-index:4;display:flex;gap:8px;align-items:flex-end;padding:10px 12px calc(10px + var(--safe-b));background:var(--paper);border-top:1px solid var(--line)}
 .composer .input{min-height:48px;max-height:140px;resize:none;border-radius:24px;padding:12px 16px;line-height:1.35}
@@ -267,6 +269,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 </style>
 <meta name="bharathlink-build" content="phase1b-combined-final-test-r3-2026-09-20">
   <!-- phase1d-real-user-chat-2026-09-21 -->
+  <!-- phase1e1-message-direction-2026-09-21 -->
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -1779,8 +1782,9 @@ const Views = {
     const render=async()=>{
       try{
         bound=await E2EEBackend.backendDirectConversation(conversationId);
+        const me=await Supabase.currentAuthUser();
         const rows=(await E2EEBackend.receiveV2()).filter(m=>m.conversation_id===bound.conversation_id);
-        list.replaceChildren(...rows.map(m=>h('div',{class:'bubble'},m.text,
+        list.replaceChildren(...rows.map(m=>h('div',{class:m.sender_id===me.id?'bubble':'bubble bubble--incoming'},m.text,
           h('span',{class:'bubble__meta'},m.decryptOk?'E2EE v2, decrypted':'cannot decrypt'))));
       }catch(ex){err.textContent=ex.message||'Could not load encrypted messages.';}
     };
