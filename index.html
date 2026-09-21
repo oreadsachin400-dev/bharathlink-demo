@@ -264,7 +264,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (max-width:340px){.services{grid-template-columns:1fr}.btn-row{grid-template-columns:1fr}.choices{grid-template-columns:1fr}}
 </style>
-<meta name="bharathlink-build" content="phase1b-combined-final-test-r3-2026-09-20">
+<meta name="bharathlink-build" content="phase1c-phone-otp-ui-prep-r1-2026-09-21">
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -280,7 +280,8 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
    ===================================================================== */
 const CONFIG = Object.freeze({
   APP_NAME: 'BharathLink',
-  VERSION: '1B.3.2',
+  VERSION: '1C.0.1',
+  PHONE_OTP_ENABLED: false, // Turn on only after a real Supabase SMS provider is configured and tested.
   SUPABASE_URL: 'https://whpafxijzruynmivudbz.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_N93Mn2uaq6F1KbM26lRiOg_54oKKsNX',
   STORAGE_KEY: 'bharathlink.phase1a.v2.state',
@@ -1084,8 +1085,38 @@ const Views = {
       h('p', { class: 'welcome__note' }, 'Phase 1A prototype. No real identity, KYC or payment checks happen in this build.'));
   },
 
-  /* ----- Phase 1B temporary test login ----- */
+  /* ----- Phase 1C mobile-number entry (real SMS intentionally gated) ----- */
   mobile() {
+    const err = ErrorText('mobile-err');
+    const status = h('div', { 'aria-live': 'polite' });
+    const input = h('input', { class: 'input', id: 'mobile', type: 'tel', inputmode: 'numeric',
+      autocomplete: 'tel', maxlength: '10', placeholder: '10-digit mobile number', 'aria-describedby': 'mobile-err' });
+    const sendBtn = Button('Send OTP', { type: 'submit' });
+    const form = h('form', { novalidate: 'novalidate', onSubmit: e => {
+      e.preventDefault(); err.textContent = ''; status.replaceChildren();
+      const v = Validate.mobile(input.value);
+      if (!v.ok) { err.textContent = v.error; input.setAttribute('aria-invalid', 'true'); return; }
+      input.removeAttribute('aria-invalid');
+      if (!CONFIG.PHONE_OTP_ENABLED) {
+        status.replaceChildren(Notice('warn', [h('strong', null, 'Real SMS OTP is not enabled yet.'), h('br'),
+          'No OTP was sent and this number was not verified. Configure and test an SMS provider in Supabase before enabling this button.']));
+        return;
+      }
+    }},
+      h('div', { class: 'field' }, h('label', { for: 'mobile' }, 'Mobile number'),
+        h('div', { class: 'prefix' }, h('span', { class: 'prefix__cc' }, '+91'), input), err), sendBtn);
+
+    return Screen({ title: 'Mobile number', back: '/welcome', children: [
+      Notice('info', 'Your mobile number will become the sign-in anchor after successful OTP verification.'),
+      form, status,
+      h('div', { class: 'section' },
+        Button('Phase 1B backend test login', { variant: 'secondary', onClick: () => Router.go('/phase1b-test') }),
+        h('p', { class: 'hint', style: 'margin-top:8px;text-align:center' }, 'Temporary test access; remove before production.'))
+    ]});
+  },
+
+  /* ----- Phase 1B temporary test login (preserved for regression testing) ----- */
+  phase1bTest() {
     const emailErr = ErrorText('email-err'), passErr = ErrorText('password-err');
     const status = h('div', { 'aria-live': 'polite' });
     const email = h('input', { class: 'input', id: 'test-email', type: 'email', autocomplete: 'username',
@@ -1219,7 +1250,7 @@ const Views = {
       catch (_) { Supabase.clearTestSession(); }
     }, 0);
 
-    return Screen({ title: 'Phase 1B test login', back: '/welcome', children: [
+    return Screen({ title: 'Phase 1B test login', back: '/mobile', children: [
       Notice('dev', [h('strong', null, 'Temporary testing only. '),
         'Use an existing Supabase email test account. Do not share its password in chat.']),
       h('p', { class: 'lede' }, 'This verifies real Supabase Auth and the protected profiles table before phone OTP is connected at the end.'),
@@ -1667,6 +1698,7 @@ const Views = {
 const ROUTES = [
   { re: /^\/welcome$/,           stage: 'auth',    view: () => Views.welcome() },
   { re: /^\/mobile$/,            stage: 'auth',    view: () => Views.mobile() },
+  { re: /^\/phase1b-test$/,      stage: 'auth',    view: () => Views.phase1bTest() },
   { re: /^\/otp$/,               stage: 'auth',    view: () => Views.otp() },
   { re: /^\/setup$/,             stage: 'setup',   view: () => Views.setup() },
   { re: /^\/onboard\/identity$/, stage: 'onboard', view: () => Views.onboardIdentity() },
