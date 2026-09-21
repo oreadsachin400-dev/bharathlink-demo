@@ -1243,7 +1243,7 @@ const Views = {
   },
 
   /* ----- Phase 1B temporary test login ----- */
-  mobile() {
+  mobile(backRoute = '/welcome') {
     const emailErr = ErrorText('email-err'), passErr = ErrorText('password-err');
     const status = h('div', { 'aria-live': 'polite' });
     const email = h('input', { class: 'input', id: 'test-email', type: 'email', autocomplete: 'username',
@@ -1395,11 +1395,11 @@ const Views = {
 
     setTimeout(async () => {
       if (!Supabase.restoreTestSession()) return;
-      try { const p = await Supabase.syncMyProfile(); if (p) { showProfile(p); App.refresh(); } }
+      try { const p = await Supabase.syncMyProfile(); if (p) { showProfile(p); if (Router.current() !== '/test-login') App.refresh(); } }
       catch (_) { Supabase.clearTestSession(); }
     }, 0);
 
-    return Screen({ title: 'Phase 1B test login', back: '/welcome', children: [
+    return Screen({ title: 'Phase 1B test login', back: backRoute, children: [
       Notice('dev', [h('strong', null, 'Temporary testing only. '),
         'Use an existing Supabase email test account. Do not share its password in chat.']),
       h('p', { class: 'lede' }, 'This verifies real Supabase Auth and the protected profiles table before phone OTP is connected at the end.'),
@@ -1571,6 +1571,9 @@ const Views = {
           Button('Clear results', { variant: 'ghost', disabled: running || !anyDemo, onClick: () => { Verification.clearDemo(); App.refresh(); } }))),
       Section('Profile name',
         h('div', { class: 'stack' }, h('p', { class: 'hint' }, 'Your display name is self-declared. A verified legal name can only be added later by an authorised server-side identity provider.'), editBtn, editForm)),
+      Section('Phase 1B test session',
+        h('p', { class: 'hint' }, 'Open the temporary Supabase test login without erasing your prototype data.'),
+        Button(Supabase.accessToken ? 'Manage Phase 1B test session' : 'Phase 1B test login', { variant: 'secondary', onClick: () => Router.go('/test-login') })),
       Section('On this device',
         h('p', { class: 'hint' }, 'Your prototype data is stored only in this browser. No Aadhaar, PAN or other ID numbers are stored.'),
         h('div', { class: 'section' }, Button('Erase all prototype data', { variant: 'danger', onClick: () => {
@@ -1873,6 +1876,7 @@ const ROUTES = [
   { re: /^\/onboard\/ids$/,      stage: 'onboard', view: () => Views.onboardIds() },
   { re: /^\/home$/,              stage: 'app',     view: () => Views.home() },
   { re: /^\/identity$/,          stage: 'app',     view: () => Views.identity() },
+  { re: /^\/test-login$/,        stage: 'app',     view: () => Views.mobile('/identity') },
   { re: /^\/calls$/,             stage: 'app',     view: () => Views.calls() },
   { re: /^\/call\/([\w-]+)$/,    stage: 'app',     view: id => Views.callDetail(id) },
   { re: /^\/e2ee-chat$/,         stage: 'app',     view: () => Views.e2eeChat() },
