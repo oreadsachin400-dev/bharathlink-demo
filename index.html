@@ -486,20 +486,42 @@ const Store = {
    ===================================================================== */
 const Supabase = {
   accessToken: null,
+  refreshToken: null,
   setAccessToken(token) { this.accessToken = token || null; },
+  async refreshAccessToken() {
+    if (!this.refreshToken) throw new Error('Test session expired. Sign in again.');
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'apikey': CONFIG.SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: this.refreshToken })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || data.message || 'Test session expired. Sign in again.');
+    this.accessToken = data.access_token;
+    if (data.refresh_token) this.refreshToken = data.refresh_token;
+    sessionStorage.setItem('bharathlink.phase1b.test_access_token', this.accessToken);
+    sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
+    return this.accessToken;
+  },
   headers(extra = {}) {
     return Object.assign({
       'apikey': CONFIG.SUPABASE_PUBLISHABLE_KEY,
       'Content-Type': 'application/json'
     }, this.accessToken ? { 'Authorization': `Bearer ${this.accessToken}` } : {}, extra);
   },
-  async request(path, options = {}) {
-    const res = await fetch(`${CONFIG.SUPABASE_URL}${path}`, Object.assign({}, options, {
+  async request(path, options = {}, allowRefresh = true) {
+    let res = await fetch(`${CONFIG.SUPABASE_URL}${path}`, Object.assign({}, options, {
       headers: this.headers(options.headers || {})
     }));
+    if (res.status === 401 && allowRefresh && this.refreshToken) {
+      await this.refreshAccessToken();
+      res = await fetch(`${CONFIG.SUPABASE_URL}${path}`, Object.assign({}, options, {
+        headers: this.headers(options.headers || {})
+      }));
+    }
     if (!res.ok) {
       let detail = '';
-      try { detail = (await res.json()).message || ''; } catch (_) {}
+      try { const e = await res.json(); detail = e.message || e.msg || e.error_description || ''; } catch (_) {}
       throw new Error(detail || `Supabase request failed (${res.status})`);
     }
     if (res.status === 204) return null;
@@ -520,7 +542,9 @@ const Supabase = {
   applyProfileToStore(p) {
     if (!p) return false;
     const s = Store.state;
-    if (p.account_id) s.account.id = p.account_id;
+    if (!s.account) s.account = { accountId: p.account_id || null, mobile: '', createdAt: Date.now() };
+    if (!s.profile) s.profile = { displayName: p.display_name || 'Test user', displayNameSource: 'self_declared', ageStatus: 'unknown', ageSource: 'self_declared', createdAt: Date.now(), updatedAt: Date.now() };
+    if (p.account_id) { s.account.id = p.account_id; s.account.accountId = p.account_id; }
     if (p.display_name) s.profile.displayName = p.display_name;
     if (p.age_status) s.profile.ageStatus = p.age_status;
     if (p.mobile) {
@@ -553,7 +577,7 @@ const Supabase = {
     if (p) this.applyProfileToStore(p);
     return p;
   },
-  async currentAuthUser() {
+  async currentAuthUser(allowRefresh = true) {
     if (!this.accessToken) throw new Error('Real Supabase sign-in is required.');
     const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/user`, {
       headers: {
@@ -561,6 +585,10 @@ const Supabase = {
         'Authorization': `Bearer ${this.accessToken}`
       }
     });
+    if (res.status === 401 && allowRefresh && this.refreshToken) {
+      await this.refreshAccessToken();
+      return this.currentAuthUser(false);
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.id) throw new Error(data.msg || data.message || 'Authenticated user could not be loaded.');
     return data;
@@ -584,76 +612,126 @@ const Supabase = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || data.message || 'Sign-in failed');
     this.setAccessToken(data.access_token);
+    this.refreshToken = data.refresh_token || null;
     sessionStorage.setItem('bharathlink.phase1b.test_access_token', data.access_token);
+    if (this.refreshToken) sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
     return data;
   },
   restoreTestSession() {
     const token = sessionStorage.getItem('bharathlink.phase1b.test_access_token');
+    this.refreshToken = sessionStorage.getItem('bharathlink.phase1b.test_refresh_token');
     if (token) this.setAccessToken(token);
     return !!token;
   },
   clearTestSession() {
-    this.setAccessToken(null);
+    this.setAccessToken(null); this.refreshToken = null;
     sessionStorage.removeItem('bharathlink.phase1b.test_access_token');
+    sessionStorage.removeItem('bharathlink.phase1b.test_refresh_token');
   }
 };
 
 /* =====================================================================
-   5C. PHASE 1B E2EE DEVICE + BACKEND TEST TRANSPORT
-   - P-256 ECDH private key is non-extractable and stored only in IndexedDB.
-   - Only the public JWK is registered in messaging_devices.
-   - Message plaintext is encrypted separately for each recipient device.
-   - Server receives ciphertext/IV envelopes, never plaintext.
+   5C. PHASE 1B E2EE V2 DEVICE + MESSAGE TRANSPORT
+   - Device private ECDH key is non-extractable and remains in IndexedDB.
+   - Each message uses a fresh random AES-256-GCM content key.
+   - Content key is wrapped independently for every active conversation device.
+   - AAD binds version, conversation, client message id, sender and recipient device.
+   - No plaintext fallback is permitted for backend E2EE messages.
    ===================================================================== */
 const E2EEBackend = {
-  DB: 'bharathlink-e2ee-v1', STORE: 'keys', SLOT: 'device',
-  b64(bytes) { let s=''; for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b); return btoa(s); },
-  unb64(v) { const s=atob(v); const a=new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i]=s.charCodeAt(i); return a; },
-  openDb() { return new Promise((resolve,reject)=>{ const r=indexedDB.open(this.DB,1); r.onupgradeneeded=()=>r.result.createObjectStore(this.STORE); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); },
-  async getLocal() { const db=await this.openDb(); return new Promise((resolve,reject)=>{ const tx=db.transaction(this.STORE,'readonly'); const r=tx.objectStore(this.STORE).get(this.SLOT); r.onsuccess=()=>resolve(r.result||null); r.onerror=()=>reject(r.error); }); },
-  async putLocal(v) { const db=await this.openDb(); return new Promise((resolve,reject)=>{ const tx=db.transaction(this.STORE,'readwrite'); tx.objectStore(this.STORE).put(v,this.SLOT); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error); }); },
-  async activate() {
-    if (!Supabase.accessToken) throw new Error('Sign in first.');
-    const me=await Supabase.currentAuthUser();
-    let local=await this.getLocal();
-    if (local && local.userId === me.id && local.privateKey && local.deviceId) return local;
-    const kp=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'}, false, ['deriveBits']);
-    const pub=await crypto.subtle.exportKey('jwk',kp.publicKey);
-    const rows=await Supabase.request('/rest/v1/messaging_devices', {method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify({user_id:me.id,device_label:'BharathLink web E2EE',public_key_jwk:pub,key_algorithm:'ECDH-P256'})});
-    if (!Array.isArray(rows) || !rows[0]?.id) throw new Error('Device registration failed.');
-    local={userId:me.id,deviceId:rows[0].id,privateKey:kp.privateKey,publicJwk:pub};
-    await this.putLocal(local); return local;
+  DB:'bharathlink-e2ee-v2', STORE:'keys', _activatePromise:null,
+  enc:new TextEncoder(), dec:new TextDecoder(),
+  b64(v){let s='';for(const b of new Uint8Array(v))s+=String.fromCharCode(b);return btoa(s);},
+  unb64(v){const s=atob(v),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;},
+  canon(o){return JSON.stringify(o);},
+  uuid(){return crypto.randomUUID ? crypto.randomUUID() : Util.uuid();},
+  openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open(this.DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(this.STORE))r.result.createObjectStore(this.STORE);};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});},
+  slot(userId){return `device:${userId}`;},
+  async getLocal(userId){const db=await this.openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(this.STORE,'readonly'),r=tx.objectStore(this.STORE).get(this.slot(userId));r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error);});},
+  async putLocal(userId,v){const db=await this.openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(this.STORE,'readwrite');tx.objectStore(this.STORE).put(v,this.slot(userId));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});},
+  async rpc(name,body){return Supabase.request(`/rest/v1/rpc/${name}`,{method:'POST',body:JSON.stringify(body)});},
+  async activate(){
+    if(this._activatePromise)return this._activatePromise;
+    this._activatePromise=(async()=>{
+      if(!Supabase.accessToken)throw new Error('Sign in first.');
+      const me=await Supabase.currentAuthUser(); let local=await this.getLocal(me.id);
+      if(local&&local.userId===me.id&&local.privateKey&&local.deviceId){
+        const st=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
+        if(st===true)return local;
+      }
+      const kp=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},false,['deriveBits']);
+      const pub=await crypto.subtle.exportKey('jwk',kp.publicKey);
+      const rows=await Supabase.request('/rest/v1/messaging_devices',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:me.id,device_label:'BharathLink web E2EE v2',public_key_jwk:pub,key_algorithm:'ECDH-P256'})});
+      if(!Array.isArray(rows)||!rows[0]?.id)throw new Error('Device registration failed.');
+      local={userId:me.id,deviceId:rows[0].id,privateKey:kp.privateKey,publicJwk:pub};await this.putLocal(me.id,local);return local;
+    })().finally(()=>{this._activatePromise=null;});
+    return this._activatePromise;
   },
-  async rpc(name, body) { return Supabase.request(`/rest/v1/rpc/${name}`, {method:'POST',body:JSON.stringify(body)}); },
-  async directPeer() {
-    const me=await Supabase.currentAuthUser();
-    const convs=await Supabase.request('/rest/v1/conversations?select=id,conversation_type&conversation_type=eq.direct&limit=20');
-    for (const c of (convs||[])) {
-      const ms=await Supabase.request(`/rest/v1/conversation_members?select=user_id&conversation_id=eq.${encodeURIComponent(c.id)}`);
-      const peer=(ms||[]).find(x=>x.user_id!==me.id);
-      if (peer) return {conversationId:c.id, peerUserId:peer.user_id};
+  async importPub(jwk){if(!jwk||jwk.kty!=='EC'||jwk.crv!=='P-256'||!jwk.x||!jwk.y)throw new Error('Invalid device public key.');return crypto.subtle.importKey('jwk',jwk,{name:'ECDH',namedCurve:'P-256'},false,[]);},
+  async deriveWrapKey(myStaticPriv,ephPriv,recipientJwk,header,recipientDeviceId){
+    const pub=await this.importPub(recipientJwk);
+    const a=new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH',public:pub},ephPriv,256));
+    const b=new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH',public:pub},myStaticPriv,256));
+    const ikm=new Uint8Array(a.length+b.length);ikm.set(a);ikm.set(b,a.length);
+    const material=await crypto.subtle.importKey('raw',ikm,'HKDF',false,['deriveKey']);
+    const salt=new Uint8Array(await crypto.subtle.digest('SHA-256',this.enc.encode(this.canon(header))));
+    return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt,info:this.enc.encode(`bharathlink-wrap-v2|${recipientDeviceId}`)},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  },
+  async deriveUnwrapKey(myStaticPriv,senderStaticJwk,ephJwk,header,myDeviceId){
+    const eph=await this.importPub(ephJwk), sender=await this.importPub(senderStaticJwk);
+    const a=new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH',public:eph},myStaticPriv,256));
+    const b=new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH',public:sender},myStaticPriv,256));
+    const ikm=new Uint8Array(a.length+b.length);ikm.set(a);ikm.set(b,a.length);
+    const material=await crypto.subtle.importKey('raw',ikm,'HKDF',false,['deriveKey']);
+    const salt=new Uint8Array(await crypto.subtle.digest('SHA-256',this.enc.encode(this.canon(header))));
+    return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt,info:this.enc.encode(`bharathlink-wrap-v2|${myDeviceId}`)},material,{name:'AES-GCM',length:256},false,['decrypt']);
+  },
+  async backendDirectConversation(){
+    const rows=await this.rpc('get_my_direct_conversations',{});
+    if(!Array.isArray(rows)||rows.length!==1)throw new Error(rows?.length?'More than one backend direct chat exists. Open-chat binding is required before sending.':'No backend direct conversation found.');
+    return rows[0];
+  },
+  async sendV2(text){
+    const local=await this.activate(), me=await Supabase.currentAuthUser(), conv=await this.backendDirectConversation();
+    const devices=await this.rpc('get_conversation_messaging_devices',{p_conversation_id:conv.conversation_id});
+    if(!Array.isArray(devices)||!devices.length)throw new Error('No active E2EE devices in this conversation.');
+    if(!devices.some(d=>d.device_id===local.deviceId))throw new Error('Current device is not active in the conversation.');
+    const clientMessageId=this.uuid();
+    const header={v:2,conversation_id:conv.conversation_id,client_message_id:clientMessageId,sender_user_id:me.id,sender_device_id:local.deviceId};
+    const aad=this.enc.encode(this.canon(header));
+    const rawKey=crypto.getRandomValues(new Uint8Array(32));
+    const msgKey=await crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM'},false,['encrypt']);
+    const msgIv=crypto.getRandomValues(new Uint8Array(12));
+    const bodyCt=await crypto.subtle.encrypt({name:'AES-GCM',iv:msgIv,additionalData:aad},msgKey,this.enc.encode(text));
+    const envelopes=[];
+    for(const d of devices){
+      const eph=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
+      const ephPub=await crypto.subtle.exportKey('jwk',eph.publicKey);
+      const wrapKey=await this.deriveWrapKey(local.privateKey,eph.privateKey,d.public_key_jwk,header,d.device_id);
+      const wrapIv=crypto.getRandomValues(new Uint8Array(12));
+      const envAad=this.enc.encode(this.canon({...header,recipient_user_id:d.user_id,recipient_device_id:d.device_id}));
+      const wrapped=await crypto.subtle.encrypt({name:'AES-GCM',iv:wrapIv,additionalData:envAad},wrapKey,rawKey);
+      envelopes.push({recipient_user_id:d.user_id,recipient_device_id:d.device_id,ciphertext:this.b64(wrapped),iv:this.b64(wrapIv),eph_pub:ephPub,encryption_version:2});
     }
-    throw new Error('No direct backend conversation found.');
+    const id=await this.rpc('send_encrypted_message_v2',{p_conversation_id:conv.conversation_id,p_sender_device_id:local.deviceId,p_client_message_id:clientMessageId,p_ciphertext:this.b64(bodyCt),p_iv:this.b64(msgIv),p_envelopes:envelopes});
+    return {messageId:id,conversationId:conv.conversation_id,envelopeCount:envelopes.length};
   },
-  async sharedKey(privateKey, publicJwk) {
-    const pub=await crypto.subtle.importKey('jwk',publicJwk,{name:'ECDH',namedCurve:'P-256'},false,[]);
-    const bits=await crypto.subtle.deriveBits({name:'ECDH',public:pub},privateKey,256);
-    const digest=await crypto.subtle.digest('SHA-256',bits);
-    return crypto.subtle.importKey('raw',digest,{name:'AES-GCM'},false,['encrypt','decrypt']);
-  },
-  async sendTest(text) {
+  async receiveV2(){
     const local=await this.activate();
-    const {conversationId,peerUserId}=await this.directPeer();
-    const devices=await this.rpc('get_active_messaging_devices',{p_user_id:peerUserId});
-    if (!Array.isArray(devices)||!devices.length) throw new Error('Recipient has no active E2EE device. Sign in on the other test account and activate E2EE first.');
-    const enc=new TextEncoder(); const envelopes=[];
-    for (const d of devices) {
-      const key=await this.sharedKey(local.privateKey,d.public_key_jwk); const iv=crypto.getRandomValues(new Uint8Array(12));
-      const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(text));
-      envelopes.push({recipient_user_id:peerUserId,recipient_device_id:d.device_id,ciphertext:this.b64(ct),iv:this.b64(iv),encryption_version:1});
+    const rows=await this.rpc('get_my_encrypted_messages_v2',{p_device_id:local.deviceId});
+    const out=[];
+    for(const r of (rows||[])){
+      try{
+        const header={v:2,conversation_id:r.conversation_id,client_message_id:r.client_message_id,sender_user_id:r.sender_id,sender_device_id:r.sender_device_id};
+        const wrapKey=await this.deriveUnwrapKey(local.privateKey,r.sender_public_key_jwk,r.eph_pub,header,local.deviceId);
+        const envAad=this.enc.encode(this.canon({...header,recipient_user_id:local.userId,recipient_device_id:local.deviceId}));
+        const raw=await crypto.subtle.decrypt({name:'AES-GCM',iv:this.unb64(r.wrap_iv),additionalData:envAad},wrapKey,this.unb64(r.wrapped_key));
+        const msgKey=await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['decrypt']);
+        const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:this.unb64(r.message_iv),additionalData:this.enc.encode(this.canon(header))},msgKey,this.unb64(r.message_ciphertext));
+        out.push({...r,text:this.dec.decode(pt),decryptOk:true});
+      }catch(_){out.push({...r,text:'Unable to decrypt this message',decryptOk:false});}
     }
-    const id=await this.rpc('send_encrypted_message',{p_conversation_id:conversationId,p_sender_device_id:local.deviceId,p_envelopes:envelopes});
-    return {messageId:id, envelopeCount:envelopes.length};
+    return out;
   }
 };
 
@@ -851,36 +929,21 @@ const IdService = {
 };
 
 /* =====================================================================
-   11. MESSAGING (local only)
-   MessagingTransport interface: send(conversation, message) -> Promise<{ delivery }>
-   E2EE extension point: a CryptoProvider { encrypt, decrypt, audited } can be
-   registered later. Until then the UI states messages are NOT E2E encrypted.
+   11. MESSAGING
+   Sample-directory chats remain local demo UI. The separate backend E2EE test
+   chat below is bound to the authenticated direct conversation and never falls
+   back to plaintext transport.
    ===================================================================== */
-const LocalMessagingTransport = { id: 'local-only', async send() { return { delivery: 'saved_on_device' }; } };
-const E2EE = { provider: null, isActive() { return !!(this.provider && this.provider.audited === true); } };
-
-const Messaging = {
-  transport: LocalMessagingTransport,
-  list() { return Object.values(Store.state.messaging.conversations).sort((a, b) => b.updatedAt - a.updatedAt); },
-  get(id) { return Object.prototype.hasOwnProperty.call(Store.state.messaging.conversations, id) ? Store.state.messaging.conversations[id] : null; },
-  openWith(contactId) {
-    const found = Object.values(Store.state.messaging.conversations).find(c => c.contactId === contactId);
-    if (found) return found.id;
-    const id = Util.uuid();
-    Store.update(s => { s.messaging.conversations[id] = { id, contactId, messages: [], updatedAt: Date.now() }; });
-    return id;
-  },
-  async send(convId, text) {
-    const conv = this.get(convId);
-    const msg = { id: Util.uuid(), from: 'me', text, at: Date.now(), delivery: 'pending', encrypted: E2EE.isActive(), trustSnapshot: Identity.trustSnapshot() };
-    msg.delivery = (await this.transport.send(conv, msg)).delivery;
-    Store.update(s => {
-      const c = s.messaging.conversations[convId];
-      c.messages.push(msg);
-      if (c.messages.length > CONFIG.LIMITS.messagesPerChat) c.messages.splice(0, c.messages.length - CONFIG.LIMITS.messagesPerChat);
-      c.updatedAt = msg.at;
-    });
-    return msg;
+const LocalMessagingTransport={id:'local-demo-only',async send(){return{delivery:'saved_on_device'};}};
+const E2EE={provider:null,isActive(){return false;}};
+const Messaging={
+  list(){return Object.values(Store.state.messaging.conversations).sort((a,b)=>b.updatedAt-a.updatedAt);},
+  get(id){return Object.prototype.hasOwnProperty.call(Store.state.messaging.conversations,id)?Store.state.messaging.conversations[id]:null;},
+  openWith(contactId){const found=Object.values(Store.state.messaging.conversations).find(c=>c.contactId===contactId);if(found)return found.id;const id=Util.uuid();Store.update(s=>{s.messaging.conversations[id]={id,contactId,messages:[],updatedAt:Date.now()};});return id;},
+  async send(convId,text){
+    const conv=this.get(convId);if(!conv)throw new Error('Conversation not found.');
+    const msg={id:Util.uuid(),from:'me',text,at:Date.now(),delivery:'saved_on_device',encrypted:false,trustSnapshot:Identity.trustSnapshot()};
+    Store.update(s=>{const c=s.messaging.conversations[convId];c.messages.push(msg);if(c.messages.length>CONFIG.LIMITS.messagesPerChat)c.messages.splice(0,c.messages.length-CONFIG.LIMITS.messagesPerChat);c.updatedAt=msg.at;});return msg;
   }
 };
 
@@ -1283,7 +1346,7 @@ const Views = {
       const sendE2EE = Button('Send encrypted backend test', { onClick: async () => {
         const text=e2eeText.value.trim(); if(!text){ e2eeMsg.replaceChildren(Notice('warn','Enter a test message.')); return; }
         sendE2EE.disabled=true; e2eeMsg.replaceChildren();
-        try { const r=await E2EEBackend.sendTest(text); e2eeText.value=''; e2eeMsg.replaceChildren(Notice('info', `Encrypted message stored with ${r.envelopeCount} device envelope(s). No plaintext was sent.`)); }
+        try { const r=await E2EEBackend.sendV2(text); e2eeText.value=''; e2eeMsg.replaceChildren(Notice('info', `Encrypted message stored with ${r.envelopeCount} device envelope(s). No plaintext was sent.`)); }
         catch(ex){ e2eeMsg.replaceChildren(Notice('warn', `Encrypted send failed: ${ex.message||'Unknown error'}`)); }
         finally { sendE2EE.disabled=false; }
       }});
@@ -1569,7 +1632,8 @@ const Views = {
     const convs = Messaging.list();
     return Screen({ title: 'Messages', back: '/home', nav: 'chats',
       actions: [IconButton('plus', 'New message', () => Router.go('/chats/new'))], children: [
-      Notice('warn', 'Messages stay on this device. They are not sent to anyone and are not end-to-end encrypted.'),
+      Notice('info', 'Sample contacts below are local demo chats. Use Encrypted test chat for the real Phase 1B E2EE backend test.'),
+      Button('Encrypted test chat', { icon: 'lock', onClick: () => Router.go('/e2ee-chat') }),
       convs.length
         ? h('ul', { class: 'list' }, convs.map(cv => {
             const c = Directory.byId(cv.contactId) || { displayName: 'Unknown' };
@@ -1605,7 +1669,7 @@ const Views = {
     const c = cv && Directory.byId(cv.contactId);
     if (!cv || !c) return Views.notFound('/chats');
     const bubble = m => h('div', { class: 'bubble' }, m.text,
-      h('span', { class: 'bubble__meta' }, `${Util.time(m.at)}, saved on device`));
+      h('span', { class: 'bubble__meta' }, m.encrypted ? `${Util.time(m.at)}, encrypted backend` : `${Util.time(m.at)}, saved on device`));
     const empty = h('p', { class: 'hint', hidden: cv.messages.length > 0 }, 'No messages yet.');
     const list = h('div', { class: 'messages', 'aria-label': 'Messages', role: 'log' }, cv.messages.map(bubble));
     const err = ErrorText('chat-err');
@@ -1616,19 +1680,38 @@ const Views = {
       e.preventDefault(); err.textContent = '';
       const v = Validate.text(box.value, CONFIG.LIMITS.chatText, 'message');
       if (!v.ok) { err.textContent = v.error; return; }
-      const m = await Messaging.send(id, v.value);
-      empty.hidden = true;
-      list.appendChild(bubble(m)); box.value = ''; box.style.height = 'auto'; box.focus();
-      list.lastChild.scrollIntoView({ block: 'end' });
+      const sendBtn = e.currentTarget.querySelector('.sendbtn');
+      if (sendBtn) sendBtn.disabled = true;
+      try {
+        const m = await Messaging.send(id, v.value);
+        empty.hidden = true;
+        list.appendChild(bubble(m)); box.value = ''; box.style.height = 'auto'; box.focus();
+        list.lastChild.scrollIntoView({ block: 'end' });
+      } catch (ex) {
+        err.textContent = ex.message || 'Encrypted send failed.';
+      } finally {
+        if (sendBtn) sendBtn.disabled = false;
+      }
     } }, box, h('button', { class: 'sendbtn', type: 'submit', 'aria-label': 'Send message' }, Icon('send', 22)));
     const node = Screen({ title: c.displayName, back: '/chats',
       actions: [IconButton('phone', `Call ${c.displayName}`, () => Router.go(`/call/${c.id}`))],
       footer: composer, children: [
         h('div', { class: 'chat-meta' }, StatusBadge(VStatus.DEMO, 'Sample contact'), h('span', null, `${c.messagingId}, ${c.city}`)),
-        Notice('warn', E2EE.isActive() ? 'End-to-end encrypted.' : 'Not end-to-end encrypted. Messages are saved only on this device and are not delivered.'),
+        Notice('warn', 'Sample contact chat: saved only on this device. Use Encrypted test chat from Messages for the backend E2EE test.'),
         err, empty, list] });
     setTimeout(() => { if (list.lastChild) list.lastChild.scrollIntoView({ block: 'end' }); }, 0);
     return node;
+  },
+
+  e2eeChat() {
+    const list=h('div',{class:'messages','aria-label':'Encrypted messages',role:'log'});
+    const status=h('div',{'aria-live':'polite'},Notice('info','Sign in with a Phase 1B test account. This controlled test screen uses the single authenticated backend direct conversation only.'));
+    const err=ErrorText('e2ee-chat-err');
+    const box=h('textarea',{class:'input',rows:'1',maxlength:String(CONFIG.LIMITS.chatText),placeholder:'Write an encrypted message','aria-label':'Encrypted message'});
+    const render=async()=>{try{const conv=await E2EEBackend.backendDirectConversation();const rows=(await E2EEBackend.receiveV2()).filter(m=>m.conversation_id===conv.conversation_id);list.replaceChildren(...rows.map(m=>h('div',{class:'bubble'},m.text,h('span',{class:'bubble__meta'},m.decryptOk?'E2EE v2, decrypted':'cannot decrypt'))));}catch(ex){err.textContent=ex.message||'Could not load encrypted messages.';}};
+    const form=h('form',{class:'composer',novalidate:'novalidate',onSubmit:async e=>{e.preventDefault();err.textContent='';const v=Validate.text(box.value,CONFIG.LIMITS.chatText,'message');if(!v.ok){err.textContent=v.error;return;}const b=e.currentTarget.querySelector('.sendbtn');if(b)b.disabled=true;try{const r=await E2EEBackend.sendV2(v.value);box.value='';status.replaceChildren(Notice('info',`Encrypted message stored with ${r.envelopeCount} active-device envelope(s).`));await render();}catch(ex){err.textContent=ex.message||'Encrypted send failed.';}finally{if(b)b.disabled=false;}}},box,h('button',{class:'sendbtn',type:'submit','aria-label':'Send encrypted message'},Icon('send',22)));
+    const node=Screen({title:'Encrypted test chat',back:'/chats',footer:form,children:[status,err,list]});
+    setTimeout(render,0);return node;
   },
 
   /* ----- BharatMail ----- */
@@ -1792,6 +1875,7 @@ const ROUTES = [
   { re: /^\/identity$/,          stage: 'app',     view: () => Views.identity() },
   { re: /^\/calls$/,             stage: 'app',     view: () => Views.calls() },
   { re: /^\/call\/([\w-]+)$/,    stage: 'app',     view: id => Views.callDetail(id) },
+  { re: /^\/e2ee-chat$/,         stage: 'app',     view: () => Views.e2eeChat() },
   { re: /^\/chats$/,             stage: 'app',     view: () => Views.chats() },
   { re: /^\/chats\/new$/,        stage: 'app',     view: () => Views.chatsNew() },
   { re: /^\/chat\/([\w-]+)$/,    stage: 'app',     view: id => Views.chat(id) },
