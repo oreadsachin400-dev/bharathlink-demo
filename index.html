@@ -270,6 +270,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
 <meta name="bharathlink-build" content="phase1b-combined-final-test-r3-2026-09-20">
   <!-- phase1d-real-user-chat-2026-09-21 -->
   <!-- phase1e1-message-direction-2026-09-21 -->
+  <!-- phase1e2-timestamps-receipts-2026-09-21 -->
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -729,6 +730,17 @@ const E2EEBackend = {
     }
     const id=await this.rpc('send_encrypted_message_v2',{p_conversation_id:conv.conversation_id,p_sender_device_id:local.deviceId,p_client_message_id:clientMessageId,p_ciphertext:this.b64(bodyCt),p_iv:this.b64(msgIv),p_envelopes:envelopes});
     return {messageId:id,conversationId:conv.conversation_id,envelopeCount:envelopes.length};
+  },
+  async markDelivered(messageId){
+    return this.rpc('mark_message_delivered',{p_message_id:messageId});
+  },
+  async markRead(messageId){
+    return this.rpc('mark_message_read',{p_message_id:messageId});
+  },
+  async receiptStatus(messageId){
+    const rows=await this.rpc('get_message_receipt_status',{p_message_id:messageId});
+    const r=Array.isArray(rows)?rows[0]:rows;
+    return r||null;
   },
   async receiveV2(){
     const local=await this.activate();
@@ -1784,8 +1796,27 @@ const Views = {
         bound=await E2EEBackend.backendDirectConversation(conversationId);
         const me=await Supabase.currentAuthUser();
         const rows=(await E2EEBackend.receiveV2()).filter(m=>m.conversation_id===bound.conversation_id);
-        list.replaceChildren(...rows.map(m=>h('div',{class:m.sender_id===me.id?'bubble':'bubble bubble--incoming'},m.text,
-          h('span',{class:'bubble__meta'},m.decryptOk?'E2EE v2, decrypted':'cannot decrypt'))));
+        for(const m of rows){
+          if(m.sender_id!==me.id){
+            try{await E2EEBackend.markDelivered(m.message_id);await E2EEBackend.markRead(m.message_id);}catch(_){}
+          }
+        }
+        const statuses=new Map();
+        await Promise.all(rows.filter(m=>m.sender_id===me.id).map(async m=>{
+          try{statuses.set(m.message_id,await E2EEBackend.receiptStatus(m.message_id));}catch(_){statuses.set(m.message_id,null);}
+        }));
+        const timeOf=m=>{
+          const d=new Date(m.created_at);
+          return Number.isNaN(d.getTime())?'':d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+        };
+        list.replaceChildren(...rows.map(m=>{
+          const mine=m.sender_id===me.id;
+          const receipt=mine?statuses.get(m.message_id):null;
+          const state=mine?(receipt?.read_at?'Read':receipt?.delivered_at?'Delivered':'Sent'):'';
+          const meta=[timeOf(m),state,m.decryptOk?'E2EE':'cannot decrypt'].filter(Boolean).join(' · ');
+          return h('div',{class:mine?'bubble':'bubble bubble--incoming'},m.text,
+            h('span',{class:'bubble__meta'},meta));
+        }));
       }catch(ex){err.textContent=ex.message||'Could not load encrypted messages.';}
     };
     const form=h('form',{class:'composer',novalidate:'novalidate',onSubmit:async e=>{
