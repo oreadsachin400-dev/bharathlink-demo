@@ -742,6 +742,10 @@ const E2EEBackend = {
     const r=Array.isArray(rows)?rows[0]:rows;
     return r||null;
   },
+  async unreadCount(conversationId){
+    const n=await this.rpc('get_conversation_unread_count',{p_conversation_id:conversationId});
+    return Number(n||0);
+  },
   async receiveV2(){
     const local=await this.activate();
     const rows=await this.rpc('get_my_encrypted_messages_v2',{p_device_id:local.deviceId});
@@ -1670,22 +1674,37 @@ const Views = {
       backend.appendChild(h('p',{class:'hint'},'Loading encrypted conversations…'));
       try {
         const rows = await E2EEBackend.directConversations();
+        const messages = await E2EEBackend.receiveV2();
+        const enriched = await Promise.all(rows.map(async cv => {
+          const msgs=messages.filter(m=>m.conversation_id===cv.conversation_id)
+            .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+          const last=msgs[msgs.length-1]||null;
+          let unread=0;
+          try{unread=await E2EEBackend.unreadCount(cv.conversation_id);}catch(_){}
+          return {...cv,last,unread};
+        }));
+        enriched.sort((a,b)=>new Date(b.last?.created_at||0)-new Date(a.last?.created_at||0));
         backend.replaceChildren(
           Notice('info','BharathLink conversations below use the E2EE v2 backend. Sample contacts remain local demo chats.')
         );
-        if (!rows.length) {
+        if (!enriched.length) {
           backend.appendChild(h('div',{class:'empty'},h('p',null,'No backend direct conversations yet.')));
           return;
         }
-        backend.appendChild(h('ul',{class:'list'},...rows.map(cv => {
+        backend.appendChild(h('ul',{class:'list'},...enriched.map(cv => {
           const name = cv.peer_display_name || 'BharathLink user';
-          const sub = cv.peer_messaging_id || 'Encrypted direct conversation';
+          const sub = cv.last ? (cv.last.decryptOk ? cv.last.text : 'Encrypted message') : (cv.peer_messaging_id || 'Encrypted direct conversation');
+          const time = cv.last ? new Date(cv.last.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+          const trail=h('div',{style:'display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:48px'},
+            time?h('span',{class:'hint',style:'margin:0;white-space:nowrap'},time):null,
+            cv.unread>0?h('span',{style:'min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--text);color:var(--bg);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700'},String(cv.unread)):null
+          );
           return ListRow({
             href:`/e2ee-chat/${cv.conversation_id}`,
             avatar:Avatar(name),
             title:[name, StatusBadge(VStatus.NOT_CHECKED,'E2EE')],
             sub,
-            trail:Icon('chevron-right',18)
+            trail
           });
         })));
       } catch(ex) {
@@ -2092,5 +2111,6 @@ const App = {
 document.addEventListener('DOMContentLoaded', () => App.init());
 })();
 </script>
+<!-- phase1e3-chat-list-preview-unread-2026-09-21 -->
 </body>
 </html>
