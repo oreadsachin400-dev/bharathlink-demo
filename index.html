@@ -12,7 +12,7 @@
     Phase 1B should move JS/CSS to separate files and drop 'unsafe-inline'.
   - frame-ancestors cannot be set from a meta tag; send it as an HTTP header when deploying.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob: data:; connect-src https://whpafxijzruynmivudbz.supabase.co wss://whpafxijzruynmivudbz.supabase.co; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob: data:; connect-src https://whpafxijzruynmivudbz.supabase.co wss://whpafxijzruynmivudbz.supabase.co; font-src 'none'; object-src 'none'; base-uri 'none'; form-action form-action 'none'; manifest-src 'none'; worker-src 'self';"> 
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#14205A">
 <meta name="description" content="BharathLink: one verified identity for calling, messaging, mail and payments. Phase 1A prototype.">
