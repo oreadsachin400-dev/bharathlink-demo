@@ -2486,6 +2486,10 @@ const Views = {
     const groupsBox = h('div', { class:'stack' });
     let backendLoading=false;
     let showArchived=false;
+    // V31E egress guard: keep the decrypted newest-message preview in memory while this
+    // Messages screen is open. Repeated list refreshes probe only message_id/created_at;
+    // the encrypted message body is fetched again only when the head actually changes.
+    const directPreviewCache=new Map();
     // Phase 1G list hardening: never load/decrypt all encrypted messages just to build Messages.
     // Each direct conversation fetches only its newest visible message via the bounded
     // conversation-specific RPC. This keeps old inline-media history off the list path.
@@ -2518,11 +2522,34 @@ const Views = {
           let cutoff=null;
           try{cutoff=await E2EEBackend.getConversationClearCutoff(cv.conversation_id);}catch(_){}
           const deleteCutoff=deletedAt.get(cv.conversation_id)||null;
-          // Use the later of Clear Chat / Delete Chat as the visibility floor, then fetch newest 1 only.
+          // Use the later of Clear Chat / Delete Chat as the visibility floor.
           const floor=[cutoff,deleteCutoff].filter(Boolean).sort((a,b)=>new Date(b)-new Date(a))[0]||null;
-          let msgs=[];
-          try{msgs=await E2EEBackend.receiveV2(cv.conversation_id,floor,true,1);}catch(_){}
-          const last=msgs[msgs.length-1]||null;
+          let last=null,headProbeOk=false,head=null;
+          try{
+            const heads=await E2EEBackend.groupMessageHeads(cv.conversation_id,1);
+            headProbeOk=true;head=Array.isArray(heads)?heads[0]||null:null;
+          }catch(_){}
+          if(headProbeOk){
+            const headIsVisible=!!head&&(!floor||new Date(head.created_at).getTime()>new Date(floor).getTime());
+            if(headIsVisible){
+              const cached=directPreviewCache.get(cv.conversation_id);
+              if(cached&&String(cached.message_id)===String(head.message_id)) last=cached;
+              else{
+                try{
+                  const msgs=await E2EEBackend.receiveV2(cv.conversation_id,floor,true,1);
+                  last=msgs[msgs.length-1]||null;
+                  if(last)directPreviewCache.set(cv.conversation_id,last);
+                }catch(_){last=cached||null;}
+              }
+            }else directPreviewCache.delete(cv.conversation_id);
+          }else{
+            // If the tiny head probe itself fails, preserve the old bounded newest-1 fallback.
+            try{
+              const msgs=await E2EEBackend.receiveV2(cv.conversation_id,floor,true,1);
+              last=msgs[msgs.length-1]||null;
+              if(last)directPreviewCache.set(cv.conversation_id,last);
+            }catch(_){last=directPreviewCache.get(cv.conversation_id)||null;}
+          }
           let unread=0;
           try{unread=await E2EEBackend.unreadCount(cv.conversation_id);}catch(_){}
           if(!last)unread=0;
@@ -2623,13 +2650,13 @@ const Views = {
       )] });
     setTimeout(loadBackend,0);
     setTimeout(loadGroups,0);
-    // Phase 1E.4: keep an already-open Messages screen fresh without reload.
-    // Polling is used by this standalone no-SDK build; it stops automatically
-    // as soon as the Messages screen leaves the DOM.
+    // V31E: keep the list fresh with a low-egress fallback. The newest-message
+    // ciphertext is cached above, so this timer normally transfers only small metadata.
+    // Thirty seconds is enough for a list screen; opening a chat still uses Realtime.
     const liveTimer=setInterval(()=>{
       if(!document.body.contains(node)){clearInterval(liveTimer);return;}
-      loadBackend();
-    },15000);
+      if(!document.hidden)loadBackend();
+    },30000);
     Lifecycle.add(()=>clearInterval(liveTimer));
     return node;
   },
@@ -3622,6 +3649,11 @@ const Views = {
     let voiceCall=null, videoCall=null;
     const searchBox=h('input',{class:'input',type:'search',placeholder:'Search messages on this device','aria-label':'Search encrypted messages',style:'margin:0 16px 8px;width:calc(100% - 32px)'});
     let allRows=[];
+    // V31E: tiny head signature used by the foreground safety poll. This prevents
+    // re-downloading the latest encrypted rows (which may contain large inline photos)
+    // every few seconds when Realtime is already healthy.
+    const directHeadSig=rows=>(rows||[]).map(m=>`${m.message_id}:${m.created_at||''}`).sort().join('|');
+    let lastDirectHeadSig='';
     searchBox.addEventListener('input',()=>render());
     const replyBar=h('div',{style:'display:none;margin:0 12px 6px;padding:9px 10px;border-left:3px solid currentColor;background:var(--surface);border-radius:8px;font-size:13px'});
     let replying=null;
@@ -3940,6 +3972,7 @@ const Views = {
             return ta!==tb?ta-tb:String(a.message_id).localeCompare(String(b.message_id));
           });
         }else allRows=received;
+        lastDirectHeadSig=directHeadSig(allRows.slice(-5));
         const q=searchBox.value.trim().toLocaleLowerCase();
         const rows=q?allRows.filter(m=>{const body=String(m.text||'').toLocaleLowerCase();const reply=String(m.reply?.text||'').toLocaleLowerCase();return body.includes(q)||reply.includes(q);}):allRows;
         // V10: delivery/read receipts must never block message visibility.
@@ -4731,10 +4764,10 @@ const Views = {
     const onRealtimeVisible=()=>{if(!document.hidden&&Router.current()===`/e2ee-chat/${conversationId}`){pendingRealtimeWake=false;render('latest').catch(()=>{});}};
     document.addEventListener('visibilitychange',onRealtimeVisible);
     window.addEventListener('focus',onRealtimeVisible);
-    // V12 iOS/Safari foreground fallback.
-    // Keep Realtime as the primary path, but do not depend on a throttled setInterval.
-    // A self-scheduling bounded latest-5 fetch starts quickly and schedules the next tick
-    // only after the current fetch completes, so refreshes cannot pile up.
+    // V31E iOS/Safari foreground fallback.
+    // Realtime remains primary. The self-scheduling fallback probes only the newest
+    // message_id/created_at metadata every 5s and downloads ciphertext only after a change.
+    // This keeps missed-wake recovery without repeatedly transferring large encrypted media.
     let iosSafetyPollBusy=false,iosSafetyPollStopped=false,iosSafetyPollTimer=null;
     const scheduleIosSafetyPoll=(delay=5000)=>{
       clearTimeout(iosSafetyPollTimer);
@@ -4745,17 +4778,29 @@ const Views = {
       if(iosSafetyPollStopped)return;
       if(document.hidden||Router.current()!==`/e2ee-chat/${conversationId}`){scheduleIosSafetyPoll(900);return;}
       // V30L: never replace the Direct-chat media DOM while a video is actively playing.
-      // The 5s safety fetch is only a fallback; Realtime remains primary. Re-rendering here
-      // was interrupting playback every poll cycle on Android. Resume the bounded safety
-      // check shortly after playback is paused/ended instead.
+      // The 5s safety head probe is only a fallback; Realtime remains primary. Never replace
+      // the media DOM while video is playing; retry the tiny probe after playback pauses.
       const activeDirectVideo=[...list.querySelectorAll('video')].some(v=>!v.paused&&!v.ended&&v.readyState>=2);
       if(activeDirectVideo){__v18SafetySkipped++;__v18Paint();scheduleIosSafetyPoll(1200);return;}
       if(iosSafetyPollBusy||realtimeRefreshBusy){__v18SafetySkipped++;__v18Paint();scheduleIosSafetyPoll(1200);return;}
-      iosSafetyPollBusy=true;__v18SafetyRuns++;__v22WakeSource='safety';__v22LastWakeAt=performance.now();__v22RefreshAt=__v22LastWakeAt;__v22RpcAt=0;__v22RpcDoneAt=0;__v22Show();__v18Paint();
+      iosSafetyPollBusy=true;__v18SafetyRuns++;__v22WakeSource='safety-head';__v22LastWakeAt=performance.now();__v22RefreshAt=__v22LastWakeAt;__v22RpcAt=0;__v22RpcDoneAt=0;__v22Show();__v18Paint();
       const t0=performance.now();
       try{
-        await render('latest');
-        diagState.rx=`safety ${Math.round(performance.now()-t0)}ms`;
+        if(!bound){
+          await render('latest');
+          diagState.rx=`safety bootstrap ${Math.round(performance.now()-t0)}ms`;
+        }else{
+          const heads=await E2EEBackend.groupMessageHeads(bound.conversation_id,5);
+          const clearMs=lastClearCutoff?new Date(lastClearCutoff).getTime():0;
+          const visibleHeads=(heads||[]).filter(h=>!clearMs||new Date(h.created_at).getTime()>clearMs);
+          const sig=directHeadSig(visibleHeads);
+          if(sig===lastDirectHeadSig){
+            diagState.rx=`safety unchanged ${Math.round(performance.now()-t0)}ms`;
+          }else{
+            await render('latest');
+            diagState.rx=`safety changed ${Math.round(performance.now()-t0)}ms`;
+          }
+        }
         paintDiag();
       }catch(_){}
       finally{
@@ -4783,12 +4828,11 @@ const Views = {
     const notificationBtn=Button(('Notification' in window&&Notification.permission==='granted')?'🔔 Mail notifications ON':'🔔 Enable mail notifications',{variant:'secondary',onClick:async()=>{try{const p=await Mail.requestNotificationPermission();if(p==='granted'){notificationBtn.textContent='🔔 Mail notifications ON';Mail.notifyNewInbox(Mail.remote,{prime:true});Toast.show('BharatMail notifications enabled.');}else Toast.show('Notification permission was not allowed.');}catch(ex){Toast.show(ex.message||'Could not enable notifications.');}}});
     renderResults();
     const externalAddress=Mail.externalAddress(s.ids.mailId);
-    const node=Screen({title:'BharatMail',back:'/home',nav:'mail',children:[IdBlock('Your BharatMail ID',s.ids.mailId,'mail'),externalAddress?IdBlock('External receiving address',externalAddress,'mail'):null,Notice('info','BharatLink-to-BharatLink mail plus external Internet receiving and sending are connected. External sending, receiving, Sent history, and incoming external attachments are connected. External sent-history attachment copies are not saved yet.'),status,notificationBtn,search,
+    const node=Screen({title:'BharatMail',back:'/home',nav:'mail',children:[IdBlock('Your BharatMail ID',s.ids.mailId,'mail'),externalAddress?IdBlock('External receiving address',externalAddress,'mail'):null,Notice('info','BharatLink-to-BharatLink mail plus external Internet receiving and sending are connected. External sending, receiving, Sent history, and incoming/outgoing external attachment history are connected.'),status,notificationBtn,search,
       h('div',{class:'segmented',role:'group','aria-label':'Folder',style:'overflow-x:auto;justify-content:flex-start'},seg('inbox','Inbox'),seg('sent','Sent'),seg('starred','★'),seg('drafts','Drafts'),seg('archive','Archive'),seg('spam','Spam'),seg('trash','Trash')),results,
       h('div',{class:'section'},LinkButton('Compose','#/mail/compose',{icon:'edit'}))]});
-    // V31S: foreground mailbox reconciliation. BharatMail delivery is server-authoritative;
-    // while the Inbox route is visible, re-fetch a small bounded mailbox snapshot so a
-    // missed/absent Realtime event never requires a manual browser refresh.
+    // V31E: foreground mailbox reconciliation. BharatMail delivery is server-authoritative;
+    // reconcile on entry/focus and then at a low-egress safety cadence while visible.
     let mailSyncStopped=false,mailSyncTimer=null,mailSyncBusy=false;
     const syncVisibleMail=async()=>{
       if(mailSyncStopped||document.hidden||Router.current()!=='/mail'||!Supabase.accessToken)return;
@@ -4796,14 +4840,19 @@ const Views = {
       mailSyncBusy=true;
       try{
         const hadNotifyState=!!localStorage.getItem(Mail.notifySeenKey);
-        await Mail.refresh({force:true});
+        // V31E: honor Mail's short cache so rapid folder/view rerenders do not force
+        // duplicate 100-row internal + external mailbox snapshots.
+        await Mail.refresh({force:false});
         if('Notification' in window&&Notification.permission==='granted')Mail.notifyNewInbox(Mail.remote,{prime:!hadNotifyState});
         if(!mailSyncStopped&&!document.hidden&&Router.current()==='/mail')renderResults();
       }catch(e){
         if(!mailSyncStopped&&Router.current()==='/mail')status.textContent=`Mail sync failed: ${e.message}`;
       }finally{mailSyncBusy=false;}
     };
-    const scheduleMailSync=()=>{clearTimeout(mailSyncTimer);if(!mailSyncStopped)mailSyncTimer=setTimeout(async()=>{await syncVisibleMail();scheduleMailSync();},2000);};
+    // V31E: 2-second full mailbox polling was the dominant avoidable PostgREST egress path.
+    // Focus/visibility still reconcile immediately; while the mailbox stays open, 30s is the
+    // bounded safety cadence. Web Push remains independent for background notifications.
+    const scheduleMailSync=()=>{clearTimeout(mailSyncTimer);if(!mailSyncStopped)mailSyncTimer=setTimeout(async()=>{await syncVisibleMail();scheduleMailSync();},30000);};
     const onMailVisible=()=>{if(!document.hidden&&Router.current()==='/mail')syncVisibleMail();};
     if(Supabase.accessToken){setTimeout(()=>{syncVisibleMail().finally(scheduleMailSync);},0);document.addEventListener('visibilitychange',onMailVisible);window.addEventListener('focus',onMailVisible);}
     Lifecycle.add(()=>{mailSyncStopped=true;clearTimeout(mailSyncTimer);document.removeEventListener('visibilitychange',onMailVisible);window.removeEventListener('focus',onMailVisible);});
