@@ -347,6 +347,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.45}
   <!-- phase1e4-live-chat-list-2026-09-21 -->
   <!-- phase1e5-date-separators-latest-order-2026-09-21 -->
 <!-- Phase 1F.6A friendly/verified group member names via authenticated member-only RPC -->
+  <!-- bharatmail-external-inbox-v1-2026-09-26 -->
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
@@ -1549,15 +1550,18 @@ const Messaging={
 };
 
 /* =====================================================================
-   12. BHARATMAIL — V31B REAL BHARATLINK-TO-BHARATLINK DELIVERY
-   Server-authoritative mailbox via Supabase RPC/RLS. No external Internet
-   email delivery is claimed in this phase.
+   12. BHARATMAIL — INTERNAL DELIVERY + EXTERNAL INBOUND EMAIL
+   Internal BharatLink mail stays server-authoritative via existing RPC/RLS.
+   External Internet mail is read only from the RLS-protected
+   bharatmail_external_messages table; untrusted HTML is never rendered.
    ===================================================================== */
 const Mail = {
   folder: 'inbox', remote: [], query: '', composeSeed: null, lastRefreshAt: 0, refreshPromise: null,
   notifySeenKey:'bl_bharatmail_notify_seen_v31u',
   _notifySeen(){try{return JSON.parse(localStorage.getItem(this.notifySeenKey)||'{}')||{};}catch(_){return {}; }},
   _saveNotifySeen(v){try{localStorage.setItem(this.notifySeenKey,JSON.stringify(v));}catch(_){}},
+  externalAddress(address=Store.state?.ids?.mailId){const local=String(address||'').split('@')[0].trim();return local?`${local}@bharathlink.com`:'';},
+  _htmlToText(value){if(!value)return '';try{const doc=new DOMParser().parseFromString(String(value),'text/html');return String(doc.body?.textContent||'').trim();}catch(_){return '';}},
   async ensureNotificationWorker(){
     if(!('serviceWorker' in navigator))throw new Error('Service Worker notifications are not supported in this browser.');
     const reg=await navigator.serviceWorker.register('./bharatmail-sw.js',{scope:'./'});
@@ -1604,7 +1608,7 @@ const Mail = {
   },
   notifyNewInbox(rows,{prime=false}={}){
     const seen=this._notifySeen(),now=Date.now();
-    const inbox=(rows||[]).filter(m=>m.folder==='inbox'&&m.delivery==='delivered');
+    const inbox=(rows||[]).filter(m=>m.folder==='inbox'&&(m.delivery==='delivered'||m.source==='external'));
     if(prime){for(const m of inbox)seen[m.id]=now;this._saveNotifySeen(seen);return;}
     for(const m of inbox){
       if(seen[m.id])continue; seen[m.id]=now;
@@ -1624,7 +1628,7 @@ const Mail = {
     if (Store.state.mail.seeded) return;
     Store.update(s => {s.mail.messages.unshift({ id: Util.uuid(), folder: 'inbox', from: 'BharathLink (on this device)', to: s.ids.mailId,subject: 'Your BharatMail ID is ready', at: Date.now(), delivery: 'local',body: `Your provisional BharatMail ID is ${s.ids.mailId}.` });s.mail.seeded = true;});
   },
-  _decorate(m){const x=Object.assign({},m),z=this.meta()[m.id]||{},out=Object.assign(x,z);if(m.folder==='inbox'&&m.delivery==='delivered'&&typeof m.read==='boolean')out.read=m.read;else if(m.folder==='inbox'&&typeof z.read!=='boolean'&&typeof out.read!=='boolean')out.read=false;return out;},
+  _decorate(m){const x=Object.assign({},m),z=this.meta()[m.id]||{},out=Object.assign(x,z);if(m.folder==='inbox'&&(m.delivery==='delivered'||m.source==='external')&&typeof m.read==='boolean')out.read=m.read;else if(m.folder==='inbox'&&typeof z.read!=='boolean'&&typeof out.read!=='boolean')out.read=false;return out;},
   list(folder) {
     if(folder==='drafts') return this.drafts();
     const remote=this.remote.map(m=>this._decorate(m));
@@ -1639,11 +1643,93 @@ const Mail = {
     return all.sort((a,b)=>b.at-a.at);
   },
   get(id){const d=this.drafts().find(x=>x.id===id);if(d)return d;const m=this.remote.find(x=>x.id===id)||Store.state.mail.messages.find(x=>x.id===id);return m?this._decorate(m):null;},
-  async refresh({force=false}={}){if(!Supabase.accessToken){this.remote=[];return[];}if(this.refreshPromise)return this.refreshPromise;if(!force&&Date.now()-this.lastRefreshAt<10000)return this.remote;this.refreshPromise=(async()=>{const rows=await Supabase.request('/rest/v1/rpc/list_my_bharatmail',{method:'POST',body:JSON.stringify({p_limit:100})});this.remote=(Array.isArray(rows)?rows:[]).map(r=>({id:r.id,folder:r.folder,from:r.from_address,to:r.to_address,subject:r.subject||'',body:r.body||'',at:new Date(r.created_at).getTime(),delivery:'delivered',delivered_at:r.delivered_at||null,read_at:r.read_at||null,read:r.folder==='inbox'?!Boolean(r.is_unread):true,open_count:Number(r.open_count||0),first_opened_at:r.first_opened_at||null,last_opened_at:r.last_opened_at||null}));this.lastRefreshAt=Date.now();return this.remote;})().finally(()=>{this.refreshPromise=null;});return this.refreshPromise;},
-  async send({to,subject,body,cc='',bcc=''}){if(!Supabase.accessToken)throw new Error('Sign in is required to send BharatMail.');const recipients=[to,...String(cc).split(','),...String(bcc).split(',')].map(x=>x.trim()).filter(Boolean);const unique=[...new Set(recipients)];if(!unique.length)throw new Error('Add a recipient.');let first=null;for(const addr of unique){const rows=await Supabase.request('/rest/v1/rpc/send_bharatmail',{method:'POST',body:JSON.stringify({p_to_address:addr,p_subject:subject,p_body:body})});if(!first)first=Array.isArray(rows)?rows[0]:rows;}await this.refresh({force:true});return first;},
+  async refresh({force=false}={}){
+    if(!Supabase.accessToken){this.remote=[];return[];}
+    if(this.refreshPromise)return this.refreshPromise;
+    if(!force&&Date.now()-this.lastRefreshAt<10000)return this.remote;
+    this.refreshPromise=(async()=>{
+      const internalRows=await Supabase.request('/rest/v1/rpc/list_my_bharatmail',{method:'POST',body:JSON.stringify({p_limit:100})});
+      let externalRows=[];
+      try{
+        const rows=await Supabase.request('/rest/v1/bharatmail_external_messages?select=id,provider_email_id,message_id,from_address,to_address,subject,body,html_body,created_at,read_at,direction&order=created_at.desc&limit=100');
+        externalRows=Array.isArray(rows)?rows:[];
+      }catch(ex){console.warn('External BharatMail inbox sync failed; internal mail remains available.',ex);}
+      const internal=(Array.isArray(internalRows)?internalRows:[]).map(r=>({id:r.id,folder:r.folder,from:r.from_address,to:r.to_address,subject:r.subject||'',body:r.body||'',at:new Date(r.created_at).getTime(),delivery:'delivered',source:'internal',delivered_at:r.delivered_at||null,read_at:r.read_at||null,read:r.folder==='inbox'?!Boolean(r.is_unread):true,open_count:Number(r.open_count||0),first_opened_at:r.first_opened_at||null,last_opened_at:r.last_opened_at||null}));
+      const external=(Array.isArray(externalRows)?externalRows:[]).map(r=>{const outbound=String(r.direction||'inbound').toLowerCase()==='outbound';return{id:r.id,folder:outbound?'sent':'inbox',from:r.from_address||'External sender',to:r.to_address||'',subject:r.subject||'',body:r.body||this._htmlToText(r.html_body)||'',html_body:r.html_body||null,at:new Date(r.created_at).getTime(),delivery:'external',source:'external',direction:outbound?'outbound':'inbound',provider_email_id:r.provider_email_id||null,message_id:r.message_id||null,read_at:r.read_at||null,read:outbound?true:Boolean(r.read_at)}});
+      this.remote=[...internal,...external];
+      this.lastRefreshAt=Date.now();
+      return this.remote;
+    })().finally(()=>{this.refreshPromise=null;});
+    return this.refreshPromise;
+  },
+  _isInternalAddress(address){return /@bharathlink\.in$/i.test(String(address||'').trim());},
+  _recipientList({to='',cc='',bcc=''}){return [to,...String(cc).split(','),...String(bcc).split(',')].map(x=>x.trim()).filter(Boolean);},
+  sendMode({to='',cc='',bcc=''}={}){
+    const unique=[...new Set(this._recipientList({to,cc,bcc}).map(x=>x.toLowerCase()))];
+    if(!unique.length)return'none';
+    const internal=unique.filter(x=>this._isInternalAddress(x));
+    const external=unique.filter(x=>!this._isInternalAddress(x));
+    if(internal.length&&external.length)return'mixed';
+    return external.length?'external':'internal';
+  },
+  async _fileToBase64(file){
+    return await new Promise((resolve,reject)=>{
+      const r=new FileReader();
+      r.onerror=()=>reject(new Error(`Could not read attachment: ${file?.name||'file'}`));
+      r.onload=()=>{const v=String(r.result||'');const i=v.indexOf(',');if(i<0)return reject(new Error(`Could not encode attachment: ${file?.name||'file'}`));resolve(v.slice(i+1));};
+      r.readAsDataURL(file);
+    });
+  },
+  async send({to,subject,body,cc='',bcc='',attachments=[]}){if(!Supabase.accessToken)throw new Error('Sign in is required to send BharatMail.');const recipients=this._recipientList({to,cc,bcc});const unique=[...new Set(recipients)];if(!unique.length)throw new Error('Add a recipient.');const mode=this.sendMode({to,cc,bcc});if(mode==='mixed')throw new Error('Send BharatLink and external Internet recipients separately for now.');if(mode==='external'){const files=Array.isArray(attachments)?attachments:[];if(files.length>10)throw new Error('Maximum 10 external attachments per email.');let total=0;const encoded=[];for(const f of files){if(!f)continue;if(f.size>10*1024*1024)throw new Error(`${f.name||'Attachment'}: external attachment limit is 10 MB per file.`);total+=Number(f.size||0);if(total>20*1024*1024)throw new Error('External attachments must be 20 MB or less in total.');encoded.push({filename:f.name||'attachment',content_type:f.type||'application/octet-stream',size:Number(f.size||0),content:await this._fileToBase64(f)});}const result=await Supabase.request('/functions/v1/bharatmail-external-send',{method:'POST',body:JSON.stringify({to,cc,bcc,subject,body,attachments:encoded})});this.lastRefreshAt=0;await this.refresh({force:true});return Object.assign({external:true},result||{});}let first=null;for(const addr of unique){const rows=await Supabase.request('/rest/v1/rpc/send_bharatmail',{method:'POST',body:JSON.stringify({p_to_address:addr,p_subject:subject,p_body:body})});if(!first)first=Array.isArray(rows)?rows[0]:rows;}await this.refresh({force:true});return first;},
   async openHistory(messageId){if(!Supabase.accessToken)return[];const rows=await Supabase.request('/rest/v1/rpc/list_bharatmail_open_history',{method:'POST',body:JSON.stringify({p_message_id:messageId})});return Array.isArray(rows)?rows:[];},
   async uploadAttachment(messageId,file){if(!file)return null;if(file.size>25*1024*1024)throw new Error('Attachment is too large. Maximum 25 MB.');const user=await Supabase.currentAuthUser();const key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);const iv=crypto.getRandomValues(new Uint8Array(12));const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,await file.arrayBuffer());const raw=await crypto.subtle.exportKey('raw',key);const path=`${user.id}/${messageId}/${Util.uuid()}.bin`;const up=await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/bharatmail-attachments/${path}`,{method:'POST',headers:Supabase.headers({'Content-Type':'application/octet-stream','x-upsert':'false'}),body:cipher});if(!up.ok){let d='';try{d=(await up.json()).message||'';}catch(_){}throw new Error(d||`Attachment upload failed (${up.status}).`);}await Supabase.request('/rest/v1/rpc/register_bharatmail_attachment',{method:'POST',body:JSON.stringify({p_message_id:messageId,p_storage_path:path,p_file_name:file.name||'attachment',p_mime_type:file.type||'application/octet-stream',p_size_bytes:file.size,p_key_b64:E2EEBackend.b64(raw),p_iv_b64:E2EEBackend.b64(iv)})});return path;},
   async attachments(messageId){if(!Supabase.accessToken)return[];const rows=await Supabase.request('/rest/v1/rpc/list_bharatmail_attachments',{method:'POST',body:JSON.stringify({p_message_id:messageId})});return Array.isArray(rows)?rows:[];},
+  async externalAttachments(messageId){
+    if(!Supabase.accessToken)return[];
+    const rows=await Supabase.request(`/rest/v1/bharatmail_external_attachments?select=id,external_message_id,owner_user_id,direction,provider_attachment_id,filename,content_type,size_bytes,storage_path,created_at&external_message_id=eq.${encodeURIComponent(messageId)}&order=created_at.asc`);
+    return Array.isArray(rows)?rows:[];
+  },
+  async openExternalAttachment(a){
+    if(a._opening)return;
+    a._opening=true;
+    try{
+      const objectPath=String(a.storage_path||'').split('/').map(encodeURIComponent).join('/');
+      if(!objectPath)throw new Error('Attachment storage path is missing.');
+      const objectUrl=`${CONFIG.SUPABASE_URL}/storage/v1/object/authenticated/bharatmail-external-attachments/${objectPath}`;
+      const res=await fetch(objectUrl,{
+        method:'GET',
+        headers:{apikey:CONFIG.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${Supabase.accessToken}`},
+        cache:'no-store'
+      });
+      if(res.status===401&&Supabase.refreshToken){
+        await Supabase.refreshAccessToken();
+        return await this.openExternalAttachment(Object.assign(a,{_opening:false}));
+      }
+      if(!res.ok){
+        let detail='';
+        try{const j=await res.json();detail=j.message||j.error||j.error_description||'';}catch(_){}
+        throw new Error(`Attachment download failed (${res.status})${detail?`: ${detail}`:''}`);
+      }
+      const blob=await res.blob();
+      const typedBlob=blob.type?blob:new Blob([blob],{type:a.content_type||'application/octet-stream'});
+      const blobUrl=URL.createObjectURL(typedBlob);
+      const type=a.content_type||typedBlob.type||'application/octet-stream';
+      const previewable=/^(image|video|audio)\//.test(type)||type==='application/pdf';
+      if(previewable){
+        const w=window.open(blobUrl,'_blank');
+        if(!w){
+          const link=document.createElement('a');
+          link.href=blobUrl;link.target='_blank';link.rel='noopener';link.download=a.filename||'attachment';
+          document.body.append(link);link.click();link.remove();
+        }
+      }else{
+        const link=document.createElement('a');
+        link.href=blobUrl;link.download=a.filename||'attachment';
+        document.body.append(link);link.click();link.remove();
+      }
+      setTimeout(()=>{try{URL.revokeObjectURL(blobUrl);}catch(_){}},10*60*1000);
+    }finally{a._opening=false;}
+  },
   async openAttachment(a){
     if(a._opening)return;
     a._opening=true;
@@ -1694,7 +1780,19 @@ const Mail = {
     }
   },
     async action(id,kind){
-      if((kind==='read'||kind==='unread')&&Supabase.accessToken&&this.get(id)?.delivery!=='local'){
+      const message=this.get(id);
+      if((kind==='read'||kind==='unread')&&Supabase.accessToken&&message?.source==='external'){
+        try{
+          await Supabase.request(`/rest/v1/bharatmail_external_messages?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({read_at:kind==='read'?new Date().toISOString():null})});
+          this.setMeta(id,{read:kind==='read'});
+          this.lastRefreshAt=0;
+          await this.refresh({force:true});
+          if(kind==='unread') Router.go('/mail');
+          else App.refresh();
+        }catch(ex){Toast.show(ex.message||`Could not mark external mail ${kind}.`);}
+        return;
+      }
+      if((kind==='read'||kind==='unread')&&Supabase.accessToken&&message?.delivery!=='local'){
         try{
           await Supabase.request(`/rest/v1/rpc/${kind==='read'?'mark_bharatmail_read':'mark_bharatmail_unread'}`,{method:'POST',body:JSON.stringify({p_message_id:id})});
           this.setMeta(id,{read:kind==='read'});
@@ -4684,7 +4782,8 @@ const Views = {
     const status=h('div',{class:'small muted',style:'padding:4px 0 10px'},Supabase.accessToken?'BharatMail delivery connected':'Sign in required for real BharatMail delivery');
     const notificationBtn=Button(('Notification' in window&&Notification.permission==='granted')?'🔔 Mail notifications ON':'🔔 Enable mail notifications',{variant:'secondary',onClick:async()=>{try{const p=await Mail.requestNotificationPermission();if(p==='granted'){notificationBtn.textContent='🔔 Mail notifications ON';Mail.notifyNewInbox(Mail.remote,{prime:true});Toast.show('BharatMail notifications enabled.');}else Toast.show('Notification permission was not allowed.');}catch(ex){Toast.show(ex.message||'Could not enable notifications.');}}});
     renderResults();
-    const node=Screen({title:'BharatMail',back:'/home',nav:'mail',children:[IdBlock('Your BharatMail ID',s.ids.mailId,'mail'),Notice('info','Verified BharatLink-to-BharatLink mail. External email services are not connected yet.'),status,notificationBtn,search,
+    const externalAddress=Mail.externalAddress(s.ids.mailId);
+    const node=Screen({title:'BharatMail',back:'/home',nav:'mail',children:[IdBlock('Your BharatMail ID',s.ids.mailId,'mail'),externalAddress?IdBlock('External receiving address',externalAddress,'mail'):null,Notice('info','BharatLink-to-BharatLink mail plus external Internet receiving and sending are connected. External sending, receiving, Sent history, and incoming external attachments are connected. External sent-history attachment copies are not saved yet.'),status,notificationBtn,search,
       h('div',{class:'segmented',role:'group','aria-label':'Folder',style:'overflow-x:auto;justify-content:flex-start'},seg('inbox','Inbox'),seg('sent','Sent'),seg('starred','★'),seg('drafts','Drafts'),seg('archive','Archive'),seg('spam','Spam'),seg('trash','Trash')),results,
       h('div',{class:'section'},LinkButton('Compose','#/mail/compose',{icon:'edit'}))]});
     // V31S: foreground mailbox reconciliation. BharatMail delivery is server-authoritative;
@@ -4718,14 +4817,17 @@ const Views = {
     const cc=mk('cc',{placeholder:'Optional, comma-separated',value:seed.cc||''}),bcc=mk('bcc',{placeholder:'Optional, comma-separated',value:seed.bcc||''});
     const subject=mk('subject',{maxlength:String(CONFIG.LIMITS.mailSubject),value:seed.subject||''});
     const body=h('textarea',{class:'input',id:'body',rows:'10',maxlength:String(CONFIG.LIMITS.mailBody)});body.value=seed.body||'';
+    const fromInput=h('input',{class:'input',id:'from',readonly:'readonly'});
+    const syncFrom=()=>{fromInput.value=Mail.sendMode({to:to.value,cc:cc.value,bcc:bcc.value})==='external'||seed.external?Mail.externalAddress(s.ids.mailId):s.ids.mailId;};
+    [to,cc,bcc].forEach(el=>el.addEventListener('input',syncFrom));syncFrom();
     const err=ErrorText('mail-compose-err');
     const attach=h('input',{class:'input',id:'mail-attachment',type:'file',multiple:'multiple',accept:'image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,application/pdf'});
     let selectedAttachments=[];
-    const attachHint=h('div',{class:'hint'},'Optional • select multiple files • maximum 25 MB per file.');
+    const attachHint=h('div',{class:'hint'},'Optional • internal: max 25 MB/file • external: max 10 MB/file and 20 MB total.');
     const attachList=h('div',{class:'stack'});
     const renderSelectedAttachments=()=>{
       attachList.replaceChildren();
-      attachHint.textContent=selectedAttachments.length?`${selectedAttachments.length} attachment${selectedAttachments.length===1?'':'s'} selected • each encrypted separately`:'Optional • select multiple files • maximum 25 MB per file.';
+      attachHint.textContent=selectedAttachments.length?`${selectedAttachments.length} attachment${selectedAttachments.length===1?'':'s'} selected`:'Optional • internal: max 25 MB/file • external: max 10 MB/file and 20 MB total.';
       selectedAttachments.forEach((f,i)=>attachList.append(h('div',{class:'card row between'},h('div',{},h('strong',{},f.name||'attachment'),h('div',{class:'small muted'},`${(f.size/1024/1024).toFixed(2)} MB`)),Button('Remove ×',{variant:'secondary',onClick:()=>{selectedAttachments.splice(i,1);renderSelectedAttachments();}}))));
     };
     attach.addEventListener('change',()=>{
@@ -4738,23 +4840,34 @@ const Views = {
     });
     const saveDraft=()=>{const id=Mail.saveDraft({id:seed.draftId,to:to.value,cc:cc.value,bcc:bcc.value,subject:subject.value,body:body.value});Toast.show('Draft saved.');Router.go('/mail',{replace:true});};
     const sendBtn=Button('Send',{type:'submit'});
-    const form=h('form',{novalidate:'novalidate',onSubmit:async e=>{e.preventDefault();err.textContent='';const vTo=Validate.email(to.value),vSub=Validate.text(subject.value,CONFIG.LIMITS.mailSubject,'subject'),vBody=Validate.text(body.value,CONFIG.LIMITS.mailBody,'message');if(!vTo.ok||!vSub.ok||!vBody.ok){err.textContent=!vTo.ok?vTo.error:!vSub.ok?vSub.error:vBody.error;return;}const files=selectedAttachments.slice();const tooLarge=files.find(f=>f.size>25*1024*1024);if(tooLarge){err.textContent=`${tooLarge.name}: maximum attachment size is 25 MB.`;return;}sendBtn.disabled=true;sendBtn.textContent=files.length?'Encrypting & sending…':'Sending…';try{const sent=await Mail.send({to:vTo.value,cc:cc.value,bcc:bcc.value,subject:vSub.value,body:vBody.value});if(files.length){const mid=sent?.id;if(!mid)throw new Error('Mail sent, but attachments could not be linked.');let done=0;for(const f of files){sendBtn.textContent=`Encrypting attachment ${done+1}/${files.length}…`;await Mail.uploadAttachment(mid,f);done++;}}if(seed.draftId)Mail.deleteDraft(seed.draftId);Mail.folder='sent';Toast.show(files.length?`BharatMail + ${files.length} encrypted attachment${files.length===1?'':'s'} delivered.`:'BharatMail delivered.');Router.go('/mail',{replace:true});}catch(ex){err.textContent=ex.message||'BharatMail delivery failed.';sendBtn.disabled=false;sendBtn.textContent='Send';}}},
-      Field({id:'from',label:'From',input:h('input',{class:'input',id:'from',readonly:'readonly',value:s.ids.mailId})}),Field({id:'to',label:'To',input:to}),Field({id:'cc',label:'CC',input:cc}),Field({id:'bcc',label:'BCC',input:bcc}),Field({id:'subject',label:'Subject',input:subject}),Field({id:'body',label:'Message',input:body}),Field({id:'mail-attachment',label:'Attachments',input:attach,hint:attachHint}),attachList,err,
-      Notice('info','Select one or multiple photos, videos, audio files, PDFs or documents. Each attachment is AES-GCM encrypted separately on this device before upload; Supabase stores ciphertext only.'),h('div',{class:'btn-row'},sendBtn,Button('Save draft',{variant:'secondary',onClick:saveDraft})));
+    const form=h('form',{novalidate:'novalidate',onSubmit:async e=>{e.preventDefault();err.textContent='';const vTo=Validate.email(to.value),vSub=Validate.text(subject.value,CONFIG.LIMITS.mailSubject,'subject'),vBody=Validate.text(body.value,CONFIG.LIMITS.mailBody,'message');if(!vTo.ok||!vSub.ok||!vBody.ok){err.textContent=!vTo.ok?vTo.error:!vSub.ok?vSub.error:vBody.error;return;}const files=selectedAttachments.slice();const mode=Mail.sendMode({to:vTo.value,cc:cc.value,bcc:bcc.value});if(mode==='mixed'){err.textContent='Send BharatLink and external Internet recipients separately for now.';return;}if(mode==='external'){if(files.length>10){err.textContent='Maximum 10 external attachments per email.';return;}const tooLarge=files.find(f=>f.size>10*1024*1024);if(tooLarge){err.textContent=`${tooLarge.name}: external attachment limit is 10 MB per file.`;return;}const total=files.reduce((n,f)=>n+Number(f.size||0),0);if(total>20*1024*1024){err.textContent='External attachments must be 20 MB or less in total.';return;}}else{const tooLarge=files.find(f=>f.size>25*1024*1024);if(tooLarge){err.textContent=`${tooLarge.name}: maximum attachment size is 25 MB.`;return;}}sendBtn.disabled=true;sendBtn.textContent=files.length?(mode==='external'?'Preparing attachments…':'Encrypting & sending…'):'Sending…';try{const sent=await Mail.send({to:vTo.value,cc:cc.value,bcc:bcc.value,subject:vSub.value,body:vBody.value,attachments:mode==='external'?files:[]});if(files.length&&mode!=='external'){const mid=sent?.id;if(!mid)throw new Error('Mail sent, but attachments could not be linked.');let done=0;for(const f of files){sendBtn.textContent=`Encrypting attachment ${done+1}/${files.length}…`;await Mail.uploadAttachment(mid,f);done++;}}if(seed.draftId)Mail.deleteDraft(seed.draftId);if(sent?.external){Mail.folder='sent';Toast.show(files.length?`External email + ${files.length} attachment${files.length===1?'':'s'} sent.`:'External email sent.');}else{Mail.folder='sent';Toast.show(files.length?`BharatMail + ${files.length} encrypted attachment${files.length===1?'':'s'} delivered.`:'BharatMail delivered.');}Router.go('/mail',{replace:true});}catch(ex){err.textContent=ex.message||'BharatMail delivery failed.';sendBtn.disabled=false;sendBtn.textContent='Send';}}},
+      Field({id:'from',label:'From',input:fromInput}),Field({id:'to',label:'To',input:to}),Field({id:'cc',label:'CC',input:cc}),Field({id:'bcc',label:'BCC',input:bcc}),Field({id:'subject',label:'Subject',input:subject}),Field({id:'body',label:'Message',input:body}),Field({id:'mail-attachment',label:'Attachments',input:attach,hint:attachHint}),attachList,err,
+      Notice('info','Internal BharatMail attachments are AES-GCM encrypted on this device before Supabase upload. External Internet-email attachments are sent over HTTPS to the BharatMail server and Resend for standard email delivery; external recipients do not receive BharatMail E2EE.'),h('div',{class:'btn-row'},sendBtn,Button('Save draft',{variant:'secondary',onClick:saveDraft})));
     return Screen({title:seed.title||'New mail',back:'/mail',children:[form]});
   },
 
   mailMessage(id) {
     const m=Mail.get(id);if(!m)return Views.notFound('/mail');
     if(m.folder==='inbox'){
-      if(!m.read){Mail.setMeta(id,{read:true});m.read=true;}
-      if(Supabase.accessToken&&m.delivery!=='local'){
+      const wasUnread=!m.read;
+      if(wasUnread){Mail.setMeta(id,{read:true});m.read=true;}
+      if(Supabase.accessToken&&m.source==='external'&&wasUnread){
+        Supabase.request(`/rest/v1/bharatmail_external_messages?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({read_at:new Date().toISOString()})}).then(()=>{Mail.lastRefreshAt=0;}).catch(()=>{});
+      }else if(Supabase.accessToken&&m.source!=='external'&&m.delivery!=='local'){
         Supabase.request('/rest/v1/rpc/mark_bharatmail_read',{method:'POST',body:JSON.stringify({p_message_id:id})}).then(()=>{Mail.lastRefreshAt=0;return Mail.refresh({force:true});}).catch(()=>{});
         Supabase.request('/rest/v1/rpc/record_bharatmail_open',{method:'POST',body:JSON.stringify({p_message_id:id})}).catch(()=>{});
       }
     }
-    const reply=()=>{Mail.composeSeed={title:'Reply',to:m.from,subject:/^Re:/i.test(m.subject)?m.subject:`Re: ${m.subject}`,body:`\n\n--- Original message ---\nFrom: ${m.from}\n${m.body}`};Router.go('/mail/compose');};
-    const replyAll=()=>{Mail.composeSeed={title:'Reply all',to:m.from,subject:/^Re:/i.test(m.subject)?m.subject:`Re: ${m.subject}`,body:`\n\n--- Original message ---\nFrom: ${m.from}\n${m.body}`};Router.go('/mail/compose');};
+    const reply=()=>{Mail.composeSeed={title:'Reply',external:m.source==='external',to:m.from,subject:/^Re:/i.test(m.subject)?m.subject:`Re: ${m.subject}`,body:`
+
+--- Original message ---
+From: ${m.from}
+${m.body}`};Router.go('/mail/compose');};
+    const replyAll=()=>{Mail.composeSeed={title:'Reply all',external:m.source==='external',to:m.from,subject:/^Re:/i.test(m.subject)?m.subject:`Re: ${m.subject}`,body:`
+
+--- Original message ---
+From: ${m.from}
+${m.body}`};Router.go('/mail/compose');};
     const forward=()=>{Mail.composeSeed={title:'Forward',to:'',subject:/^Fwd:/i.test(m.subject)?m.subject:`Fwd: ${m.subject}`,body:`\n\n--- Forwarded message ---\nFrom: ${m.from}\nTo: ${m.to}\nSubject: ${m.subject}\n\n${m.body}`};Router.go('/mail/compose');};
     const receiptBox=h('div',{class:'section'});
     if(m.folder==='sent'){
@@ -4777,9 +4890,10 @@ const Views = {
         }}));
       }
     }
-    const attachmentBox=h('div',{class:'section'},h('div',{class:'small muted'},'Checking attachments…'));
-    setTimeout(async()=>{try{const aa=await Mail.attachments(id);attachmentBox.replaceChildren();if(!aa.length)return;attachmentBox.append(h('h3',{},`Attachments (${aa.length})`));aa.forEach(a=>attachmentBox.append(Button(`📎 ${a.file_name} • ${(Number(a.size_bytes||0)/1024/1024).toFixed(2)} MB`,{variant:'secondary',onClick:async()=>{try{await Mail.openAttachment(a);}catch(ex){Toast.show(ex.message||'Attachment could not be opened.');}}})));}catch(ex){attachmentBox.replaceChildren(h('div',{class:'small muted'},'Attachments unavailable.'));}},0);
-    return Screen({title:m.folder==='sent'?'Sent mail':'Mail',back:'/mail',children:[h('h2',{class:'mailview__subject'},m.subject||'(No subject)'),h('dl',{class:'kv paycard'},KvRow('From',m.from),KvRow('To',m.to),KvRow('Time',Util.dateTime(m.at)),m.folder==='sent'?KvRow('Delivery',ToneBadge('good',m.read_at?'✓✓ Read':'✓ Delivered')):null),receiptBox,h('div',{class:'mailview__body'},m.body),attachmentBox,
+    const attachmentBox=h('div',{class:'section'},h('div',{class:'small muted'},m.source==='external'?'Checking external attachments…':'Checking attachments…'));
+    if(m.source==='external')setTimeout(async()=>{try{const aa=await Mail.externalAttachments(id);attachmentBox.replaceChildren();if(!aa.length){attachmentBox.append(h('div',{class:'small muted'},'No attachment saved for this email.'));return;}attachmentBox.append(h('h3',{},`Attachments (${aa.length})`));aa.forEach(a=>attachmentBox.append(Button(`📎 ${a.filename} • ${(Number(a.size_bytes||0)/1024/1024).toFixed(2)} MB`,{variant:'secondary',onClick:async()=>{try{await Mail.openExternalAttachment(a);}catch(ex){Toast.show(ex.message||'Attachment could not be opened.');}}})));}catch(ex){attachmentBox.replaceChildren(h('div',{class:'small muted'},'External attachments unavailable.'));}},0);
+    else setTimeout(async()=>{try{const aa=await Mail.attachments(id);attachmentBox.replaceChildren();if(!aa.length)return;attachmentBox.append(h('h3',{},`Attachments (${aa.length})`));aa.forEach(a=>attachmentBox.append(Button(`📎 ${a.file_name} • ${(Number(a.size_bytes||0)/1024/1024).toFixed(2)} MB`,{variant:'secondary',onClick:async()=>{try{await Mail.openAttachment(a);}catch(ex){Toast.show(ex.message||'Attachment could not be opened.');}}})));}catch(ex){attachmentBox.replaceChildren(h('div',{class:'small muted'},'Attachments unavailable.'));}},0);
+    return Screen({title:m.folder==='sent'?'Sent mail':'Mail',back:'/mail',children:[h('h2',{class:'mailview__subject'},m.subject||'(No subject)'),h('dl',{class:'kv paycard'},KvRow('From',m.from),KvRow('To',m.to),KvRow('Time',Util.dateTime(m.at)),m.source==='external'?KvRow('Source',ToneBadge('none','External email')):null,m.folder==='sent'?KvRow('Delivery',ToneBadge('good',m.read_at?'✓✓ Read':'✓ Delivered')):null),receiptBox,h('div',{class:'mailview__body'},m.body||'(No text body)'),attachmentBox,
       h('div',{class:'btn-row section'},Button('Reply',{variant:'secondary',onClick:reply}),Button('Reply all',{variant:'secondary',onClick:replyAll}),Button('Forward',{variant:'secondary',onClick:forward})),
       h('div',{class:'btn-row section'},Button(m.starred?'Unstar':'★ Star',{variant:'ghost',onClick:()=>Mail.action(id,'star')}),Button(m.archived?'Unarchive':'Archive',{variant:'ghost',onClick:()=>Mail.action(id,m.archived?'unarchive':'archive')}),Button(m.read?'Mark unread':'Mark read',{variant:'ghost',onClick:()=>Mail.action(id,m.read?'unread':'read')})),
       h('div',{class:'btn-row section'},Button(m.spam?'Not spam':'Spam',{variant:'ghost',onClick:()=>Mail.action(id,m.spam?'notspam':'spam')}),Button(m.trashed?'Restore':'Delete',{variant:'ghost',onClick:()=>Mail.action(id,m.trashed?'restore':'trash')}))]});
