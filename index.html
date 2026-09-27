@@ -1667,6 +1667,40 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 
 
 /* =====================================================================
+   BharathLink V37 — Live Call Risk Signals (direct voice/video beta)
+   In-call warning UI only. The Trust Engine evaluates temporary transcript
+   text in memory and never stores it in BharathLink/Supabase. Remote-track
+   speech recognition is enabled only where the browser supports it safely.
+   ===================================================================== */
+.bl-live-call-risk{
+  margin:14px auto 0;padding:10px 12px;width:min(100%,360px);border-radius:15px;
+  border:1px solid #334764;background:#111c30;color:#c5d0e1;text-align:left;
+  font-size:11px;line-height:1.42;box-shadow:0 8px 24px rgba(0,0,0,.20)
+}
+.bl-live-call-risk.is-medium{border-color:#6d5421;background:#30250f;color:#ffe09a}
+.bl-live-call-risk.is-high{border-color:#7b3330;background:#38191c;color:#ffc0ba}
+.bl-live-call-risk__head{display:flex;align-items:center;gap:8px;font-weight:900}
+.bl-live-call-risk__badge{
+  flex:none;padding:2px 7px;border-radius:999px;border:1px solid currentColor;
+  font-size:9px;letter-spacing:.03em
+}
+.bl-live-call-risk__title{font-size:11px;font-weight:900}
+.bl-live-call-risk__body{margin-top:5px;opacity:.94}
+.bl-live-call-risk__foot{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.13);font-size:10px;opacity:.88}
+.bl-live-risk-btn{
+  border:1px solid #405578;border-radius:999px;min-width:78px;padding:13px 14px;
+  background:#192943;color:#d8e3f2;font-weight:800;font-size:12px
+}
+.bl-live-risk-btn.is-on{border-color:#8c6b22;background:#3a2d11;color:#ffd76e}
+.bl-live-risk-btn.is-alert{border-color:#8d3834;background:#4a1d20;color:#ffc0ba}
+.bl-video-live-risk{
+  position:absolute;left:12px;right:12px;bottom:142px;z-index:5;margin:0 auto;
+  width:min(calc(100% - 24px),420px);max-height:150px;overflow:auto;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)
+}
+@media(max-height:620px){.bl-video-live-risk{bottom:126px;max-height:116px}}
+
+/* =====================================================================
    BharathLink V36 — direct-chat persistent call/header controls
    UI-only patch: keep the direct-chat peer header visible while the
    document scrolls. No messaging, E2EE, WebRTC, backend or composer logic.
@@ -1688,7 +1722,7 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 }
 
 </style>
-<meta name="bharathlink-build" content="profile-photo-status-local-mvp-2026-09-26">
+<meta name="bharathlink-build" content="v37-live-call-risk-signals-2026-09-27">
   <!-- phase1d-real-user-chat-2026-09-21 -->
   <!-- phase1e1-message-direction-2026-09-21 -->
   <!-- phase1e2-timestamps-receipts-2026-09-21 -->
@@ -4069,6 +4103,45 @@ const TrustEngine = {
     if(link&&(otp||money||urgency))flags.push('risky_link_context');
     return flags;
   },
+  callSpeechRisk(v){
+    const t=String(v||'').toLocaleLowerCase().replace(/\s+/g,' ').trim();
+    if(!t)return null;
+    const authority=/(\bpolice\b|\bcbi\b|central bureau|\bed\b|enforcement directorate|cyber ?(?:crime|cell)|narcotics|customs|income tax|\brbi\b|reserve bank|\bcourt\b|government|\bgovt\b|officer|inspector|commissioner|bank official|पुलिस|सीबीआई|ईडी|प्रवर्तन निदेशालय|साइबर|नारकोटिक्स|कस्टम|आयकर|आरबीआई|सरकार|अधिकारी|इंस्पेक्टर)/i.test(t);
+    const investigation=/(under investigation|investigation|digital arrest|arrest warrant|\bwarrant\b|\bfir\b|case registered|criminal case|money laundering|illegal parcel|drugs? parcel|courier.*(?:illegal|drug)|summons|your (?:aadhaar|aadhar|sim|account).*(?:used|misused|linked|freeze)|जांच|जाँच|गिरफ्तार|डिजिटल अरेस्ट|वारंट|एफआईआर|केस|मनी लॉन्ड्रिंग|खाता.*फ्रीज)/i.test(t);
+    const urgency=/(\burgent\b|immediately|right now|act now|today itself|within \d+|do not disconnect|don't disconnect|stay on (?:the )?call|do not tell anyone|don't tell anyone|confidential|secret|call (?:cut|disconnect) mat|kisi ko mat bata|abhi|turant|तुरंत|अभी|फोन मत काट|किसी को मत बत)/i.test(t);
+    const moneyRaw=/(₹|\brs\.?\b|\binr\b|\bupi\b|\bpayment\b|\bpay\b|\bmoney\b|\btransfer\b|safe account|security deposit|verification fee|fine|bail|deposit|bank account|wallet|रुपये|पैसा|भुगतान|ट्रांसफर|जमा|जुर्माना)/i.test(t);
+    const credentialRaw=/(\botp\b|one[ -]?time password|verification code|\bcvv\b|\bpin\b|password|passcode|screen share|share (?:your )?screen|ओटीपी|पिन|पासवर्ड|स्क्रीन शेयर)/i.test(t);
+    const protectiveMoney=/(do not|don't|never|mat|nahi|nahin|ना|मत)\s+(?:ever\s+)?(?:pay|transfer|send|deposit|भुगतान|ट्रांसफर|पैसा)/i.test(t);
+    const protectiveCredential=/(do not|don't|never|mat|nahi|nahin|ना|मत)\s+(?:share|tell|give|send|provide|बताओ|बताएं|शेयर).{0,28}(?:otp|pin|password|cvv|ओटीपी|पिन|पासवर्ड)/i.test(t);
+    const money=moneyRaw&&!protectiveMoney;
+    const credential=credentialRaw&&!protectiveCredential;
+    const requestVerb=/(send|share|tell|give|provide|read out|forward|transfer|pay|deposit|बताओ|बताएं|भेजो|शेयर|ट्रांसफर|जमा)/i.test(t);
+
+    let severity=null,title='',reason='',action='';
+    if(credential&&requestVerb){
+      severity='high';
+      title='Secret credential request detected';
+      reason='The caller appears to be asking for an OTP, PIN, password, CVV or screen access.';
+      action='Do not share secret credentials or screen access. Verify the request independently.';
+    }else if((investigation&&money&&(authority||urgency))||(authority&&money&&urgency)){
+      severity='high';
+      title='High-risk call pattern detected';
+      reason='Caller speech combines a sensitive authority/investigation pattern with a payment request.';
+      action='Do not transfer money based only on this call. End the call if needed and independently verify the organisation using an official channel.';
+    }else if((authority&&investigation)||(authority&&(money||urgency))||(investigation&&urgency)||(money&&urgency)){
+      severity='medium';
+      title='Call risk signal detected';
+      reason=authority?'The caller is claiming authority in a context involving investigation, urgency or money.':'The caller is combining urgency with investigation or payment language.';
+      action='Pause before acting. Verify WHO is calling and their AUTHORITY using a separately obtained official number or website.';
+    }else if(authority){
+      severity='info';
+      title='Authority claim detected';
+      reason='The caller appears to be claiming a police, government, bank or other official identity.';
+      action='An authority claim is not proof of identity. Independently verify the organisation before sharing sensitive information or making a payment.';
+    }else return null;
+
+    return {kind:'live_call_risk',severity,title,reason,action,source:'Calling · WHO / AUTHORITY',rule:'Risk signal · not a verdict'};
+  },
   pushUnique(out,signal){
     const key=[signal.kind,signal.route||'',signal.messageId||'',signal.title].join('|');
     if(out.some(x=>x._key===key))return;
@@ -4277,6 +4350,95 @@ const TrustEngine = {
 };
 
 /* =====================================================================
+   13C. LIVE CALL RISK SIGNALS — V37 BETA
+   The risk rules run locally on transient transcript text. BharathLink does
+   not persist call audio/transcripts and does not upload them to Supabase.
+   Compatible desktop Chromium can feed the remote MediaStreamTrack directly
+   to Web Speech. Android/iOS web builds deliberately do NOT fall back to the
+   local microphone, because that would analyse the wrong side of the call and
+   can interfere with WebRTC microphone capture. A future native Android layer
+   may supply transient transcript chunks through `bl-native-call-transcript`.
+   ===================================================================== */
+const LiveCallRisk = {
+  create({onState,onSignal}={}){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
+    const ua=String(navigator.userAgent||'');
+    const mobileWeb=/Android|iPhone|iPad|iPod/i.test(ua);
+    let enabled=false,closed=false,track=null,recognition=null,retryTimer=null,buffer='',lastKey='',lastAt=0;
+    const emitState=(mode,text)=>{try{onState?.({mode,text});}catch(_){}};
+    const stopRecognition=()=>{
+      clearTimeout(retryTimer);retryTimer=null;
+      const r=recognition;recognition=null;
+      if(r){try{r.onend=r.onerror=r.onresult=null;r.stop();}catch(_){try{r.abort();}catch(__){}}}
+    };
+    const ingest=text=>{
+      if(!enabled||closed)return;
+      const chunk=String(text||'').replace(/\s+/g,' ').trim();
+      if(!chunk)return;
+      buffer=(buffer+' '+chunk).slice(-1400);
+      const signal=TrustEngine.callSpeechRisk(buffer);
+      if(!signal)return;
+      const key=`${signal.severity}|${signal.title}|${signal.reason}`;
+      const now=Date.now();
+      if(key===lastKey&&now-lastAt<8000)return;
+      lastKey=key;lastAt=now;
+      try{onSignal?.(signal);}catch(_){}
+    };
+    const startBrowser=()=>{
+      if(!enabled||closed)return;
+      if(!track||track.kind!=='audio'||track.readyState!=='live'){
+        emitState('waiting','Live Risk armed · waiting for caller audio…');
+        return;
+      }
+      if(mobileWeb){
+        emitState('unsupported','Live caller-audio transcription is not supported safely in this Android/iPhone web build. Native Android support is required.');
+        return;
+      }
+      if(!SR){
+        emitState('unsupported','This browser does not provide compatible speech recognition for Live Call Risk Signals.');
+        return;
+      }
+      stopRecognition();
+      try{
+        const r=new SR();recognition=r;
+        r.continuous=true;r.interimResults=true;r.maxAlternatives=1;r.lang='en-IN';
+        r.onresult=e=>{
+          let text='';
+          for(let i=e.resultIndex||0;i<e.results.length;i++)text+=' '+String(e.results[i]?.[0]?.transcript||'');
+          ingest(text);
+        };
+        r.onerror=e=>{
+          if(!enabled||closed)return;
+          const code=String(e?.error||'');
+          if(['not-allowed','service-not-allowed','audio-capture'].includes(code)){
+            enabled=false;emitState('error','Live Risk could not access the browser speech-recognition service. The call itself is unchanged.');
+          }
+        };
+        r.onend=()=>{
+          recognition=null;
+          if(enabled&&!closed&&track?.readyState==='live')retryTimer=setTimeout(startBrowser,550);
+        };
+        r.start(track);
+        emitState('listening','Live Risk ON · caller speech is checked for risk patterns. Transcript is not saved by BharathLink. Your browser may provide the speech-recognition service.');
+      }catch(_){
+        recognition=null;
+        emitState('unsupported','This browser cannot transcribe the remote caller audio track. The call continues normally.');
+      }
+    };
+    const nativeTranscript=e=>{if(enabled)ingest(e?.detail?.text||e?.detail?.transcript||'');};
+    window.addEventListener('bl-native-call-transcript',nativeTranscript);
+    return {
+      attachTrack(t){track=t?.kind==='audio'?t:null;if(enabled)startBrowser();},
+      enable(){if(closed)return false;enabled=true;buffer='';lastKey='';lastAt=0;emitState('waiting',track?'Starting Live Risk…':'Live Risk armed · waiting for caller audio…');startBrowser();return true;},
+      disable(){enabled=false;stopRecognition();buffer='';emitState('off','Live Call Risk Signals are off.');},
+      isEnabled(){return enabled;},
+      ingest,
+      close(){closed=true;enabled=false;stopRecognition();buffer='';track=null;window.removeEventListener('bl-native-call-transcript',nativeTranscript);}
+    };
+  }
+};
+
+/* =====================================================================
    14. UI PRIMITIVES
    All DOM is built with createElement / textContent. innerHTML is never
    used, so user-controlled text is always rendered as plain text.
@@ -4336,6 +4498,46 @@ function Logo(size = 40) {
     svgEl('circle', { cx: 19.5, cy: 24, r: 8, fill: 'none', stroke: '#E4A13A', 'stroke-width': 3.4 }),
     svgEl('circle', { cx: 28.5, cy: 24, r: 8, fill: 'none', stroke: '#FFFFFF', 'stroke-width': 3.4 })
   ]);
+}
+
+function createLiveCallRiskUi({video=false}={}){
+  const badge=h('span',{class:'bl-live-call-risk__badge'},'BETA');
+  const title=h('span',{class:'bl-live-call-risk__title'},'Live Call Risk Signals');
+  const body=h('div',{class:'bl-live-call-risk__body'},'Tap Live Risk to check caller speech for authority, investigation, payment and credential-risk patterns.');
+  const foot=h('div',{class:'bl-live-call-risk__foot'},'Risk signal · not a verdict · No transcript is saved by BharathLink.');
+  const panel=h('div',{class:`bl-live-call-risk${video?' bl-video-live-risk':''}`},h('div',{class:'bl-live-call-risk__head'},badge,title),body,foot);
+  let lastSignal=null;
+  let button=null;
+  const paintState=({mode,text})=>{
+    if(!lastSignal){badge.textContent=mode==='listening'?'ON':mode==='unsupported'?'N/A':'BETA';title.textContent='Live Call Risk Signals';body.textContent=text;}
+    if(button){
+      button.classList.toggle('is-on',mode==='listening'||mode==='waiting');
+      if(!lastSignal)button.classList.remove('is-alert');
+      button.textContent=mode==='listening'||mode==='waiting'?'Live Risk ON':mode==='unsupported'?'Live Risk N/A':'Live Risk';
+    }
+  };
+  const paintSignal=signal=>{
+    lastSignal=signal;
+    panel.classList.toggle('is-high',signal.severity==='high');
+    panel.classList.toggle('is-medium',signal.severity==='medium'||signal.severity==='info');
+    badge.textContent=String(signal.severity||'signal').toUpperCase();
+    title.textContent=signal.title||'Call risk signal';
+    body.textContent=signal.reason||'A call risk pattern was detected.';
+    foot.textContent=`${signal.action||'Verify independently before acting.'} · Risk signal · not a verdict`;
+    if(button){button.classList.add('is-alert');button.textContent='Risk Signal';}
+    if(signal.severity==='high')try{navigator.vibrate?.([120,70,120]);}catch(_){}
+  };
+  const monitor=LiveCallRisk.create({onState:paintState,onSignal:paintSignal});
+  button=h('button',{type:'button',class:'bl-live-risk-btn',onClick:()=>{
+    if(monitor.isEnabled()){
+      lastSignal=null;panel.classList.remove('is-high','is-medium');monitor.disable();
+      badge.textContent='BETA';title.textContent='Live Call Risk Signals';
+      body.textContent='Tap Live Risk to check caller speech for authority, investigation, payment and credential-risk patterns.';
+      foot.textContent='Risk signal · not a verdict · No transcript is saved by BharathLink.';
+      button.classList.remove('is-alert');
+    }else monitor.enable();
+  }},'Live Risk');
+  return {panel,button,attachTrack:t=>monitor.attachTrack(t),close:()=>monitor.close()};
 }
 
 /* ---------- Reusable components ---------- */
@@ -7287,7 +7489,7 @@ const Views = {
   },
 
   e2eeVoiceCallChannel(conversationId, peerLabel='BharatLink user') {
-    let ws=null,joined=false,ref=0,heartbeat=null,closed=false,pc=null,localStream=null,remoteAudio=null,overlay=null;
+    let ws=null,joined=false,ref=0,heartbeat=null,closed=false,pc=null,localStream=null,remoteAudio=null,overlay=null,riskUi=null,riskTrack=null;
     let callId=null,role=null,muted=false,speakerOn=false,pendingCandidates=[],incomingOffer=null;
     let callStartedAt=null,callConnectedAt=null,callFinalized=false,ringTimer=null,currentUserId=null;
     const topic=`realtime:bl-call-${conversationId}`;
@@ -7295,7 +7497,7 @@ const Views = {
     const broadcast=(event,payload={})=>joined&&send('broadcast',{type:'broadcast',event,payload});
     const clearRing=()=>{if(ringTimer){clearTimeout(ringTimer);ringTimer=null;}};
     const closeOverlay=()=>{if(overlay){overlay.remove();overlay=null;}};
-    const cleanupMedia=()=>{try{pc?.close();}catch(_){}pc=null;try{localStream?.getTracks().forEach(t=>t.stop());}catch(_){}localStream=null;if(remoteAudio){try{remoteAudio.pause();remoteAudio.srcObject=null;}catch(_){}remoteAudio.remove();remoteAudio=null;}};
+    const cleanupMedia=()=>{try{riskUi?.close();}catch(_){}riskUi=null;riskTrack=null;try{pc?.close();}catch(_){}pc=null;try{localStream?.getTracks().forEach(t=>t.stop());}catch(_){}localStream=null;if(remoteAudio){try{remoteAudio.pause();remoteAudio.srcObject=null;}catch(_){}remoteAudio.remove();remoteAudio=null;}};
     const persistHistory=outcome=>{if(role!=='caller'||!callId||!currentUserId||callFinalized)return;callFinalized=true;clearRing();const endedAt=Date.now();const meta={v:1,call_id:callId,media:'audio',outcome,initiator_user_id:currentUserId,started_at:callStartedAt||endedAt,connected_at:callConnectedAt,duration_sec:callConnectedAt?Math.max(0,Math.round((endedAt-callConnectedAt)/1000)):0,ended_at:endedAt};Views._persistCallHistory(conversationId,meta).catch(()=>{});};
     const reset=()=>{clearRing();callId=null;role=null;incomingOffer=null;pendingCandidates=[];muted=false;speakerOn=false;callStartedAt=null;callConnectedAt=null;callFinalized=false;currentUserId=null;};
     const finish=(reason='completed',notify=true)=>{const cid=callId;if(role==='caller'){const outcome=callConnectedAt?'completed':(reason==='rejected'?'rejected':reason==='no_answer'?'no_answer':'cancelled');persistHistory(outcome);}if(notify&&cid)broadcast('call_end',{call_id:cid,reason:callConnectedAt?'completed':reason});cleanupMedia();closeOverlay();reset();};
@@ -7320,6 +7522,7 @@ const Views = {
       }catch(e){Toast.show('Android/Chrome did not allow audio-output switching.');}
     };
     const callUi=(state,incoming=false)=>{
+      try{riskUi?.close();}catch(_){}riskUi=null;
       closeOverlay();
       const fallbackInitial=String(peerLabel||'B').trim().slice(0,1).toUpperCase()||'B';
       if(incoming){
@@ -7341,9 +7544,12 @@ const Views = {
         );
       }else{
         const btn=(label,fn,bg='#26304e')=>h('button',{type:'button',style:`border:0;border-radius:999px;min-width:78px;padding:14px 16px;background:${bg};color:#fff;font-weight:750;font-size:14px`,onClick:fn},label);
-        const controls=h('div',{style:'display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:24px'},
+        riskUi=createLiveCallRiskUi();
+        if(riskTrack)riskUi.attachTrack(riskTrack);
+        const controls=h('div',{style:'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px'},
           btn('Mute',e=>{muted=!muted;localStream?.getAudioTracks().forEach(t=>t.enabled=!muted);e.currentTarget.textContent=muted?'Unmute':'Mute';}),
           btn('Speaker',e=>toggleSpeaker(e.currentTarget)),
+          riskUi.button,
           btn('End',()=>finish(callConnectedAt?'completed':'cancelled',true),'#b42318')
         );
         overlay=h('div',{style:'position:fixed;inset:0;z-index:2147483600;background:#10162b;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px'},
@@ -7351,15 +7557,16 @@ const Views = {
             h('div',{style:'width:92px;height:92px;border-radius:50%;display:grid;place-items:center;background:#293255;font-size:34px;font-weight:800;margin:10px auto'},fallbackInitial),
             h('div',{style:'font-size:25px;font-weight:800'},peerLabel),
             h('div',{id:'bl-call-state',style:'margin-top:8px;color:#d9def2;font-size:15px'},state),
+            riskUi.panel,
             controls,
-            h('div',{style:'margin-top:26px;font-size:12px;color:#aeb8d8'},'BharathLink direct voice call • WebRTC audio')
+            h('div',{style:'margin-top:18px;font-size:12px;color:#aeb8d8'},'BharathLink direct voice call • WebRTC audio')
           )
         );
       }
       document.body.append(overlay);
     };
     const ensureMedia=async()=>{if(localStream)return localStream;if(!navigator.mediaDevices?.getUserMedia)throw new Error('Microphone access is not available in this browser.');localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:false});return localStream;};
-    const ensurePc=async()=>{if(pc)return pc;await ensureMedia();pc=new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));remoteAudio=document.createElement('audio');remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.style.display='none';document.body.append(remoteAudio);pc.ontrack=e=>{remoteAudio.srcObject=e.streams[0];remoteAudio.play().catch(()=>{});markConnected();};pc.onicecandidate=e=>{if(e.candidate&&callId)broadcast('call_ice',{call_id:callId,candidate:e.candidate.toJSON()});};pc.onconnectionstatechange=()=>{if(!pc)return;if(pc.connectionState==='connected')markConnected();else if(['failed','disconnected'].includes(pc.connectionState))setState('Reconnecting…');};return pc;};
+    const ensurePc=async()=>{if(pc)return pc;await ensureMedia();pc=new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));remoteAudio=document.createElement('audio');remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.style.display='none';document.body.append(remoteAudio);pc.ontrack=e=>{remoteAudio.srcObject=e.streams[0];remoteAudio.play().catch(()=>{});riskTrack=e.streams[0]?.getAudioTracks?.()[0]||e.track?.kind==='audio'&&e.track||null;if(riskTrack)riskUi?.attachTrack(riskTrack);markConnected();};pc.onicecandidate=e=>{if(e.candidate&&callId)broadcast('call_ice',{call_id:callId,candidate:e.candidate.toJSON()});};pc.onconnectionstatechange=()=>{if(!pc)return;if(pc.connectionState==='connected')markConnected();else if(['failed','disconnected'].includes(pc.connectionState))setState('Reconnecting…');};return pc;};
     const start=async()=>{if(callId)return;if(!joined){Toast.show('Call service is connecting. Try again in a moment.');return;}try{const me=await Supabase.currentAuthUser();currentUserId=me.id;callId=crypto.randomUUID();role='caller';callStartedAt=Date.now();callConnectedAt=null;callFinalized=false;callUi('Calling…');const p=await ensurePc();const offer=await p.createOffer({offerToReceiveAudio:true});await p.setLocalDescription(offer);broadcast('call_offer',{call_id:callId,sdp:p.localDescription});ringTimer=setTimeout(()=>{if(role==='caller'&&callId&&!callConnectedAt){setState('No answer');finish('no_answer',true);}},60000);}catch(ex){cleanupMedia();closeOverlay();reset();alert(ex.message||'Could not start voice call.');}};
     const answerIncoming=async()=>{if(!incomingOffer||!callId)return;try{callUi('Connecting…');const p=await ensurePc();await p.setRemoteDescription(new RTCSessionDescription(incomingOffer));for(const c of pendingCandidates.splice(0)){try{await p.addIceCandidate(c);}catch(_){}}const ans=await p.createAnswer();await p.setLocalDescription(ans);broadcast('call_answer',{call_id:callId,sdp:p.localDescription});}catch(ex){const cid=callId;if(cid)broadcast('call_end',{call_id:cid,reason:'rejected'});cleanupMedia();closeOverlay();reset();alert(ex.message||'Could not answer call.');}};
     const handle=async(event,payload)=>{const cid=payload?.call_id;if(event==='call_offer'){if(callId){broadcast('call_busy',{call_id:cid});return;}callId=cid;role='callee';callStartedAt=Date.now();callConnectedAt=null;callFinalized=false;incomingOffer=payload.sdp;pendingCandidates=[];callUi('Incoming voice call',true);return;}if(!callId||cid!==callId)return;if(event==='call_answer'&&role==='caller'){try{await pc?.setRemoteDescription(new RTCSessionDescription(payload.sdp));for(const c of pendingCandidates.splice(0)){try{await pc.addIceCandidate(c);}catch(_){}}setState('Connecting…');}catch(_){}}else if(event==='call_ice'&&payload.candidate){const c=new RTCIceCandidate(payload.candidate);if(pc?.remoteDescription){try{await pc.addIceCandidate(c);}catch(_){}}else pendingCandidates.push(c);}else if(event==='call_end'){if(role==='caller')persistHistory(callConnectedAt?'completed':(payload.reason==='rejected'?'rejected':payload.reason==='no_answer'?'no_answer':'cancelled'));cleanupMedia();closeOverlay();reset();try{window.dispatchEvent(new CustomEvent('bl-call-history-refresh',{detail:{conversationId}}));}catch(_){}}else if(event==='call_busy'){setState('User is busy');setTimeout(()=>{cleanupMedia();closeOverlay();reset();},1200);}};
@@ -7367,7 +7574,7 @@ const Views = {
   },
 
   e2eeVideoCallChannel(conversationId, peerLabel='BharatLink user') {
-    let ws=null,joined=false,ref=0,heartbeat=null,closed=false,pc=null,localStream=null,remoteStream=null,overlay=null;
+    let ws=null,joined=false,ref=0,heartbeat=null,closed=false,pc=null,localStream=null,remoteStream=null,overlay=null,riskUi=null,riskTrack=null;
     let localVideo=null,remoteVideo=null,callId=null,role=null,incomingOffer=null,pendingCandidates=[],muted=false,cameraOff=false,facing='user';
     let callStartedAt=null,callConnectedAt=null,callFinalized=false,ringTimer=null,currentUserId=null;
     const topic=`realtime:bl-video-${conversationId}`;
@@ -7375,7 +7582,7 @@ const Views = {
     const broadcast=(event,payload={})=>joined&&send('broadcast',{type:'broadcast',event,payload});
     const clearRing=()=>{if(ringTimer){clearTimeout(ringTimer);ringTimer=null;}};
     const closeOverlay=()=>{if(overlay){overlay.remove();overlay=null;}};
-    const cleanup=()=>{try{pc?.close();}catch(_){}pc=null;try{localStream?.getTracks().forEach(t=>t.stop());}catch(_){}localStream=null;remoteStream=null;closeOverlay();localVideo=remoteVideo=null;};
+    const cleanup=()=>{try{riskUi?.close();}catch(_){}riskUi=null;riskTrack=null;try{pc?.close();}catch(_){}pc=null;try{localStream?.getTracks().forEach(t=>t.stop());}catch(_){}localStream=null;remoteStream=null;closeOverlay();localVideo=remoteVideo=null;};
     const persistHistory=outcome=>{if(role!=='caller'||!callId||!currentUserId||callFinalized)return;callFinalized=true;clearRing();const endedAt=Date.now();const meta={v:1,call_id:callId,media:'video',outcome,initiator_user_id:currentUserId,started_at:callStartedAt||endedAt,connected_at:callConnectedAt,duration_sec:callConnectedAt?Math.max(0,Math.round((endedAt-callConnectedAt)/1000)):0,ended_at:endedAt};Views._persistCallHistory(conversationId,meta).catch(()=>{});};
     const reset=()=>{clearRing();callId=null;role=null;incomingOffer=null;pendingCandidates=[];muted=false;cameraOff=false;speakerOn=false;callStartedAt=null;callConnectedAt=null;callFinalized=false;currentUserId=null;};
     const finish=(reason='completed',notify=true)=>{const cid=callId;if(role==='caller'){const outcome=callConnectedAt?'completed':(reason==='rejected'?'rejected':reason==='no_answer'?'no_answer':'cancelled');persistHistory(outcome);}if(notify&&cid)broadcast('video_end',{call_id:cid,reason:callConnectedAt?'completed':reason});cleanup();reset();};
@@ -7401,18 +7608,24 @@ const Views = {
     };
     const button=(label,fn,bg='#26304e')=>h('button',{type:'button',style:`border:0;border-radius:999px;min-width:72px;padding:13px 14px;background:${bg};color:#fff;font-weight:750`,onClick:fn},label);
     const ui=(label,incoming=false)=>{
+      try{riskUi?.close();}catch(_){}riskUi=null;
       closeOverlay();
       remoteVideo=h('video',{autoplay:true,playsinline:true,style:'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#05070d'});
       localVideo=h('video',{autoplay:true,muted:true,playsinline:true,style:'position:absolute;right:14px;top:14px;width:108px;height:150px;object-fit:cover;border-radius:14px;background:#1b2135;border:1px solid #68708a'});
-      const controls=h('div',{style:'position:absolute;left:12px;right:12px;bottom:28px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap'});
+      const controls=h('div',{style:'position:absolute;left:12px;right:12px;bottom:28px;display:flex;gap:9px;justify-content:center;flex-wrap:wrap;z-index:6'});
       if(incoming)controls.append(button('Reject',reject,'#b42318'),button('Answer',()=>answer(),'#15803d'));
-      else controls.append(
-        button('Mute',e=>{muted=!muted;localStream?.getAudioTracks().forEach(t=>t.enabled=!muted);e.currentTarget.textContent=muted?'Unmute':'Mute';}),
-        button('Camera',e=>{cameraOff=!cameraOff;localStream?.getVideoTracks().forEach(t=>t.enabled=!cameraOff);e.currentTarget.textContent=cameraOff?'Camera on':'Camera';}),
-        button('Switch',()=>switchCamera()),
-        button('Speaker',e=>toggleSpeaker(e.currentTarget)),
-        button('End',()=>finish(callConnectedAt?'completed':'cancelled',true),'#b42318')
-      );
+      else{
+        riskUi=createLiveCallRiskUi({video:true});
+        if(riskTrack)riskUi.attachTrack(riskTrack);
+        controls.append(
+          button('Mute',e=>{muted=!muted;localStream?.getAudioTracks().forEach(t=>t.enabled=!muted);e.currentTarget.textContent=muted?'Unmute':'Mute';}),
+          button('Camera',e=>{cameraOff=!cameraOff;localStream?.getVideoTracks().forEach(t=>t.enabled=!cameraOff);e.currentTarget.textContent=cameraOff?'Camera on':'Camera';}),
+          button('Switch',()=>switchCamera()),
+          button('Speaker',e=>toggleSpeaker(e.currentTarget)),
+          riskUi.button,
+          button('End',()=>finish(callConnectedAt?'completed':'cancelled',true),'#b42318')
+        );
+      }
 
       const fallbackInitial=String(peerLabel||'B').trim().slice(0,1).toUpperCase()||'B';
       const identity=incoming
@@ -7433,12 +7646,12 @@ const Views = {
           );
 
       overlay=h('div',{style:'position:fixed;inset:0;z-index:2147483601;background:#05070d;color:#fff'},
-        remoteVideo,localVideo,identity,controls
+        remoteVideo,localVideo,identity,!incoming&&riskUi?riskUi.panel:null,controls
       );
       document.body.append(overlay);
     };
     const media=async()=>{if(localStream)return localStream;if(!navigator.mediaDevices?.getUserMedia)throw new Error('Camera/microphone access is not available in this browser.');localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:{facingMode:facing}});if(localVideo)localVideo.srcObject=localStream;return localStream;};
-    const makePc=async()=>{if(pc)return pc;await media();pc=new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));remoteStream=new MediaStream();if(remoteVideo)remoteVideo.srcObject=remoteStream;pc.ontrack=e=>{e.streams[0]?.getTracks().forEach(t=>{if(!remoteStream.getTracks().some(x=>x.id===t.id))remoteStream.addTrack(t)});if(remoteVideo)remoteVideo.srcObject=remoteStream;markConnected();};pc.onicecandidate=e=>{if(e.candidate&&callId)broadcast('video_ice',{call_id:callId,candidate:e.candidate.toJSON()});};pc.onconnectionstatechange=()=>{if(pc?.connectionState==='connected')markConnected();else if(['failed','disconnected'].includes(pc?.connectionState))state('Reconnecting…');};return pc;};
+    const makePc=async()=>{if(pc)return pc;await media();pc=new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));remoteStream=new MediaStream();if(remoteVideo)remoteVideo.srcObject=remoteStream;pc.ontrack=e=>{e.streams[0]?.getTracks().forEach(t=>{if(!remoteStream.getTracks().some(x=>x.id===t.id))remoteStream.addTrack(t)});if(remoteVideo)remoteVideo.srcObject=remoteStream;const rt=e.streams[0]?.getAudioTracks?.()[0]||e.track?.kind==='audio'&&e.track||null;if(rt){riskTrack=rt;riskUi?.attachTrack(rt);}markConnected();};pc.onicecandidate=e=>{if(e.candidate&&callId)broadcast('video_ice',{call_id:callId,candidate:e.candidate.toJSON()});};pc.onconnectionstatechange=()=>{if(pc?.connectionState==='connected')markConnected();else if(['failed','disconnected'].includes(pc?.connectionState))state('Reconnecting…');};return pc;};
     const switchCamera=async()=>{if(!localStream)return;try{facing=facing==='user'?'environment':'user';const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});const nt=ns.getVideoTracks()[0],old=localStream.getVideoTracks()[0];const sender=pc?.getSenders().find(x=>x.track?.kind==='video');if(sender)await sender.replaceTrack(nt);if(old){localStream.removeTrack(old);old.stop();}localStream.addTrack(nt);if(localVideo)localVideo.srcObject=localStream;}catch(e){Toast.show('Could not switch camera');}};
     const start=async()=>{if(callId)return;if(!joined){Toast.show('Video call service is connecting. Try again in a moment.');return;}try{const me=await Supabase.currentAuthUser();currentUserId=me.id;callId=crypto.randomUUID();role='caller';callStartedAt=Date.now();callConnectedAt=null;callFinalized=false;ui('Calling…');const p=await makePc();if(localVideo)localVideo.srcObject=localStream;const offer=await p.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:true});await p.setLocalDescription(offer);broadcast('video_offer',{call_id:callId,sdp:p.localDescription});ringTimer=setTimeout(()=>{if(role==='caller'&&callId&&!callConnectedAt){state('No answer');finish('no_answer',true);}},60000);}catch(e){cleanup();reset();alert(e.message||'Could not start video call.');}};
     const answer=async()=>{if(!incomingOffer||!callId)return;try{ui('Connecting…');const p=await makePc();if(localVideo)localVideo.srcObject=localStream;await p.setRemoteDescription(new RTCSessionDescription(incomingOffer));for(const c of pendingCandidates.splice(0)){try{await p.addIceCandidate(c)}catch(_){}}const ans=await p.createAnswer();await p.setLocalDescription(ans);broadcast('video_answer',{call_id:callId,sdp:p.localDescription});}catch(e){const cid=callId;if(cid)broadcast('video_end',{call_id:cid,reason:'rejected'});cleanup();reset();alert(e.message||'Could not answer video call.');}};
