@@ -2267,6 +2267,39 @@ const E2EEBackend = {
   async getLocal(userId){const db=await this.openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(this.STORE,'readonly'),r=tx.objectStore(this.STORE).get(this.slot(userId));r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error);});},
   async putLocal(userId,v){const db=await this.openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(this.STORE,'readwrite');tx.objectStore(this.STORE).put(v,this.slot(userId));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});},
   async rpc(name,body){try{return await Supabase.request(`/rest/v1/rpc/${name}`,{method:'POST',body:JSON.stringify(body)});}catch(ex){const neutral={'Message could not be sent':'Message could not be sent.','Action could not be completed':'Action could not be completed.','Conversation could not be started':'Conversation could not be started.'}[ex?.message];if(neutral)throw new Error(neutral);throw ex;}},
+  _pendingEncryptedMedia:new Set(),
+  encStoragePath(path){return String(path||'').split('/').map(encodeURIComponent).join('/');},
+  async deleteEncryptedMediaObject(path){
+    if(!path||!Supabase.accessToken)return false;
+    try{const r=await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/encrypted-media/${this.encStoragePath(path)}`,{method:'DELETE',headers:Supabase.headers()});return r.ok;}catch(_){return false;}
+  },
+  async registerUploadedEncryptedMedia(path,conversationId){
+    try{
+      await this.rpc('register_pending_encrypted_media',{p_storage_path:path,p_conversation_id:conversationId});
+      this._pendingEncryptedMedia.add(String(path));
+      return true;
+    }catch(ex){
+      await this.deleteEncryptedMediaObject(path);
+      throw new Error(ex?.message||'Encrypted media registration failed.');
+    }
+  },
+  async bindUploadedEncryptedMedia(meta,messageId){
+    if(!meta||!messageId)return;
+    const paths=['photo','video','audio'].map(k=>meta?.[k]?.storage_path).filter(Boolean).map(String);
+    for(const path of paths){
+      if(!this._pendingEncryptedMedia.has(path))continue;
+      let lastErr=null;
+      for(let attempt=0;attempt<3;attempt++){
+        try{
+          await this.rpc('bind_encrypted_media_to_message',{p_storage_path:path,p_message_id:messageId});
+          this._pendingEncryptedMedia.delete(path);
+          lastErr=null;
+          break;
+        }catch(ex){lastErr=ex;if(attempt<2)await new Promise(r=>setTimeout(r,350*(attempt+1)));}
+      }
+      if(lastErr)console.warn('Encrypted media registry bind pending:',path,lastErr);
+    }
+  },
   async activate(){
     if(this._activatePromise)return this._activatePromise;
     this._activatePromise=(async()=>{
@@ -2404,6 +2437,7 @@ const E2EEBackend = {
       });
     }
     __timing.rpc_send_ms=Math.round(performance.now()-__tr);
+    try{await this.bindUploadedEncryptedMedia(meta,id);}catch(ex){console.warn('Encrypted media registry bind error:',ex);}
     __timing.total_ms=Math.round(performance.now()-__t0);
     return {messageId:id,conversationId:conv.conversation_id,envelopeCount:envelopes.length,timing:__timing};
   },
@@ -7161,7 +7195,7 @@ const Views = {
         return result;
       }finally{cleanup();}
     };
-    const uploadEncryptedMedia=async(file,kind)=>{if(!file)throw new Error(`Choose a ${kind}.`);if(file.size>50000000)throw new Error(`${kind} is too large. Maximum 50 MB.`);const __u0=performance.now();const __auth0=performance.now();const user=await Supabase.currentAuthUser();const auth_ms=Math.round(performance.now()-__auth0);const __enc0=performance.now();const key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);const iv=crypto.getRandomValues(new Uint8Array(12));const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,await file.arrayBuffer());const rawKey=await crypto.subtle.exportKey('raw',key);const encrypt_ms=Math.round(performance.now()-__enc0);const path=`${user.id}/${conversationId}/${E2EEBackend.uuid()}.bin`;const __upload0=performance.now();const res=await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/encrypted-media/${path}`,{method:'POST',headers:Supabase.headers({'Content-Type':'application/octet-stream','x-upsert':'false'}),body:cipher});const upload_ms=Math.round(performance.now()-__upload0);if(!res.ok){let detail='';try{detail=(await res.json()).message||'';}catch(_){}throw new Error(detail||`Encrypted ${kind} upload failed (${res.status}).`);}const result={storage_path:path,key_b64:E2EEBackend.b64(rawKey),iv_b64:E2EEBackend.b64(iv),name:file.name||kind,type:file.type||(kind==='video'?'video/mp4':'audio/mpeg'),size:file.size,storage_version:1};Object.defineProperty(result,'__senderDiag',{value:{auth_ms,encrypt_ms,upload_ms,media_total_ms:Math.round(performance.now()-__u0)},enumerable:false});return result;};
+    const uploadEncryptedMedia=async(file,kind)=>{if(!file)throw new Error(`Choose a ${kind}.`);if(file.size>50000000)throw new Error(`${kind} is too large. Maximum 50 MB.`);const __u0=performance.now();const __auth0=performance.now();const user=await Supabase.currentAuthUser();const auth_ms=Math.round(performance.now()-__auth0);const __enc0=performance.now();const key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);const iv=crypto.getRandomValues(new Uint8Array(12));const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,await file.arrayBuffer());const rawKey=await crypto.subtle.exportKey('raw',key);const encrypt_ms=Math.round(performance.now()-__enc0);const path=`${user.id}/${conversationId}/${E2EEBackend.uuid()}.bin`;const __upload0=performance.now();const res=await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/encrypted-media/${path}`,{method:'POST',headers:Supabase.headers({'Content-Type':'application/octet-stream','x-upsert':'false'}),body:cipher});const upload_ms=Math.round(performance.now()-__upload0);if(!res.ok){let detail='';try{detail=(await res.json()).message||'';}catch(_){}throw new Error(detail||`Encrypted ${kind} upload failed (${res.status}).`);}await E2EEBackend.registerUploadedEncryptedMedia(path,conversationId);const result={storage_path:path,key_b64:E2EEBackend.b64(rawKey),iv_b64:E2EEBackend.b64(iv),name:file.name||kind,type:file.type||(kind==='video'?'video/mp4':'audio/mpeg'),size:file.size,storage_version:1};Object.defineProperty(result,'__senderDiag',{value:{auth_ms,encrypt_ms,upload_ms,media_total_ms:Math.round(performance.now()-__u0)},enumerable:false});return result;};
     const readDoc=async file=>{if(!file)throw new Error('Choose a document.');if(file.size>2000000)throw new Error('Document is too large for this build. Maximum 2 MB.');const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Could not read document.'));r.readAsDataURL(file);});return {data,name:file.name||'document',type:file.type||'application/octet-stream',size:file.size};};
     const mediaInput=h('input',{type:'file',accept:'image/*,video/*',multiple:true,style:'display:none'}),audioInput=h('input',{type:'file',accept:'audio/*',multiple:true,style:'display:none'}),docInput=h('input',{type:'file',accept:'.pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain',multiple:true,style:'display:none'});
     const prepareAttachment=async(kind,file)=>{let meta={};if(kind==='photo'){status.replaceChildren(Notice('info','Compressing, encrypting & uploading photo…'));meta.photo=await preparePhoto(file);}else if(kind==='video'){if(!String(file.type||'').startsWith('video/'))throw new Error('Choose a video.');status.replaceChildren(Notice('info','Encrypting & uploading video…'));meta.video=await uploadEncryptedMedia(file,'video');}else if(kind==='audio'){const ok=String(file.type||'').startsWith('audio/')||/\.(mp3|m4a|aac|wav|ogg|opus|flac)$/i.test(file.name||'');if(!ok)throw new Error('Choose an audio/music file.');status.replaceChildren(Notice('info','Encrypting & uploading audio…'));meta.audio=await uploadEncryptedMedia(file,'audio');}else{status.replaceChildren(Notice('info','Preparing document…'));meta.document=await readDoc(file);}return meta;};
@@ -8646,6 +8680,7 @@ const Views = {
       const path=`${me.id}/${bound.conversation_id}/${E2EEBackend.uuid()}.bin`;
       const res=await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/encrypted-media/${path}`,{method:'POST',headers:Supabase.headers({'Content-Type':'application/octet-stream','x-upsert':'false'}),body:cipher});
       if(!res.ok){let detail='';try{detail=(await res.json()).message||'';}catch(_){}throw new Error(detail||`Encrypted ${kind} upload failed (${res.status}).`);}
+      await E2EEBackend.registerUploadedEncryptedMedia(path,bound.conversation_id);
       return {storage_path:path,key_b64:E2EEBackend.b64(rawKey),iv_b64:E2EEBackend.b64(iv),name:file.name||kind,type:file.type||(kind==='video'?'video/mp4':'audio/mpeg'),size:file.size,storage_version:1};
     };
 
@@ -10652,6 +10687,7 @@ document.addEventListener('DOMContentLoaded', () => App.init());
 <!-- V33 View Once hardening: new View Once sends use an atomic send+registration RPC and recipient opening uses an atomic server consume claim. Legacy v1 messages stay explicitly browser-local. -->
 <!-- V34 Disappearing Server Hardening: new disappearing messages use send_protected_encrypted_message_v2 with server expiry registration. At expiry the scheduled backend purge deletes all message envelopes/wrapped keys. The ciphertext row remains only to satisfy the existing E2EE-v2 integrity constraint; without a wrapped message key it is server-side cryptographically unrecoverable through BharathLink. Legacy v1 behavior remains compatible. -->
 <!-- V35: Disappearing purge is key-envelope cryptographic erasure. Existing messages_e2ee_v2_integrity_check requires ciphertext/IV on v2 rows, so purge deletes every wrapped key/envelope and marks purged_at instead of nulling ciphertext/IV. -->
+<!-- V38: encrypted-media registry binding for new Storage-backed E2EE media; no plaintext media metadata added. -->
 </body>
 </html>
 
