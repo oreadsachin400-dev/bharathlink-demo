@@ -3965,8 +3965,18 @@ const Mail = {
     if(!('PushManager' in window))throw new Error('Web Push is not supported in this browser.');
     if(!('Notification' in window)||Notification.permission!=='granted')throw new Error('Notification permission is required.');
     const reg=await this.ensureNotificationWorker();
+    const expectedKey=this._vapidBytes(CONFIG.VAPID_PUBLIC_KEY);
     let sub=await reg.pushManager.getSubscription();
-    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:this._vapidBytes(CONFIG.VAPID_PUBLIC_KEY)});
+    if(sub){
+      const currentKey=sub.options&&sub.options.applicationServerKey?new Uint8Array(sub.options.applicationServerKey):null;
+      let sameKey=!!currentKey&&currentKey.length===expectedKey.length;
+      if(sameKey){for(let i=0;i<expectedKey.length;i++){if(currentKey[i]!==expectedKey[i]){sameKey=false;break;}}}
+      if(!sameKey){
+        try{await sub.unsubscribe();}catch(_){}
+        sub=null;
+      }
+    }
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:expectedKey});
     const j=sub.toJSON(),keys=j.keys||{};
     if(!sub.endpoint||!keys.p256dh||!keys.auth)throw new Error('Browser returned an incomplete push subscription.');
     const user=await Supabase.currentAuthUser();
