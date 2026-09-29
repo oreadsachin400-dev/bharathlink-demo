@@ -54,14 +54,14 @@ self.addEventListener('push', event => {
     return;
   }
 
-  /* Existing BharatMail push */
+  /* Existing BharathMail push */
   const mailId =
     typeof payload.mail_id === 'string'
       ? payload.mail_id
       : '';
 
   const options = {
-    body: 'You have a new BharatMail.',
+    body: 'You have a new message.',
     tag: mailId
       ? `bharatmail-${mailId}`
       : 'bharatmail-new',
@@ -74,7 +74,7 @@ self.addEventListener('push', event => {
 
   event.waitUntil(
     self.registration.showNotification(
-      'New BharatMail',
+      'New BharathMail',
       options
     )
   );
