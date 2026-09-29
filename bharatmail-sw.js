@@ -54,28 +54,53 @@ self.addEventListener('push', event => {
     return;
   }
 
-  /* BharathMail push */
+  /* BharatLink Messaging */
+  if (payload.type === 'message') {
+    const eventId =
+      typeof payload.event_id === 'string'
+        ? payload.event_id
+        : '';
+
+    event.waitUntil(
+      self.registration.showNotification(
+        'New BharathLink message',
+        {
+          body: 'You have a new encrypted message.',
+          tag: eventId
+            ? `bharathlink-message-${eventId}`
+            : 'bharathlink-message-new',
+          data: {
+            url: './#/chats',
+            type: 'message',
+            event_id: eventId
+          }
+        }
+      )
+    );
+
+    return;
+  }
+
+  /* Existing BharathMail push */
   const mailId =
     typeof payload.mail_id === 'string'
       ? payload.mail_id
       : '';
 
-  const options = {
-    body: 'You have a new message.',
-    tag: mailId
-      ? `bharatmail-${mailId}`
-      : 'bharatmail-new',
-    data: {
-      url: './#/mail',
-      mail_id: mailId,
-      type: 'bharatmail'
-    }
-  };
-
   event.waitUntil(
     self.registration.showNotification(
       'New BharathMail',
-      options
+      {
+        body: 'You have a new message.',
+        tag: mailId
+          ? `bharatmail-${mailId}`
+          : 'bharatmail-new',
+        data: {
+          url: './#/mail',
+          mail_id: mailId,
+          type: 'bharatmail'
+        }
+      }
     )
   );
 });
@@ -83,15 +108,10 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
 
-  const data = event.notification.data || {};
-  const route =
-    data.type === 'bharatmail'
-      ? './#/mail'
-      : (typeof data.url === 'string' && data.url
-          ? data.url
-          : './#/home');
-
-  const targetUrl = new URL(route, self.registration.scope).href;
+  const target =
+    (event.notification.data &&
+      event.notification.data.url) ||
+    './#/home';
 
   event.waitUntil((async () => {
     const list = await self.clients.matchAll({
@@ -100,20 +120,17 @@ self.addEventListener('notificationclick', event => {
     });
 
     for (const client of list) {
-      if ('navigate' in client) {
+      if ('focus' in client) {
         try {
-          const navigated = await client.navigate(targetUrl);
-          if (navigated && 'focus' in navigated) {
-            return navigated.focus();
-          }
-        } catch (_) {
-          /* If navigation fails, do not focus the wrong route. */
-        }
+          await client.navigate(target);
+        } catch (_) {}
+
+        return client.focus();
       }
     }
 
     if (self.clients.openWindow) {
-      return self.clients.openWindow(targetUrl);
+      return self.clients.openWindow(target);
     }
   })());
 });
