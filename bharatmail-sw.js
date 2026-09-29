@@ -54,7 +54,7 @@ self.addEventListener('push', event => {
     return;
   }
 
-  /* Existing BharathMail push */
+  /* BharathMail push */
   const mailId =
     typeof payload.mail_id === 'string'
       ? payload.mail_id
@@ -83,10 +83,15 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
 
-  const target =
-    (event.notification.data &&
-      event.notification.data.url) ||
-    './#/home';
+  const data = event.notification.data || {};
+  const route =
+    data.type === 'bharatmail'
+      ? './#/mail'
+      : (typeof data.url === 'string' && data.url
+          ? data.url
+          : './#/home');
+
+  const targetUrl = new URL(route, self.registration.scope).href;
 
   event.waitUntil((async () => {
     const list = await self.clients.matchAll({
@@ -95,17 +100,20 @@ self.addEventListener('notificationclick', event => {
     });
 
     for (const client of list) {
-      if ('focus' in client) {
+      if ('navigate' in client) {
         try {
-          await client.navigate(target);
-        } catch (_) {}
-
-        return client.focus();
+          const navigated = await client.navigate(targetUrl);
+          if (navigated && 'focus' in navigated) {
+            return navigated.focus();
+          }
+        } catch (_) {
+          /* If navigation fails, do not focus the wrong route. */
+        }
       }
     }
 
     if (self.clients.openWindow) {
-      return self.clients.openWindow(target);
+      return self.clients.openWindow(targetUrl);
     }
   })());
 });
