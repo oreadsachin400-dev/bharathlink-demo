@@ -1,0 +1,59 @@
+name: BharathLink isolated PostgreSQL smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: bharathlink_disposable_v30
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bharathlink_disposable_v30"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-only
+      PGDATABASE: bharathlink_disposable_v30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Verify isolated PostgreSQL and transactional rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(psql -X -Atqc 'select current_database()')" = "bharathlink_disposable_v30"
+          test "$(psql -X -Atqc 'select inet_server_addr()::text')" = "127.0.0.1"
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          CREATE SCHEMA ci_rollback_probe;
+          ROLLBACK;
+          DO $$
+          BEGIN
+            IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='ci_rollback_probe') THEN
+              RAISE EXCEPTION 'ROLLBACK FAILED';
+            END IF;
+          END $$;
+          SQL
+      - name: V38 source integration gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f security/v38/run_local.sh ]; then
+            echo "::warning::V38 source is not yet committed; PostgreSQL smoke only, NOT V38 integration PASS."
+            exit 0
+          fi
+          cd security/v38
+          LOCAL_TEST_DATABASE_URL="postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30" bash run_local.sh
