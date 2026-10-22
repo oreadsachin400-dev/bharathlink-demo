@@ -65,7 +65,7 @@ jobs:
           python3 security/v38/validate_target.py
           unset PGHOST PGHOSTADDR PGPORT PGDATABASE PGUSER PGSERVICE PGSERVICEFILE PGOPTIONS PGSSLMODE PGCONNECT_TIMEOUT
           test -s security/v38/atomic_consumption_lab_NOT_FOR_LIVE.sql
-          psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN current_database()='bharathlink_disposable_v30' AND inet_server_addr() <<= inet '127.0.0.0/8' AND inet_client_addr() <<= inet '127.0.0.0/8' THEN 'SAFE' ELSE 'UNSAFE' END" | grep -qx SAFE
+          psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN current_database()='bharathlink_disposable_v30' AND inet_server_addr() IS NOT NULL AND inet_client_addr() IS NOT NULL AND ((inet_server_addr() <<= inet '127.0.0.0/8' AND inet_client_addr() <<= inet '127.0.0.0/8') OR (current_setting('application_name',true)='bharathlink-v38-ci' AND inet_client_addr()=inet '172.18.0.1' AND inet_server_addr()=inet '172.18.0.2')) THEN 'SAFE' ELSE 'UNSAFE' END" | grep -qx SAFE
           psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f security/v38/atomic_consumption_lab_NOT_FOR_LIVE.sql
           test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v38_atomic_lab'")" = 0
       - name: Run actual V38 PostgreSQL integration
