@@ -1,5 +1,8 @@
 name: BharathLink isolated PostgreSQL V38 gate
 on:
+  push:
+    branches:
+      - security/v38-postgres-isolated-ci
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,9 +29,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in run_local.sh validate_target.py bootstrap_local.sql schema_NOT_FOR_LIVE.sql assertions_local.sql; do
+          for file in run_local.sh validate_target.py bootstrap_local.sql schema_NOT_FOR_LIVE.sql assertions_local.sql static_check.py test_target_guard.py test_bootstrap_contract.py test_runner_contract.py; do
             test -s "security/v38/$file" || { echo "::error::Missing security/v38/$file; V38 integration NOT RUN"; exit 1; }
           done
+      - name: Run V38 static and regression checks
+        run: |
+          set -euo pipefail
+          cd security/v38
+          python3 static_check.py
+          python3 -m unittest discover -p 'test_*.py' -v
+          bash -n run_local.sh
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Run actual V38 PostgreSQL integration
