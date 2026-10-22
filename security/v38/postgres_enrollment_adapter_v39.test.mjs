@@ -83,3 +83,24 @@ test('V39 adapter refuses zero-row device insert and never commits',async()=>{
  assert.ok(calls.includes('ROLLBACK'));
  assert.ok(!calls.includes('COMMIT'));
 });
+
+test('V39 adapter releases connection if BEGIN fails, without committing',async()=>{
+ const calls=[];
+ const client={async query(sql){calls.push(sql);if(sql.startsWith('BEGIN'))throw new Error('begin unavailable');},release(){calls.push('RELEASE');}};
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(async()=>{throw new Error('callback must not run');}),/begin unavailable/);
+ assert.deepEqual(calls,['BEGIN ISOLATION LEVEL SERIALIZABLE','RELEASE']);
+});
+test('V39 adapter rolls back if callback throws after acquiring trusted anchor',async()=>{
+ const calls=[];
+ const client={async query(sql){calls.push(sql);if(sql.includes('FROM bl_enrollment_v39_private.verified_approvers'))return {rows:[{verified:true,revoked:false}]};return {rowCount:1};},release(){calls.push('RELEASE');}};
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(async tx=>{
+  const anchor=await tx.lockTrustedAnchor('account','device');
+  assert.equal(anchor.verified,true);
+  throw new Error('signature rejected');
+ }),/signature rejected/);
+ assert.ok(calls.includes('ROLLBACK'));
+ assert.ok(!calls.includes('COMMIT'));
+ assert.equal(calls.at(-1),'RELEASE');
+});
