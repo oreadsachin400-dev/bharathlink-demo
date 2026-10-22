@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {candidateKeyDigest} from './candidate_key_digest.mjs';
+const a=Buffer.alloc(32,1).toString('base64url');
+const b=Buffer.alloc(32,2).toString('base64url');
+const c=Buffer.alloc(32,3).toString('base64url');
+const digest=candidateKeyDigest({signingPublicKey:a,curve25519PublicKey:b});
+assert.match(digest,/^[0-9a-f]{64}$/);
+assert.notEqual(digest,candidateKeyDigest({signingPublicKey:c,curve25519PublicKey:b}));
+assert.notEqual(digest,candidateKeyDigest({signingPublicKey:a,curve25519PublicKey:c}));
+assert.notEqual(digest,candidateKeyDigest({signingPublicKey:b,curve25519PublicKey:a}));
+assert.throws(()=>candidateKeyDigest({signingPublicKey:a+'=',curve25519PublicKey:b}));
+assert.throws(()=>candidateKeyDigest({signingPublicKey:a,curve25519PublicKey:'invalid'}));
+console.log('PASS: both E2EE V2 public keys bound into candidate fingerprint');
