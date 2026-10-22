@@ -16,7 +16,9 @@ CREATE TABLE bl_v39_atomic_lab.receipts (
  request_id integer PRIMARY KEY, account_id integer NOT NULL,
  candidate_device_id integer NOT NULL
 );
-INSERT INTO bl_v39_atomic_lab.requests VALUES (1,11,22,'pending'),(2,11,23,'pending');
+INSERT INTO bl_v39_atomic_lab.requests VALUES (1,11,22,'pending'),(2,11,22,'pending');
+-- Two distinct requests intentionally target the SAME candidate device.
+-- A second successful insertion must violate the device uniqueness boundary.
 -- In a real service, trusted verification MUST precede the atomic finalizer
 -- while the request and trusted anchor remain locked in the same transaction.
 CREATE FUNCTION bl_v39_atomic_lab.consume_locked(
@@ -41,6 +43,8 @@ BEGIN
   RAISE EXCEPTION 'cross-account request accepted'; END IF;
  IF bl_v39_atomic_lab.consume_locked(1,11,99) THEN
   RAISE EXCEPTION 'wrong candidate accepted'; END IF;
+ IF bl_v39_atomic_lab.consume_locked(2,11,23) THEN
+  RAISE EXCEPTION 'second request wrong candidate accepted'; END IF;
  IF NOT bl_v39_atomic_lab.consume_locked(1,11,22) THEN
   RAISE EXCEPTION 'valid pending request rejected'; END IF;
  IF bl_v39_atomic_lab.consume_locked(1,11,22) THEN
