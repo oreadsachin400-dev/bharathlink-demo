@@ -12,7 +12,8 @@ export function verifyEnrollmentApproval({request, signatureBase64url, trustedAn
     // All approval fields must match an authoritative stored request.
     // A caller-supplied request cannot define its own authorization target.
     const transcript=approvalTranscript(request);
-    if (approvalTranscript(storedRequest)!==transcript) return false;
+    const {state, ...storedFields}=storedRequest;
+    if (approvalTranscript(storedFields)!==transcript) return false;
     if (storedRequest.state!=='pending' && storedRequest.state!==undefined) return false;
     if (request.expiresAt<=nowSeconds || request.expiresAt>nowSeconds+600) return false;
     if (trustedAnchor.accountId!==request.accountId ||
