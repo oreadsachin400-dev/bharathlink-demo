@@ -2829,12 +2829,11 @@ const E2EEV2DeviceTest = {
     return payload;
   },
   async callRpc(name, body, allowRefresh = true) {
-    const go = () => fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${name}`, { method: 'POST', headers: Supabase.headers(), body: JSON.stringify(body) });
-    let res = await go();
-    if (res.status === 401 && allowRefresh && Supabase.refreshToken) { await Supabase.refreshAccessToken(); res = await go(); }
-    const text = await res.text(); let data = null;
-    try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
-    return { ok: res.ok, status: res.status, data };
+    // V38 isolated security branch: the legacy diagnostic registration RPC
+    // must remain unreachable even if a future caller invokes this helper.
+    // Do not send a request or refresh a token. Enrollment requires a
+    // separately reviewed, signed and server-verified approval flow.
+    throw new Error('V38 SECURITY HOLD: unsigned legacy V2 registration disabled');
   },
   extractId(d, depth = 0) {
     if (depth > 3 || d == null) return null;
