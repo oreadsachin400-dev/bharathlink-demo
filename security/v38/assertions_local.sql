@@ -50,6 +50,48 @@ BEGIN
  END;
  IF NOT rejected THEN RAISE EXCEPTION 'overlong request accepted'; END IF;
 END $$;
+-- Database replay constraints tested on disposable CI tables only.
+-- Does NOT activate the disabled approval finalizer.
+INSERT INTO bl_trust_v8_private.receipts
+ (request_id,signature_sha256,verified_key_fingerprint)
+VALUES ('22222222-2222-4222-8222-222222222223',repeat('b',64),repeat('c',64));
+DO $
+DECLARE rejected boolean := false;
+BEGIN
+ BEGIN
+  INSERT INTO bl_trust_v8_private.receipts
+   (request_id,signature_sha256,verified_key_fingerprint)
+  VALUES ('22222222-2222-4222-8222-222222222223',repeat('d',64),repeat('e',64));
+ EXCEPTION WHEN unique_violation THEN rejected := true;
+ END;
+ IF NOT rejected THEN RAISE EXCEPTION 'duplicate approval receipt accepted'; END IF;
+ IF (SELECT count(*) FROM bl_trust_v8_private.receipts
+     WHERE request_id='22222222-2222-4222-8222-222222222223') <> 1 THEN
+  RAISE EXCEPTION 'receipt uniqueness broken';
+ END IF;
+END $;
+INSERT INTO bl_trust_v8_private.approved_devices
+ (account_id,device_id,request_id)
+VALUES ('11111111-1111-4111-8111-111111111111',
+ '33333333-3333-4333-8333-333333333333',
+ '22222222-2222-4222-8222-222222222223');
+DO $
+DECLARE rejected boolean := false;
+BEGIN
+ BEGIN
+  INSERT INTO bl_trust_v8_private.approved_devices
+   (account_id,device_id,request_id)
+  VALUES ('11111111-1111-4111-8111-111111111111',
+   '55555555-5555-4555-8555-555555555555',
+   '22222222-2222-4222-8222-222222222223');
+ EXCEPTION WHEN unique_violation THEN rejected := true;
+ END;
+ IF NOT rejected THEN RAISE EXCEPTION 'request replay enrolled second device'; END IF;
+ IF (SELECT count(*) FROM bl_trust_v8_private.approved_devices
+     WHERE request_id='22222222-2222-4222-8222-222222222223') <> 1 THEN
+  RAISE EXCEPTION 'approval request uniqueness broken';
+ END IF;
+END $;
 -- Verify exact fail-closed finalizer exception.
 DO $$
 DECLARE err text; rejected boolean := false;
