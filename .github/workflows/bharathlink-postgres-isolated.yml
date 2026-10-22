@@ -40,7 +40,7 @@ jobs:
           python3 -m unittest discover -p 'test_*.py' -v
           bash -n run_local.sh
       - name: Test offline P-256 approval verifier (approval remains disabled)
-        run: node --test security/v38/verify_approval.test.mjs security/v38/approval_transcript.test.mjs
+        run: node --test security/v38/verify_approval.test.mjs security/v38/approval_transcript.test.mjs security/v38/authorize_approval.test.mjs
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Report safe PostgreSQL network identity
