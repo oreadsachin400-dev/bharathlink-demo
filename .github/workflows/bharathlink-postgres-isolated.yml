@@ -52,6 +52,7 @@ jobs:
         shell: bash
         env:
           LOCAL_TEST_DATABASE_URL: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30
+          PGAPPNAME: bharathlink-v38-ci
         run: |
           set -euo pipefail
           bash security/v38/run_local.sh
