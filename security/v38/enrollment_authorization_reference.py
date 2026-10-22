@@ -34,6 +34,10 @@ def authorize(approval: VerifiedApproval, *, expected_user: str,
     e = approval.enrollment
     if now.tzinfo is None or e.expires_at.tzinfo is None:
         return False
+    if not all(isinstance(v, str) and v.strip() for v in (
+        e.user_id, e.candidate_device_id, e.approver_device_id,
+        e.signing_key_hash, e.x25519_key_hash, e.nonce)):
+        return False
     return all((
         approval.signature_verified,
         approval.approver_trusted,
@@ -45,5 +49,7 @@ def authorize(approval: VerifiedApproval, *, expected_user: str,
         e.candidate_device_id == expected_device,
         e.signing_key_hash == expected_signing_hash,
         e.x25519_key_hash == expected_x25519_hash,
+        e.approver_device_id != e.candidate_device_id,
         e.expires_at > now,
+        e.expires_at <= now + __import__('datetime').timedelta(minutes=10),
     ))
