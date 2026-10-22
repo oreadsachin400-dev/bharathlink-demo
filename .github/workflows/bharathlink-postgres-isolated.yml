@@ -41,6 +41,13 @@ jobs:
           bash -n run_local.sh
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Report safe PostgreSQL network identity
+        shell: bash
+        env:
+          PGPASSWORD: disposable-ci-only
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -p 5432 -U postgres -d bharathlink_disposable_v30 -X -v ON_ERROR_STOP=1 -Atqc "SELECT 'CI_DB_DIAG db=' || current_database() || ' client=' || coalesce(inet_client_addr()::text,'local-socket') || ' server=' || coalesce(inet_server_addr()::text,'local-socket');"
       - name: Run actual V38 PostgreSQL integration
         shell: bash
         env:
