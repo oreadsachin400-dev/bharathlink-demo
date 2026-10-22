@@ -38,11 +38,12 @@ export function createEnrollmentTransactionAdapter(pool) {
        SET state='consumed' WHERE request_id=$1 AND account_id=$2
        AND candidate_device_id=$3 AND candidate_key_sha256=$4 AND state='pending'`,
        [v.requestId,v.accountId,v.candidateDeviceId,v.candidateKeySha256]);
-      if(rowCount!==1) return false;
+      if(rowCount!==1) throw new Error('request consumption failed');
       const receipt=await client.query(`INSERT INTO bl_v38_enrollment_private.receipts
        (request_id,account_id,candidate_device_id) VALUES($1,$2,$3)`,
        [v.requestId,v.accountId,v.candidateDeviceId]);
-      return receipt.rowCount===1;
+      if(receipt.rowCount!==1) throw new Error('receipt insert failed');
+      return true;
      }
     };
     const result=await fn(tx);
