@@ -10,7 +10,10 @@ const check = (overrides={}) => verifyApproval({ publicKeyJwk:jwk, payload, sign
 assert.equal(check(), true);
 assert.equal(check({payload:payload+'x'}), false);
 assert.equal(check({signatureBase64url:signatureBase64url.slice(0,-2)}), false);
+assert.equal(check({signatureBase64url:signatureBase64url+'='}), false);
+assert.equal(check({signatureBase64url:signatureBase64url+'!'}), false);
+assert.equal(check({signatureBase64url:signatureBase64url.slice(0,-1)}), false);
 assert.equal(check({publicKeyJwk:{...jwk,crv:'P-384'}}), false);
 const other = generateKeyPairSync('ec', { namedCurve:'prime256v1' }).publicKey.export({format:'jwk'});
 assert.equal(check({publicKeyJwk:other}), false);
-console.log('P-256 offline verifier: 5/5 PASS (reference only; approval remains disabled)');
+console.log('P-256 offline verifier: 8/8 PASS (reference only; approval remains disabled)');
