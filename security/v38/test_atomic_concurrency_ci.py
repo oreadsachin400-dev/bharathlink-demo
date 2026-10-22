@@ -2,10 +2,12 @@
 """Disposable PostgreSQL concurrency test. NEVER run against Supabase."""
 import os, subprocess, concurrent.futures
 from pathlib import Path
-from validate_target import validate_target
+from validate_target import validate
 
 url=os.environ["LOCAL_TEST_DATABASE_URL"]
-validate_target(url)
+ok, reason = validate(url, os.environ)
+if not ok:
+    raise SystemExit('REFUSED: '+reason)
 def sql(command):
     p=subprocess.run(["psql",url,"-X","-v","ON_ERROR_STOP=1","-Atqc",command],
                      capture_output=True,text=True,check=True)
