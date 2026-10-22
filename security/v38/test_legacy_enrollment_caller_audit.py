@@ -8,7 +8,10 @@ class LegacyEnrollmentCallerAudit(unittest.TestCase):
   end=page.index('/* =====================================================================',start)
   block=page[start:end]
   self.assertIn("RPC: 'register_e2ee_v2_device'",block)
-  self.assertIn('V38 SECURITY HOLD: unsigned legacy V2 registration disabled',block)
-  self.assertNotIn('await this.callRpc(this.RPC, payload)',block)
-  self.assertIn('throw new Error(',block)
+  run=block[block.index('  async run() {'):block.index('  async forget() {')]
+  self.assertIn('V38 SECURITY HOLD: unsigned legacy V2 registration disabled',run)
+  self.assertIn("r.rpc = 'fail'",run)
+  self.assertNotIn('this.callRpc(',run)
+  self.assertNotIn('this.buildPayload(local)',run)
+  self.assertNotIn('verifiedReturnedId =',run)
 if __name__=='__main__': unittest.main()
