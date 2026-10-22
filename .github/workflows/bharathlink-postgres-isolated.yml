@@ -68,6 +68,16 @@ jobs:
           psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN current_database()='bharathlink_disposable_v30' AND inet_server_addr() IS NOT NULL AND inet_client_addr() IS NOT NULL AND ((inet_server_addr() <<= inet '127.0.0.0/8' AND inet_client_addr() <<= inet '127.0.0.0/8') OR (current_setting('application_name',true)='bharathlink-v38-ci' AND inet_client_addr()=inet '172.18.0.1' AND inet_server_addr()=inet '172.18.0.2')) THEN 'SAFE' ELSE 'UNSAFE' END" | grep -qx SAFE
           psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f security/v38/atomic_consumption_lab_NOT_FOR_LIVE.sql
           test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v38_atomic_lab'")" = 0
+      - name: Test V39 immutable candidate dual-key binding (disposable, rolled back)
+        shell: bash
+        env:
+          LOCAL_TEST_DATABASE_URL: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30
+          PGAPPNAME: bharathlink-v38-ci
+        run: |
+          set -euo pipefail
+          python3 security/v38/validate_target.py
+          psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f security/v38/candidate_request_v39_DISPOSABLE_ONLY.sql
+          test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v39_candidate_lab'")" = 0
       - name: Test concurrent atomic approval consumption (disposable PostgreSQL)
         shell: bash
         env:
