@@ -20,7 +20,7 @@ export function createEnrollmentTransactionAdapter(pool) {
        FROM bl_v38_enrollment_private.requests WHERE request_id=$1 FOR UPDATE`,[requestId]);
       if (!rows[0]) return null;
       const rawExpiry=rows[0].expiresAt;
-      const expiresAt=typeof rawExpiry==='string' && /^\\d+$/.test(rawExpiry) ? Number(rawExpiry) : rawExpiry;
+      const expiresAt=typeof rawExpiry==='string' && /^\d+$/.test(rawExpiry) ? Number(rawExpiry) : rawExpiry;
       if (!Number.isSafeInteger(expiresAt)) throw new Error('invalid stored expiry');
       return {...rows[0],expiresAt};
      },
