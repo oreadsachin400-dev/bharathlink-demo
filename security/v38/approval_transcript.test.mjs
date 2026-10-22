@@ -13,7 +13,7 @@ for(const field of ['accountId','requestId','candidateDeviceId','approverDeviceI
  assert.equal(verifyApproval({publicKeyJwk,payload:approvalTranscript(changed),signatureBase64url}),false,field);
 }
 assert.throws(()=>approvalTranscript({...input,extra:'x'}));
-assert.throws(()=>approvalTranscript({...input,accountId:input.accountId.toUpperCase()}));
+assert.throws(()=>approvalTranscript({...input,accountId:'abcdefab-1111-4111-8111-111111111111'.toUpperCase()}));
 assert.throws(()=>approvalTranscript({...input,expiresAt:1.5}));
 assert.throws(()=>approvalTranscript({...input,expiresAt:0}));
 assert.throws(()=>approvalTranscript({...input,candidateKeySha256:'A'.repeat(64)}));
