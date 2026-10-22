@@ -76,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 security/v38/validate_target.py
-          python3 security/v38/test_atomic_concurrency_ci.py
+          python3 security/v38/atomic_concurrency_ci.py
       - name: Run actual V38 PostgreSQL integration
         shell: bash
         env:
