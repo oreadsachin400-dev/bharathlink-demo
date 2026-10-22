@@ -2884,7 +2884,11 @@ const E2EEV2DeviceTest = {
       try {
         const payload = this.buildPayload(local);
         r.sentParams = Object.keys(payload);
-        const res = await this.callRpc(this.RPC, payload);
+        // V38 SECURITY HOLD: legacy RPC has no trusted-device approval proof.
+        // Fail closed on this isolated branch until a verified enrollment API
+        // and compatible Android onboarding are available. Never fall back.
+        throw new Error('V38 SECURITY HOLD: unsigned legacy V2 registration disabled in this branch.');
+        // No legacy registration network call is permitted here.
         if (res.ok) r.returnedId = this.extractId(res.data);
         else {
           r.server = this.describe(res);
