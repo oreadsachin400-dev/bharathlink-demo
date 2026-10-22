@@ -12,8 +12,16 @@ DO $guard$
 BEGIN
  IF current_database() <> 'bharathlink_disposable_v30'
     OR inet_client_addr() IS NULL
-    OR NOT (inet_client_addr() <<= inet '127.0.0.0/8' OR inet_client_addr() <<= inet '::1/128')
-    OR inet_server_addr() IS NULL THEN
+    OR inet_server_addr() IS NULL
+    OR NOT (
+      (inet_client_addr() <<= inet '127.0.0.0/8'
+       AND inet_server_addr() <<= inet '127.0.0.0/8')
+      OR (inet_client_addr() <<= inet '::1/128'
+          AND inet_server_addr() <<= inet '::1/128')
+      OR (current_setting('application_name', true) = 'bharathlink-v38-ci'
+          AND inet_client_addr() = inet '172.18.0.1'
+          AND inet_server_addr() = inet '172.18.0.2')
+    ) THEN
   RAISE EXCEPTION 'REFUSED: database identity or server address mismatch';
  END IF;
  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname <> 'information_schema' AND nspname <> 'public' AND nspname <> 'auth') THEN
