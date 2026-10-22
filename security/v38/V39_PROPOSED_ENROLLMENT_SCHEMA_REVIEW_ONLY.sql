@@ -3,6 +3,18 @@
 -- This SQL is deliberately fail-closed until the authenticated signed-enrollment
 -- service and complete client cutover are independently reviewed.
 BEGIN;
+-- Disposable CI fixture: Supabase roles are present on hosted Supabase, but
+-- absent on a plain PostgreSQL container. Transactional and rolled back.
+DO $fixture_roles$
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+   CREATE ROLE anon NOLOGIN;
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+   CREATE ROLE authenticated NOLOGIN;
+ END IF;
+END
+$fixture_roles$;
 CREATE SCHEMA IF NOT EXISTS bl_enrollment_v39_private;
 REVOKE ALL ON SCHEMA bl_enrollment_v39_private FROM PUBLIC, anon, authenticated;
 CREATE TABLE bl_enrollment_v39_private.approval_requests (
