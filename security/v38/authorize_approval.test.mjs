@@ -21,4 +21,21 @@ assert.equal(run({signatureBase64url:'bad'}),false);
 const used=new Set();
 assert.equal(run({consumedRequests:used}),true);
 assert.equal(run({consumedRequests:used}),false);
+// A signature for one request must not authorize a different account,
+// request, candidate, approver, key fingerprint, nonce or expiry.
+for (const [field, value] of [
+  ['accountId','55555555-5555-4555-8555-555555555555'],
+  ['requestId','66666666-6666-4666-8666-666666666666'],
+  ['candidateDeviceId','77777777-7777-4777-8777-777777777777'],
+  ['approverDeviceId','88888888-8888-4888-8888-888888888888'],
+  ['candidateKeySha256','c'.repeat(64)],
+  ['nonceSha256','d'.repeat(64)],
+  ['expiresAt',now+119]
+]) {
+  assert.equal(run({request:{...request,[field]:value}}),false,
+    'tampered field must be rejected: '+field);
+}
+assert.equal(run({request:{...request,candidateDeviceId:request.approverDeviceId}}),false);
+assert.equal(run({request:{...request,unexpected:'value'}}),false);
+assert.equal(run({request:{...request,expiresAt:now+601}}),false);
 console.log('Trusted-key/expiry/replay offline checks PASS; production finalizer disabled');
