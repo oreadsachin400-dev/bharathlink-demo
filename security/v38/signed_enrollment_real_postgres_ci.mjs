@@ -60,15 +60,23 @@ try {
  authenticatedAccountId:accountId,nowSeconds:now,db});
  await assert.rejects(enrollApprovedV2({...args(requestId),signatureBase64url:'invalid'}));
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.v2_devices')).rows[0].n,0);
- assert.equal((await enrollApprovedV2(args(requestId))).deviceId,candidateDeviceId);
- await assert.rejects(enrollApprovedV2(args(requestId))); // replay
+ // Two independent callers race to consume the SAME signed approval.
+ // Exactly one may commit; the loser must fail closed without an extra receipt.
+ const raced=await Promise.allSettled([
+  enrollApprovedV2(args(requestId)),
+  enrollApprovedV2(args(requestId))
+ ]);
+ assert.equal(raced.filter(x=>x.status==='fulfilled').length,1,'only one concurrent enrollment may succeed');
+ assert.equal(raced.filter(x=>x.status==='rejected').length,1,'racing replay must be rejected');
+ assert.equal(raced.find(x=>x.status==='fulfilled').value.deviceId,candidateDeviceId);
+ await assert.rejects(enrollApprovedV2(args(requestId))); // replay after race
  await assert.rejects(enrollApprovedV2(args(secondId))); // same device, different request
  const states=await pool.query('SELECT request_id,state FROM bl_v38_enrollment_private.requests ORDER BY request_id');
  assert.deepEqual(states.rows.map(r=>r.state),['consumed','pending']);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.receipts')).rows[0].n,1);
  await pool.query('UPDATE bl_v38_enrollment_private.trusted_anchors SET revoked_at=now()');
  await assert.rejects(enrollApprovedV2(args(secondId)));
- console.log('PASS: signed approval + actual PostgreSQL adapter; replay, duplicate and revoked anchor rollback');
+ console.log('PASS: signed approval + actual PostgreSQL adapter; concurrent same-approval race, replay, duplicate and revoked anchor rollback');
 } finally {
  await pool.query('DROP SCHEMA IF EXISTS bl_v38_enrollment_private CASCADE');
  await pool.end();
