@@ -19,6 +19,7 @@ class V2DiagnosticRegistrationHoldTests(unittest.TestCase):
         end = source.index("const LocationShare = {", start)
         cls.section = source[start:end]
         cls.run_source = cls.section.split("  async run() {", 1)[1].split("  async forget() {", 1)[0]
+        cls.rpc_helper = cls.section.split("  async callRpc(", 1)[1].split("\n  extractId(", 1)[0]
 
     def test_no_legacy_registration_rpc_called_from_diagnostic_run(self):
         self.assertNotRegex(self.run_source, r"\b(?:this\.)?callRpc\s*\(")
@@ -34,6 +35,12 @@ class V2DiagnosticRegistrationHoldTests(unittest.TestCase):
         # never reference the registration RPC name or dynamically call it.
         self.assertNotIn("this.RPC", self.run_source)
         self.assertNotIn("this.buildPayload", self.run_source)
+
+    def test_dormant_rpc_helper_cannot_send_any_network_request(self):
+        self.assertIn("V38 SECURITY HOLD: unsigned legacy V2 registration disabled", self.rpc_helper)
+        self.assertNotIn("fetch(", self.rpc_helper)
+        self.assertNotIn("Supabase.refreshAccessToken(", self.rpc_helper)
+        self.assertNotIn("Supabase.headers(", self.rpc_helper)
 
     def test_browser_has_no_secret_service_role_configuration(self):
         self.assertIn("this.assertBrowserSafeKey()", self.run_source)
