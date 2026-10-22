@@ -2,9 +2,6 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 python3 validate_target.py
-# Safe diagnostic: show the database identity and server/client IPs, never credentials.
-# These are evaluated on the SAME connection used by the runner.
-psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT 'CI_DB_DIAG db=' || current_database() || ' client=' || coalesce(inet_client_addr()::text,'local-socket') || ' server=' || coalesce(inet_server_addr()::text,'local-socket');" || { echo 'REFUSED: connection diagnostic failed' >&2; exit 3; }
 
 command -v psql >/dev/null || { echo 'BLOCKED: psql not installed' >&2; exit 3; }
 unset PGHOST PGHOSTADDR PGPORT PGDATABASE PGUSER PGSERVICE PGSERVICEFILE PGOPTIONS PGSSLMODE PGCONNECT_TIMEOUT
