@@ -109,7 +109,25 @@ BEGIN
  END;
  IF NOT rejected THEN RAISE EXCEPTION 'finalizer unexpectedly succeeded'; END IF;
 END $$;
-DO $$
+-- Fail-closed atomicity invariant: a denied finalizer must leave request and
+-- existing receipt/enrollment state unchanged. Disposable CI only.
+DO $
+DECLARE request_state text; request_approved_at timestamptz;
+        receipt_count integer; enrollment_count integer;
+BEGIN
+ SELECT state,approved_at INTO request_state,request_approved_at
+ FROM bl_trust_v8_private.requests
+ WHERE request_id='22222222-2222-4222-8222-222222222223';
+ SELECT count(*) INTO receipt_count FROM bl_trust_v8_private.receipts
+ WHERE request_id='22222222-2222-4222-8222-222222222223';
+ SELECT count(*) INTO enrollment_count FROM bl_trust_v8_private.approved_devices
+ WHERE request_id='22222222-2222-4222-8222-222222222223';
+ IF request_state IS DISTINCT FROM 'pending' OR request_approved_at IS NOT NULL
+    OR receipt_count <> 1 OR enrollment_count <> 1 THEN
+   RAISE EXCEPTION 'denied finalizer changed durable approval state';
+ END IF;
+END $;
+DO $
 DECLARE role_name text;
 BEGIN
  FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
