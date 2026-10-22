@@ -9,8 +9,9 @@ export function verifyApproval({ publicKeyJwk, payload, signatureBase64url }) {
   try {
     // Exact canonical payload is the caller's responsibility. Do not sign JSON.stringify output.
     const key = createPublicKey({ key: publicKeyJwk, format: 'jwk' });
+    if (!/^[A-Za-z0-9_-]+$/.test(signatureBase64url)) return false;
     const sig = Buffer.from(signatureBase64url, 'base64url');
-    if (sig.length !== 64 || Buffer.from(sig.toString('base64url'), 'base64url').compare(sig) !== 0) return false;
+    if (sig.length !== 64 || sig.toString('base64url') !== signatureBase64url) return false;
     return verify('sha256', Buffer.from(payload, 'utf8'), { key, dsaEncoding: 'ieee-p1363' }, sig);
   } catch { return false; }
 }
