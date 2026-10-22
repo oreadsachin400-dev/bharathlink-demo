@@ -2477,11 +2477,10 @@ const E2EEBackend = {
         const st=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
         if(st===true)return local;
       }
-      const kp=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},false,['deriveBits']);
-      const pub=await crypto.subtle.exportKey('jwk',kp.publicKey);
-      const rows=await Supabase.request('/rest/v1/messaging_devices',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:me.id,device_label:'BharathLink web E2EE v2',public_key_jwk:pub,key_algorithm:'ECDH-P256'})});
-      if(!Array.isArray(rows)||!rows[0]?.id)throw new Error('Device registration failed.');
-      local={userId:me.id,deviceId:rows[0].id,privateKey:kp.privateKey,publicJwk:pub};await this.putLocal(me.id,local);return local;
+      // V38 isolated-branch security hold: never enroll a fresh messaging device via
+      // an unsigned direct REST insert. Existing active local devices remain usable.
+      // A server-enforced, approved enrollment and recovery flow is required.
+      throw new Error('New E2EE device enrollment requires trusted-device approval. Registration is temporarily unavailable in this security test branch.');
     })().finally(()=>{this._activatePromise=null;});
     return this._activatePromise;
   },
