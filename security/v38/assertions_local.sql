@@ -55,7 +55,7 @@ END $$;
 INSERT INTO bl_trust_v8_private.receipts
  (request_id,signature_sha256,verified_key_fingerprint)
 VALUES ('22222222-2222-4222-8222-222222222223',repeat('b',64),repeat('c',64));
-DO $
+DO $$
 DECLARE rejected boolean := false;
 BEGIN
  BEGIN
@@ -69,13 +69,13 @@ BEGIN
      WHERE request_id='22222222-2222-4222-8222-222222222223') <> 1 THEN
   RAISE EXCEPTION 'receipt uniqueness broken';
  END IF;
-END $;
+END $$;
 INSERT INTO bl_trust_v8_private.approved_devices
  (account_id,device_id,request_id)
 VALUES ('11111111-1111-4111-8111-111111111111',
  '33333333-3333-4333-8333-333333333333',
  '22222222-2222-4222-8222-222222222223');
-DO $
+DO $$
 DECLARE rejected boolean := false;
 BEGIN
  BEGIN
@@ -91,7 +91,7 @@ BEGIN
      WHERE request_id='22222222-2222-4222-8222-222222222223') <> 1 THEN
   RAISE EXCEPTION 'approval request uniqueness broken';
  END IF;
-END $;
+END $$;
 -- Verify exact fail-closed finalizer exception.
 DO $$
 DECLARE err text; rejected boolean := false;
