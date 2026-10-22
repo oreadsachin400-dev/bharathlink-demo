@@ -74,9 +74,30 @@ try {
  const states=await pool.query('SELECT request_id,state FROM bl_v38_enrollment_private.requests ORDER BY request_id');
  assert.deepEqual(states.rows.map(r=>r.state),['consumed','pending']);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.receipts')).rows[0].n,1);
+ // Independent approvals for DIFFERENT candidate devices must both commit under concurrency.
+ const independentIds=['22222222-2222-4222-8222-222222222225','22222222-2222-4222-8222-222222222226'];
+ const independentDevices=['33333333-3333-4333-8333-333333333335','33333333-3333-4333-8333-333333333336'];
+ const independentRequests=independentIds.map((id,i)=>({...request(id),candidateDeviceId:independentDevices[i]}));
+ for(const r of independentRequests){
+  await pool.query(`INSERT INTO bl_v38_enrollment_private.requests
+  (request_id,account_id,candidate_device_id,approver_device_id,candidate_key_sha256,
+   nonce_sha256,expires_at_seconds,state,signing_public_key,curve25519_public_key)
+  VALUES($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9)`,
+  [r.requestId,r.accountId,r.candidateDeviceId,r.approverDeviceId,r.candidateKeySha256,
+   r.nonceSha256,r.expiresAt,signingPublicKey,curve25519PublicKey]);
+ }
+ const independentResults=await Promise.allSettled(independentRequests.map(r=>enrollApprovedV2({
+  requestId:r.requestId,signatureBase64url:signature(r),authenticatedAccountId:accountId,nowSeconds:now,db
+ })));
+ assert.equal(independentResults.filter(x=>x.status==='fulfilled').length,2,
+  'independent approvals for distinct devices must both succeed');
+ assert.deepEqual(independentResults.map(x=>x.value.deviceId),independentDevices);
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.v2_devices')).rows[0].n,3);
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.receipts')).rows[0].n,3);
+ assert.equal((await pool.query("SELECT count(*)::int AS n FROM bl_v38_enrollment_private.requests WHERE state='consumed'")).rows[0].n,3);
  await pool.query('UPDATE bl_v38_enrollment_private.trusted_anchors SET revoked_at=now()');
  await assert.rejects(enrollApprovedV2(args(secondId)));
- console.log('PASS: signed approval + actual PostgreSQL adapter; concurrent same-approval race, replay, duplicate and revoked anchor rollback');
+ console.log('PASS: signed approval + actual PostgreSQL adapter; concurrent same-approval race, independent approvals, replay, duplicate and revoked anchor rollback');
 } finally {
  await pool.query('DROP SCHEMA IF EXISTS bl_v38_enrollment_private CASCADE');
  await pool.end();
