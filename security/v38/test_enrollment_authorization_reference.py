@@ -25,5 +25,13 @@ class EnrollmentAuthorizationTests(unittest.TestCase):
     def test_replay(self): self.assertFalse(self.check(consumed_nonces=frozenset({"nonce1"})))
     def test_wrong_purpose(self): self.assertFalse(self.check(replace(self.a,enrollment=replace(self.e,purpose="payment"))))
     def test_empty_nonce(self): self.assertFalse(self.check(replace(self.a,enrollment=replace(self.e,nonce=""))))
+    def test_self_approval(self):
+        self.assertFalse(self.check(replace(self.a, enrollment=replace(self.e, approver_device_id="device2"))))
+    def test_blank_approver(self):
+        self.assertFalse(self.check(replace(self.a, enrollment=replace(self.e, approver_device_id=" "))))
+    def test_blank_candidate(self):
+        self.assertFalse(self.check(replace(self.a, enrollment=replace(self.e, candidate_device_id=""))))
+    def test_excessive_lifetime(self):
+        self.assertFalse(self.check(replace(self.a, enrollment=replace(self.e, expires_at=self.now+timedelta(minutes=11)))))
     def test_naive_expiry(self): self.assertFalse(self.check(replace(self.a,enrollment=replace(self.e,expires_at=datetime(2026,10,22)))))
 if __name__=="__main__": unittest.main()
