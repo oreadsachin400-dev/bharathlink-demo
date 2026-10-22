@@ -52,3 +52,34 @@ test('V39 adapter rolls back and releases on failed receipt insert',async()=>{
  assert.ok(!calls.includes('COMMIT'));
  assert.equal(calls.at(-1),'RELEASE');
 });
+
+test('V39 adapter fails closed on missing request and releases transaction',async()=>{
+ const calls=[];
+ const client={async query(sql){calls.push(sql);if(sql.includes('FROM bl_enrollment_v39_private.approval_requests'))return {rows:[]};return {rowCount:0};},release(){calls.push('RELEASE');}};
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(async tx=>{
+  const request=await tx.lockPendingRequest('missing');
+  if(!request)throw new Error('request not found');
+ }),/request not found/);
+ assert.ok(calls.includes('ROLLBACK'));
+ assert.ok(!calls.includes('COMMIT'));
+ assert.equal(calls.at(-1),'RELEASE');
+});
+test('V39 adapter rejects unsafe expiry before device enrollment',async()=>{
+ const calls=[];
+ const client={async query(sql){calls.push(sql);if(sql.includes('FROM bl_enrollment_v39_private.approval_requests'))return {rows:[{expiresAt:'9007199254740993'}]};return {rowCount:0};},release(){calls.push('RELEASE');}};
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(tx=>tx.lockPendingRequest('r')),/invalid expiry/);
+ assert.ok(calls.includes('ROLLBACK'));
+ assert.equal(calls.at(-1),'RELEASE');
+});
+test('V39 adapter refuses zero-row device insert and never commits',async()=>{
+ const calls=[];
+ const client={async query(sql){calls.push(sql);return {rowCount:0};},release(){calls.push('RELEASE');}};
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(tx=>tx.insertV2Device({
+  deviceId:'d',userId:'u',signingPublicKey:'s',curve25519PublicKey:'x',protocolVersion:2
+ })),/device insert failed/);
+ assert.ok(calls.includes('ROLLBACK'));
+ assert.ok(!calls.includes('COMMIT'));
+});
