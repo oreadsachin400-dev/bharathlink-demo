@@ -104,3 +104,28 @@ test('V39 adapter rolls back if callback throws after acquiring trusted anchor',
  assert.ok(!calls.includes('COMMIT'));
  assert.equal(calls.at(-1),'RELEASE');
 });
+
+test('V39 adapter does not report success when COMMIT fails',async()=>{
+ const calls=[];
+ const client={
+  async query(sql){calls.push(sql);if(sql==='COMMIT')throw new Error('commit rejected');return {rowCount:1};},
+  release(){calls.push('RELEASE');}
+ };
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(async()=> 'should-not-return'),/commit rejected/);
+ assert.deepEqual(calls,[
+  'BEGIN ISOLATION LEVEL SERIALIZABLE','COMMIT','ROLLBACK','RELEASE'
+ ]);
+});
+test('V39 adapter retains original rejection even if ROLLBACK also fails',async()=>{
+ const calls=[];
+ const client={
+  async query(sql){calls.push(sql);if(sql==='ROLLBACK')throw new Error('rollback unavailable');return {rowCount:1};},
+  release(){calls.push('RELEASE');}
+ };
+ const db=createV39EnrollmentAdapter({async connect(){return client;}});
+ await assert.rejects(db.transaction(async()=>{throw new Error('approval invalid');}),/approval invalid/);
+ assert.deepEqual(calls,[
+  'BEGIN ISOLATION LEVEL SERIALIZABLE','ROLLBACK','RELEASE'
+ ]);
+});
