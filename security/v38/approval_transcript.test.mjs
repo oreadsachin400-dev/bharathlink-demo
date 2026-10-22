@@ -8,11 +8,17 @@ const publicKeyJwk=publicKey.export({format:'jwk'});
 const payload=approvalTranscript(input);
 const signatureBase64url=sign('sha256',Buffer.from(payload),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 assert.equal(verifyApproval({publicKeyJwk,payload,signatureBase64url}),true);
-for(const field of ['requestId','candidateDeviceId','approverDeviceId','candidateKeySha256','nonceSha256','expiresAt']){
+for(const field of ['accountId','requestId','candidateDeviceId','approverDeviceId','candidateKeySha256','nonceSha256','expiresAt']){
  const changed={...input,[field]:field==='expiresAt'?input.expiresAt+1:field.endsWith('Sha256')?'c'.repeat(64):'55555555-5555-4555-8555-555555555555'};
  assert.equal(verifyApproval({publicKeyJwk,payload:approvalTranscript(changed),signatureBase64url}),false,field);
 }
 assert.throws(()=>approvalTranscript({...input,extra:'x'}));
+assert.throws(()=>approvalTranscript({...input,accountId:input.accountId.toUpperCase()}));
+assert.throws(()=>approvalTranscript({...input,expiresAt:1.5}));
+assert.throws(()=>approvalTranscript({...input,expiresAt:0}));
+assert.throws(()=>approvalTranscript({...input,candidateKeySha256:'A'.repeat(64)}));
+assert.throws(()=>approvalTranscript({...input,requestId:null}));
+assert.equal(verifyApproval({publicKeyJwk,payload,signatureBase64url:signatureBase64url.slice(1)}),false);
 assert.throws(()=>approvalTranscript({...input,approverDeviceId:input.candidateDeviceId}));
 assert.throws(()=>approvalTranscript({...input,nonceSha256:'not-hex'}));
 console.log('Versioned approval transcript: positive and negative binding tests PASS; integration disabled');
