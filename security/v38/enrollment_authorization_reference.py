@@ -5,7 +5,7 @@ cryptographic signature verification. This module does not itself verify ECDSA
 signatures or persist/consume database receipts.
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import FrozenSet
 
 @dataclass(frozen=True)
@@ -51,5 +51,5 @@ def authorize(approval: VerifiedApproval, *, expected_user: str,
         e.x25519_key_hash == expected_x25519_hash,
         e.approver_device_id != e.candidate_device_id,
         e.expires_at > now,
-        e.expires_at <= now + __import__('datetime').timedelta(minutes=10),
+        e.expires_at <= now + timedelta(minutes=10),
     ))
