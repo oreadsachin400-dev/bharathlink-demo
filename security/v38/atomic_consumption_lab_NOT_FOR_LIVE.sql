@@ -49,6 +49,9 @@ DECLARE a uuid:='11111111-1111-4111-8111-111111111111';
 BEGIN
  INSERT INTO bl_v38_atomic_lab.requests VALUES(r,a,d,k,clock_timestamp()+interval '2 minutes','pending');
  IF bl_v38_atomic_lab.consume_verified_request(r,a,d,repeat('b',64)) THEN RAISE EXCEPTION 'candidate key substitution accepted'; END IF;
+ IF bl_v38_atomic_lab.consume_verified_request(r,'99999999-9999-4999-8999-999999999999',d,k) THEN RAISE EXCEPTION 'cross-account consume accepted'; END IF;
+ IF bl_v38_atomic_lab.consume_verified_request(r,a,'88888888-8888-4888-8888-888888888888',k) THEN RAISE EXCEPTION 'device substitution accepted'; END IF;
+ IF (SELECT state FROM bl_v38_atomic_lab.requests WHERE request_id=r)<>'pending' THEN RAISE EXCEPTION 'rejected approval mutated request'; END IF;
  IF NOT bl_v38_atomic_lab.consume_verified_request(r,a,d,k) THEN RAISE EXCEPTION 'first consume failed'; END IF;
  IF bl_v38_atomic_lab.consume_verified_request(r,a,d,k) THEN RAISE EXCEPTION 'replay accepted'; END IF;
  IF (SELECT count(*) FROM bl_v38_atomic_lab.consumptions)<>1 THEN RAISE EXCEPTION 'duplicate receipt'; END IF;
