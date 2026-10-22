@@ -18,25 +18,25 @@ class V2DiagnosticRegistrationHoldTests(unittest.TestCase):
         start = source.index("const E2EEV2DeviceTest = {")
         end = source.index("const LocationShare = {", start)
         cls.section = source[start:end]
-        cls.run = cls.section.split("  async run() {", 1)[1].split("  async forget() {", 1)[0]
+        cls.run_source = cls.section.split("  async run() {", 1)[1].split("  async forget() {", 1)[0]
 
     def test_no_legacy_registration_rpc_called_from_diagnostic_run(self):
-        self.assertNotRegex(self.run, r"\b(?:this\.)?callRpc\s*\(")
-        self.assertNotRegex(self.run, r"\bfetch\s*\(")
-        self.assertNotIn("register_e2ee_v2_device(", self.run)
+        self.assertNotRegex(self.run_source, r"\b(?:this\.)?callRpc\s*\(")
+        self.assertNotRegex(self.run_source, r"\bfetch\s*\(")
+        self.assertNotIn("register_e2ee_v2_device(", self.run_source)
 
     def test_diagnostic_run_explicitly_fails_closed(self):
-        self.assertIn("V38 SECURITY HOLD: unsigned legacy V2 registration disabled", self.run)
-        self.assertRegex(self.run, r"r\.rpc\s*=\s*['\"]fail['\"]")
+        self.assertIn("V38 SECURITY HOLD: unsigned legacy V2 registration disabled", self.run_source)
+        self.assertRegex(self.run_source, r"r\.rpc\s*=\s*['\"]fail['\"]")
 
     def test_no_indirect_registration_through_legacy_rpc_name(self):
         # A dormant helper may remain for diagnostics, but the run path must
         # never reference the registration RPC name or dynamically call it.
-        self.assertNotIn("this.RPC", self.run)
-        self.assertNotIn("this.buildPayload", self.run)
+        self.assertNotIn("this.RPC", self.run_source)
+        self.assertNotIn("this.buildPayload", self.run_source)
 
     def test_browser_has_no_secret_service_role_configuration(self):
-        self.assertIn("this.assertBrowserSafeKey()", self.run)
+        self.assertIn("this.assertBrowserSafeKey()", self.run_source)
 
 
 if __name__ == "__main__":
