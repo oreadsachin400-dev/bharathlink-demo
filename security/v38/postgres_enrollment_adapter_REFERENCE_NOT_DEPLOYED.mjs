@@ -18,7 +18,11 @@ export function createEnrollmentTransactionAdapter(pool) {
        expires_at_seconds AS "expiresAt", state, signing_public_key AS "signingPublicKey",
        curve25519_public_key AS "curve25519PublicKey"
        FROM bl_v38_enrollment_private.requests WHERE request_id=$1 FOR UPDATE`,[requestId]);
-      return rows[0] ?? null;
+      if (!rows[0]) return null;
+      const rawExpiry=rows[0].expiresAt;
+      const expiresAt=typeof rawExpiry==='string' && /^\\d+$/.test(rawExpiry) ? Number(rawExpiry) : rawExpiry;
+      if (!Number.isSafeInteger(expiresAt)) throw new Error('invalid stored expiry');
+      return {...rows[0],expiresAt};
      },
      async lockTrustedAnchor(accountId,deviceId) {
       const {rows}=await client.query(`SELECT account_id AS "accountId", device_id AS "deviceId",
