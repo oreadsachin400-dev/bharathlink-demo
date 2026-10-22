@@ -14,7 +14,7 @@ export function verifyEnrollmentApproval({request, signatureBase64url, trustedAn
     const transcript=approvalTranscript(request);
     const {state, ...storedFields}=storedRequest;
     if (approvalTranscript(storedFields)!==transcript) return false;
-    if (storedRequest.state!=='pending' && storedRequest.state!==undefined) return false;
+    if (storedRequest.state!=='pending') return false;
     if (request.expiresAt<=nowSeconds || request.expiresAt>nowSeconds+600) return false;
     if (trustedAnchor.accountId!==request.accountId ||
         trustedAnchor.deviceId!==request.approverDeviceId) return false;
