@@ -16,6 +16,8 @@ const signatureBase64url=sign('sha256',Buffer.from(approvalTranscript(request)),
 const base={request,storedRequest:{...request,state:'pending'},trustedAnchor,signatureBase64url,nowSeconds:now};
 const check=(change={})=>verifyEnrollmentApproval({...base,...change});
 assert.equal(check(),true);
+assert.equal(check({storedRequest:{...request}}),false);
+assert.equal(check({storedRequest:{...base.storedRequest,state:null}}),false);
 assert.equal(check({storedRequest:{...base.storedRequest,state:'approved'}}),false);
 assert.equal(check({storedRequest:{...base.storedRequest,nonceSha256:'c'.repeat(64)}}),false);
 assert.equal(check({request:{...request,candidateKeySha256:'c'.repeat(64)}}),false);
