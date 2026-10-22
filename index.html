@@ -2881,30 +2881,10 @@ const E2EEV2DeviceTest = {
         if (local.signing.alg !== 'Ed25519') r.notes.push('This browser has no WebCrypto Ed25519, so the signing test key is ECDSA P-256.');
       } catch (e) { r.keys = 'fail'; r.notes.push(`Local key generation: ${e.message}`); return; }
 
-      try {
-        const payload = this.buildPayload(local);
-        r.sentParams = Object.keys(payload);
-        // V38 SECURITY HOLD: legacy RPC has no trusted-device approval proof.
-        // Fail closed on this isolated branch until a verified enrollment API
-        // and compatible Android onboarding are available. Never fall back.
-        throw new Error('V38 SECURITY HOLD: unsigned legacy V2 registration disabled in this branch.');
-        // No legacy registration network call is permitted here.
-        if (res.ok) r.returnedId = this.extractId(res.data);
-        else {
-          r.server = this.describe(res);
-          const dup = res.data && res.data.code === '23505';
-          if (dup && local.verifiedReturnedId && local.verifiedReturnedId.toLowerCase() === local.deviceId.toLowerCase()) {
-            r.returnedId = local.verifiedReturnedId;
-            r.notes.push(`Already registered: an earlier run on this device verified the returned ID (${new Date(local.registeredAt).toLocaleString()}). The server rejected re-registration as a duplicate.`);
-          } else throw new Error(r.server);
-        }
-        if (!r.returnedId) throw new Error('The RPC succeeded but returned no device ID.');
-        if (r.returnedId.toLowerCase() !== local.deviceId.toLowerCase())
-          throw new Error(`Returned device ID ${r.returnedId} does not match the local device ID.`);
-        local.registeredAt = local.registeredAt || Date.now(); local.verifiedReturnedId = r.returnedId;
-        await this.putLocal(r.userId, local);
-        r.rpc = 'pass';
-      } catch (e) { r.rpc = 'fail'; r.notes.push(`V2 device registration RPC: ${e.message}`); }
+      // V38 isolated-branch hold: never invoke unsigned legacy registration.
+      // Existing local key generation remains available for diagnostics only.
+      r.rpc = 'fail';
+      r.notes.push('V38 SECURITY HOLD: unsigned legacy V2 registration disabled in this branch. Signed enrollment API is not integrated.');
     } finally {
       for (const k of ['auth', 'keys', 'rpc']) if (r[k] === 'pending') r[k] = 'skip';
       this.running = false; this.refresh();
