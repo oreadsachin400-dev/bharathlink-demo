@@ -39,6 +39,11 @@ jobs:
           python3 static_check.py
           python3 -m unittest discover -p 'test_*.py' -v
           bash -n run_local.sh
+      - name: Test offline enrollment authorization reference (not deployed)
+        run: |
+          set -euo pipefail
+          cd security/v38
+          python3 -m unittest -v test_enrollment_authorization_reference.py
       - name: Test offline P-256 approval verifier (approval remains disabled)
         run: node --test security/v38/verify_approval.test.mjs security/v38/approval_transcript.test.mjs security/v38/authorize_approval.test.mjs
       - name: Install PostgreSQL client
