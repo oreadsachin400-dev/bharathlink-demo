@@ -78,7 +78,7 @@ BEGIN
    RAISE EXCEPTION 'role % has USAGE on private schema',role_name;
   END IF;
   IF role_name = 'service_role' AND NOT has_schema_privilege(role_name,'bl_trust_v8_private','USAGE') THEN
-   RAISE EXCEPTION 'service_role missing expected schema USAGE',role_name;
+   RAISE EXCEPTION 'service_role missing expected schema USAGE';
   END IF;
   IF EXISTS (
    SELECT 1 FROM (VALUES ('anchors'),('requests'),('receipts'),('approved_devices')) AS t(tab)
