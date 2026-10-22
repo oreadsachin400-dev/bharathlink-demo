@@ -10,6 +10,7 @@ test('V39 adapter commits only after all transactional operations',async()=>{
  const client={
   async query(sql,args=[]){
    calls.push({sql,args});
+   if(sql.startsWith('INSERT INTO bl_enrollment_v39_private.enrollment_receipts')) return {rowCount:1};
    if(sql.includes('FROM bl_enrollment_v39_private.approval_requests')) return {rows:[{
     requestId:'r',accountId:'a',candidateDeviceId:'c',approverDeviceId:'d',
     candidateKeySha256:'f'.repeat(64),nonceSha256:'e'.repeat(64),
@@ -18,7 +19,6 @@ test('V39 adapter commits only after all transactional operations',async()=>{
     accountId:'a',deviceId:'d',publicKeyJwk:{},verified:true,revoked:false}]};
    if(sql.startsWith('INSERT INTO public.e2ee_v2_devices')) return {rowCount:1};
    if(sql.startsWith('UPDATE bl_enrollment_v39_private.approval_requests')) return {rowCount:1};
-   if(sql.startsWith('INSERT INTO bl_enrollment_v39_private.enrollment_receipts')) return {rowCount:1};
    return {rows:[],rowCount:0};
   },release(){calls.push({sql:'RELEASE'});}
  };
