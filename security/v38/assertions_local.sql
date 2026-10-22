@@ -127,7 +127,7 @@ BEGIN
    RAISE EXCEPTION 'denied finalizer changed durable approval state';
  END IF;
 END $$;
-DO $
+DO $$
 DECLARE role_name text;
 BEGIN
  FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
