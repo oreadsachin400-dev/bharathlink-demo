@@ -4,6 +4,11 @@
 -- encodings and recompute canonical digest; SQL below is a storage boundary,
 -- NOT cryptographic authorization or first-device bootstrap.
 BEGIN;
+-- Disposable CI creates its auth fixture in a later job step. Keep this
+-- lab self-contained; rollback removes both fixture and candidate schema.
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
+INSERT INTO auth.users(id) VALUES ('11111111-1111-4111-8111-111111111111') ON CONFLICT DO NOTHING;
 CREATE SCHEMA bl_v39_candidate_lab;
 REVOKE ALL ON SCHEMA bl_v39_candidate_lab FROM PUBLIC;
 CREATE TABLE bl_v39_candidate_lab.requests (
