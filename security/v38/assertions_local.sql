@@ -111,7 +111,7 @@ BEGIN
 END $$;
 -- Fail-closed atomicity invariant: a denied finalizer must leave request and
 -- existing receipt/enrollment state unchanged. Disposable CI only.
-DO $
+DO $$
 DECLARE request_state text; request_approved_at timestamptz;
         receipt_count integer; enrollment_count integer;
 BEGIN
@@ -126,7 +126,7 @@ BEGIN
     OR receipt_count <> 1 OR enrollment_count <> 1 THEN
    RAISE EXCEPTION 'denied finalizer changed durable approval state';
  END IF;
-END $;
+END $$;
 DO $
 DECLARE role_name text;
 BEGIN
