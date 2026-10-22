@@ -12,7 +12,9 @@ BLOCKED_ENV = {'PGHOST','PGHOSTADDR','PGPORT','PGDATABASE','PGUSER','PGPASSWORD'
                'PGCHANNELBINDING','PGAPPNAME'}
 
 def validate(url, env):
-    if any(k in env for k in BLOCKED_ENV if k != 'PGAPPNAME'):\n        return False, 'libpq environment overrides are forbidden'\n    if 'PGAPPNAME' in env and not (env['PGAPPNAME'] == 'bharathlink-v38-ci' and env.get('GITHUB_ACTIONS') == 'true'):
+    if any(k in env for k in BLOCKED_ENV if k != 'PGAPPNAME'):
+        return False, 'libpq environment overrides are forbidden'
+    if 'PGAPPNAME' in env and not (env['PGAPPNAME'] == 'bharathlink-v38-ci' and env.get('GITHUB_ACTIONS') == 'true'):
         return False, 'libpq environment overrides are forbidden'
     try:
         u = urlsplit(url)
