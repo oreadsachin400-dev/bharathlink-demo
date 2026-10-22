@@ -1,10 +1,10 @@
-name: BharathLink isolated PostgreSQL smoke
+name: BharathLink isolated PostgreSQL V38 gate
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  postgres-smoke:
+  postgres-v38:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -20,40 +20,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      PGHOST: 127.0.0.1
-      PGPORT: "5432"
-      PGUSER: postgres
-      PGPASSWORD: disposable-ci-only
-      PGDATABASE: bharathlink_disposable_v30
     steps:
       - uses: actions/checkout@v4
+      - name: Require V38 sources (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in run_local.sh validate_target.py bootstrap_local.sql schema_NOT_FOR_LIVE.sql assertions_local.sql; do
+            test -s "security/v38/$file" || { echo "::error::Missing security/v38/$file; V38 integration NOT RUN"; exit 1; }
+          done
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Verify isolated PostgreSQL and transactional rollback
+      - name: Run actual V38 PostgreSQL integration
         shell: bash
+        env:
+          LOCAL_TEST_DATABASE_URL: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30
         run: |
           set -euo pipefail
-          test "$(psql -X -Atqc 'select current_database()')" = "bharathlink_disposable_v30"
-          test "$(psql -X -Atqc 'select inet_server_addr()::text')" = "127.0.0.1"
-          psql -X -v ON_ERROR_STOP=1 <<'SQL'
-          BEGIN;
-          CREATE SCHEMA ci_rollback_probe;
-          ROLLBACK;
-          DO $$
-          BEGIN
-            IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='ci_rollback_probe') THEN
-              RAISE EXCEPTION 'ROLLBACK FAILED';
-            END IF;
-          END $$;
-          SQL
-      - name: V38 source integration gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ ! -f security/v38/run_local.sh ]; then
-            echo "::warning::V38 source is not yet committed; PostgreSQL smoke only, NOT V38 integration PASS."
-            exit 0
-          fi
-          cd security/v38
-          LOCAL_TEST_DATABASE_URL="postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30" bash run_local.sh
+          bash security/v38/run_local.sh
