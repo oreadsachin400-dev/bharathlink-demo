@@ -6,6 +6,12 @@
 BEGIN;
 -- Disposable CI creates its auth fixture in a later job step. Keep this
 -- lab self-contained; rollback removes both fixture and candidate schema.
+-- The isolated PostgreSQL service does not precreate Supabase API roles.
+DO $ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+END $;
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
 INSERT INTO auth.users(id) VALUES ('11111111-1111-4111-8111-111111111111') ON CONFLICT DO NOTHING;
