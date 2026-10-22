@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import {createEnrollmentTransactionAdapter} from './postgres_enrollment_adapter_REFERENCE_NOT_DEPLOYED.mjs';
-function pool({fail=false}={}){
+function pool({fail=false,consumeZero=false,receiptZero=false,lockError=false}={}){
  const calls=[];let released=false;
  return {calls,get released(){return released;},async connect(){return {
- async query(sql,params=[]){calls.push({sql,params});if(fail&&sql.includes('INSERT INTO bl_v38_enrollment_private.v2_devices'))throw Error('injected insert failure');return {rows:[],rowCount:1};},
+ async query(sql,params=[]){calls.push({sql,params});if(fail&&sql.includes('INSERT INTO bl_v38_enrollment_private.v2_devices'))throw Error('injected insert failure');
+ if(lockError&&sql.includes('FOR UPDATE'))throw Error('injected lock failure');
+ if(consumeZero&&sql.includes("SET state='consumed'"))return {rows:[],rowCount:0};
+ if(receiptZero&&sql.includes('INSERT INTO bl_v38_enrollment_private.receipts'))return {rows:[],rowCount:0};
+ return {rows:[],rowCount:1};},
  release(){released=true;}
  };}};
 }
@@ -26,3 +30,15 @@ await assert.rejects(createEnrollmentTransactionAdapter(bad).transaction(async t
 assert.equal(bad.calls.at(-1).sql,'ROLLBACK');
 assert.equal(bad.released,true);
 console.log('PASS: parameterized transaction reference commit/rollback/release');
+
+for(const scenario of [{consumeZero:true},{receiptZero:true},{lockError:true}]){
+ const p=pool(scenario);
+ await assert.rejects(createEnrollmentTransactionAdapter(p).transaction(async tx=>{
+  if(scenario.lockError){await tx.lockPendingRequest('r');return;}
+  const consumed=await tx.consumeRequest({requestId:'r',accountId:'a',candidateDeviceId:'d',candidateKeySha256:'k'});
+  if(!consumed)throw Error('consumption denied');
+ }));
+ assert.equal(p.calls.at(-1).sql,'ROLLBACK');
+ assert.equal(p.released,true);
+}
+console.log('PASS: adapter rolls back failed locks, request consumption and receipt writes');
