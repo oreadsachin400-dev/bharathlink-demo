@@ -11,6 +11,14 @@ CREATE TABLE bl_v38_atomic_lab.requests(
  expires_at timestamptz NOT NULL,
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','consumed','cancelled'))
 );
+CREATE TABLE bl_v38_atomic_lab.v2_devices(
+ device_id uuid PRIMARY KEY,
+ user_id uuid NOT NULL,
+ signing_public_key text NOT NULL,
+ curve25519_public_key text NOT NULL,
+ protocol_version integer NOT NULL DEFAULT 2 CHECK(protocol_version=2),
+ UNIQUE(user_id,device_id)
+);
 CREATE TABLE bl_v38_atomic_lab.consumptions(
  request_id uuid PRIMARY KEY REFERENCES bl_v38_atomic_lab.requests(request_id),
  account_id uuid NOT NULL,
@@ -55,6 +63,16 @@ BEGIN
  IF NOT bl_v38_atomic_lab.consume_verified_request(r,a,d,k) THEN RAISE EXCEPTION 'first consume failed'; END IF;
  IF bl_v38_atomic_lab.consume_verified_request(r,a,d,k) THEN RAISE EXCEPTION 'replay accepted'; END IF;
  IF (SELECT count(*) FROM bl_v38_atomic_lab.consumptions)<>1 THEN RAISE EXCEPTION 'duplicate receipt'; END IF;
+ -- Actual PostgreSQL savepoint/exception rollback, not a simulated JS rollback.
+ BEGIN
+  INSERT INTO bl_v38_atomic_lab.v2_devices(device_id,user_id,signing_public_key,curve25519_public_key)
+  VALUES('55555555-5555-4555-8555-555555555555',a,'signing','curve');
+  RAISE EXCEPTION 'injected failure after device insert';
+ EXCEPTION WHEN raise_exception THEN NULL;
+ END;
+ IF EXISTS(SELECT 1 FROM bl_v38_atomic_lab.v2_devices WHERE device_id='55555555-5555-4555-8555-555555555555')
+ THEN RAISE EXCEPTION 'failed transaction retained inserted device'; END IF;
+
  INSERT INTO bl_v38_atomic_lab.requests VALUES('22222222-2222-4222-8222-222222222224',a,d,k,clock_timestamp()-interval '1 second','pending');
  IF bl_v38_atomic_lab.consume_verified_request('22222222-2222-4222-8222-222222222224',a,d,k) THEN RAISE EXCEPTION 'expired accepted'; END IF;
  INSERT INTO bl_v38_atomic_lab.requests VALUES('22222222-2222-4222-8222-222222222225',a,'44444444-4444-4444-8444-444444444444',k,clock_timestamp()+interval '2 minutes','cancelled');
