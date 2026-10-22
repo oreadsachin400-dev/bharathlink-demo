@@ -7,7 +7,8 @@ CREATE TABLE bl_v38_atomic_lab.requests(
  request_id uuid PRIMARY KEY,
  account_id uuid NOT NULL,
  candidate_device_id uuid NOT NULL,
- candidate_key_sha256 text NOT NULL CHECK(candidate_key_sha256 ~ '^[0-9a-f]{64}
+ candidate_key_sha256 text NOT NULL CHECK(candidate_key_sha256 ~ '^[0-9a-f]{64}$'),
+ expires_at timestamptz NOT NULL,
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','consumed','cancelled'))
 );
 CREATE TABLE bl_v38_atomic_lab.consumptions(
