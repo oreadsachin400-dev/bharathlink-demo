@@ -14,7 +14,7 @@ function verifyApprovalSignature(payload,signatureBase64url,registeredSigningJwk
        ||!(/^[A-Za-z0-9_-]{43}$/.test(registeredSigningJwk.y)))return false;
     const key=crypto.createPublicKey({key:{kty:'EC',crv:'P-256',x:registeredSigningJwk.x,y:registeredSigningJwk.y},format:'jwk'});
     const sig=Buffer.from(signatureBase64url,'base64url');
-    if(sig.length!==64)return false;
+    if(sig.length!==64||sig.toString('base64url')!==signatureBase64url)return false;
     return crypto.verify('sha256',Buffer.from(canonicalApproval(payload),'utf8'),
       {key,dsaEncoding:'ieee-p1363'},sig);
   }catch(_){return false;}
