@@ -16,6 +16,7 @@ on:
       - 'security/enrollment-approver-eligibility.cjs'
       - 'tests/e2ee-approver-eligibility.test.cjs'
       - 'security/enrollment-approval-decision.cjs'
+      - 'security/enrollment-key-fingerprint.cjs'
       - 'tests/e2ee-approval-decision.test.cjs'
       - '.github/workflows/android-session-regression.yml'
   workflow_dispatch:
