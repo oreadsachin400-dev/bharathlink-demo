@@ -31,7 +31,8 @@ try {
  candidate_key_sha256 text,approved_by_device_id uuid);
  CREATE TABLE public.e2ee_v2_devices(
  device_id uuid PRIMARY KEY,user_id uuid NOT NULL,signing_public_key text NOT NULL,
- curve25519_public_key text NOT NULL,protocol_version integer NOT NULL);`);
+ curve25519_public_key text NOT NULL,protocol_version integer NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),last_seen_at timestamptz NOT NULL DEFAULT now());`);
  await pool.query(`INSERT INTO bl_enrollment_v39_private.approval_requests
  (request_id,account_id,candidate_device_id,approver_device_id,candidate_key_sha256,
  nonce_sha256,expires_at,state,signing_public_key,curve25519_public_key)
