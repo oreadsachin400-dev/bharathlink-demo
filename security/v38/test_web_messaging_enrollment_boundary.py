@@ -27,7 +27,7 @@ class MessagingEnrollmentBoundaryTests(unittest.TestCase):
         self.assertIn("if(st===true)return local;", self.messaging)
 
     def test_new_device_fails_closed(self):
-        self.assertIn("New E2EE device enrollment requires trusted-device approval", self.messaging)
+        self.assertIn("Messaging is locked until trusted-device approval and secure enrollment are available.", self.messaging)
         self.assertNotIn("crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},false,['deriveBits'])", self.messaging.split("async activate(){",1)[1].split("async importPub(",1)[0])
 
 if __name__ == "__main__":
