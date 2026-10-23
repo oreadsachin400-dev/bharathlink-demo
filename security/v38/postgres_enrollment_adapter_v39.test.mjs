@@ -5,6 +5,12 @@ import {createV39EnrollmentAdapter} from './postgres_enrollment_adapter_v39_REFE
 test('V39 adapter rejects missing trusted pool',()=>{
  assert.throws(()=>createV39EnrollmentAdapter(null),/trusted pg pool/);
 });
+test('V39 adapter rejects missing callback without opening a connection',async()=>{
+ let connections=0;
+ const db=createV39EnrollmentAdapter({async connect(){connections++;throw Error('must not connect');}});
+ await assert.rejects(db.transaction(null),/transaction callback required/);
+ assert.equal(connections,0);
+});
 test('V39 adapter commits only after all transactional operations',async()=>{
  const calls=[];
  const client={
