@@ -7,6 +7,8 @@ export function verifyApproval({ publicKeyJwk, payload, signatureBase64url }) {
       Object.keys(publicKeyJwk).sort().join(',') !== 'crv,kty,x,y' ||
       publicKeyJwk.kty !== 'EC' || publicKeyJwk.crv !== 'P-256' ||
       typeof publicKeyJwk.x !== 'string' || typeof publicKeyJwk.y !== 'string' ||
+      !/^[A-Za-z0-9_-]{43}$/.test(publicKeyJwk.x) ||
+      !/^[A-Za-z0-9_-]{43}$/.test(publicKeyJwk.y) ||
       typeof payload !== 'string' || typeof signatureBase64url !== 'string') return false;
   try {
     // Exact canonical payload is the caller's responsibility. Do not sign JSON.stringify output.
