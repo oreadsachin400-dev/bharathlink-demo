@@ -95,9 +95,36 @@ try {
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.v2_devices')).rows[0].n,3);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.receipts')).rows[0].n,3);
  assert.equal((await pool.query("SELECT count(*)::int AS n FROM bl_v38_enrollment_private.requests WHERE state='consumed'")).rows[0].n,3);
+ // Force a REAL PostgreSQL receipt uniqueness failure AFTER device insertion.
+ // The transaction must undo device insertion and request consumption atomically.
+ const rollbackRequest={...request('22222222-2222-4222-8222-222222222227'),
+  candidateDeviceId:'33333333-3333-4333-8333-333333333337'};
+ await pool.query(`INSERT INTO bl_v38_enrollment_private.requests
+  (request_id,account_id,candidate_device_id,approver_device_id,candidate_key_sha256,
+   nonce_sha256,expires_at_seconds,state,signing_public_key,curve25519_public_key)
+  VALUES($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9)`,
+  [rollbackRequest.requestId,rollbackRequest.accountId,rollbackRequest.candidateDeviceId,
+   rollbackRequest.approverDeviceId,rollbackRequest.candidateKeySha256,rollbackRequest.nonceSha256,
+   rollbackRequest.expiresAt,signingPublicKey,curve25519PublicKey]);
+ // Pre-existing receipt causes INSERT conflict, proving rollback even after earlier SQL writes.
+ await pool.query(`INSERT INTO bl_v38_enrollment_private.receipts
+  (request_id,account_id,candidate_device_id) VALUES($1,$2,$3)`,
+  [rollbackRequest.requestId,accountId,rollbackRequest.candidateDeviceId]);
+ const rollbackArgs={requestId:rollbackRequest.requestId,
+  signatureBase64url:signature(rollbackRequest),authenticatedAccountId:accountId,nowSeconds:now,db};
+ await assert.rejects(enrollApprovedV2(rollbackArgs));
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.v2_devices WHERE device_id=$1',
+  [rollbackRequest.candidateDeviceId])).rows[0].n,0,'failed receipt must roll back device');
+ assert.equal((await pool.query('SELECT state FROM bl_v38_enrollment_private.requests WHERE request_id=$1',
+  [rollbackRequest.requestId])).rows[0].state,'pending','failed receipt must roll back consumption');
+ await pool.query('DELETE FROM bl_v38_enrollment_private.receipts WHERE request_id=$1',[rollbackRequest.requestId]);
+ assert.equal((await enrollApprovedV2(rollbackArgs)).deviceId,rollbackRequest.candidateDeviceId,
+  'valid signed approval remains usable after rolled-back attempt');
+ await assert.rejects(enrollApprovedV2(rollbackArgs),'committed approval must reject replay');
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.receipts')).rows[0].n,4);
  await pool.query('UPDATE bl_v38_enrollment_private.trusted_anchors SET revoked_at=now()');
  await assert.rejects(enrollApprovedV2(args(secondId)));
- console.log('PASS: signed approval + actual PostgreSQL adapter; concurrent same-approval race, independent approvals, replay, duplicate and revoked anchor rollback');
+ console.log('PASS: signed approval + actual PostgreSQL adapter; concurrent same-approval race, independent approvals, receipt failure rollback and safe retry, replay, duplicate and revoked anchor rollback');
 } finally {
  await pool.query('DROP SCHEMA IF EXISTS bl_v38_enrollment_private CASCADE');
  await pool.end();
