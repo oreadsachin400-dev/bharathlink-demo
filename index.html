@@ -2460,6 +2460,15 @@ const Supabase = {
     return data;
   },
   async restoreAndroidSession() {
+    // Both app initialization and the login screen can request restoration.
+    // Refresh credentials rotate, so never submit the same token twice.
+    if (this._androidRestoreInFlight) return this._androidRestoreInFlight;
+    const operation = this._restoreAndroidSessionOnce();
+    this._androidRestoreInFlight = operation;
+    try { return await operation; }
+    finally { if (this._androidRestoreInFlight === operation) this._androidRestoreInFlight = null; }
+  },
+  async _restoreAndroidSessionOnce() {
     if (this.accessToken || this.refreshToken) return false;
     const epoch = this._sessionEpoch || 0;
     const response = await BLAndroidSession.send('load');
