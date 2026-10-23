@@ -11,6 +11,8 @@ on:
       - 'tests/e2ee-enrollment-status.test.cjs'
       - 'tests/e2ee-approval-payload.test.cjs'
       - 'security/enrollment-approval-payload.cjs'
+      - 'security/enrollment-approval-verify.cjs'
+      - 'tests/e2ee-approval-signature.test.cjs'
       - '.github/workflows/android-session-regression.yml'
   workflow_dispatch:
 jobs:
@@ -31,3 +33,4 @@ jobs:
           node tests/e2ee-device-readiness.test.cjs
           node tests/e2ee-enrollment-status.test.cjs
           node tests/e2ee-approval-payload.test.cjs
+          node tests/e2ee-approval-signature.test.cjs
