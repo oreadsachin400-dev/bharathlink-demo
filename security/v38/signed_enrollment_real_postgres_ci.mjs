@@ -59,6 +59,14 @@ try {
  const args=(id)=>({requestId:id,signatureBase64url:signature(request(id)),
  authenticatedAccountId:accountId,nowSeconds:now,db});
  await assert.rejects(enrollApprovedV2({...args(requestId),signatureBase64url:'invalid'}));
+ // Real PostgreSQL boundary: wrong authenticated account and expired approval must
+ // leave the pending request, device registry, and receipts completely unchanged.
+ await assert.rejects(enrollApprovedV2({...args(requestId),
+  authenticatedAccountId:'99999999-9999-4999-8999-999999999999'}));
+ await assert.rejects(enrollApprovedV2({...args(requestId),nowSeconds:now+121}));
+ assert.equal((await pool.query('SELECT state FROM bl_v38_enrollment_private.requests WHERE request_id=$1',
+  [requestId])).rows[0].state,'pending');
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.receipts')).rows[0].n,0);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM bl_v38_enrollment_private.v2_devices')).rows[0].n,0);
  // Two independent callers race to consume the SAME signed approval.
  // Exactly one may commit; the loser must fail closed without an extra receipt.
