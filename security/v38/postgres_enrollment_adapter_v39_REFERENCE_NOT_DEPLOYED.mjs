@@ -6,6 +6,7 @@ export function createV39EnrollmentAdapter(pool) {
  if (!pool || typeof pool.connect !== 'function') throw new TypeError('trusted pg pool required');
  return {
   async transaction(fn) {
+   if (typeof fn !== 'function') throw new TypeError('transaction callback required');
    const client=await pool.connect();
    let started=false;
    try {
