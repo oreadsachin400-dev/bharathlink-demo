@@ -2202,6 +2202,37 @@ const ProfileMedia = {
    Phase 1A's local OTP is retained until real phone auth is enabled in
    Supabase. Profile reads/writes require a real Supabase access token.
    ===================================================================== */
+// Android TEST-only credential channel. Never expose this to other origins.
+const BLAndroidSession = {
+  pending: new Map(),
+  ready: false,
+  init() {
+    if (this.ready || location.origin !== 'https://bharathlink-20-test.netlify.app') return;
+    const bridge = window.BLNativeSession;
+    if (!bridge || typeof bridge.postMessage !== 'function') return;
+    this.ready = true;
+    bridge.onmessage = event => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch (_) { return; }
+      const item = this.pending.get(msg.id);
+      if (!item) return;
+      this.pending.delete(msg.id);
+      clearTimeout(item.timer);
+      item.resolve(msg);
+    };
+  },
+  send(op, refresh) {
+    this.init();
+    if (!this.ready) return Promise.resolve(null);
+    const id = crypto.randomUUID();
+    return new Promise(resolve => {
+      const timer = setTimeout(() => { this.pending.delete(id); resolve(null); }, 4000);
+      this.pending.set(id, { resolve, timer });
+      try { window.BLNativeSession.postMessage(JSON.stringify({ id, op, ...(refresh ? { refresh } : {}) })); }
+      catch (_) { clearTimeout(timer); this.pending.delete(id); resolve(null); }
+    });
+  }
+};
 const Supabase = {
   accessToken: null,
   refreshToken: null,
@@ -2252,6 +2283,7 @@ const Supabase = {
       if (data.refresh_token) this.refreshToken = data.refresh_token;
       sessionStorage.setItem('bharathlink.phase1b.test_access_token', this.accessToken);
       sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
+      void BLAndroidSession.send('save', this.refreshToken);
       return this.accessToken;
     })();
     this._refreshInFlight = operation;
@@ -2411,7 +2443,10 @@ const Supabase = {
     this.refreshToken = data.refresh_token || null;
     this.isolateLocalStateForAuthenticatedUser();
     sessionStorage.setItem('bharathlink.phase1b.test_access_token', data.access_token);
-    if (this.refreshToken) sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
+    if (this.refreshToken) {
+      sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
+      void BLAndroidSession.send('save', this.refreshToken);
+    }
     return data;
   },
   restoreTestSession() {
@@ -2429,6 +2464,7 @@ const Supabase = {
     this.setAccessToken(null); this.refreshToken = null;
     sessionStorage.removeItem('bharathlink.phase1b.test_access_token');
     sessionStorage.removeItem('bharathlink.phase1b.test_refresh_token');
+    void BLAndroidSession.send('clear');
   }
 };
 
