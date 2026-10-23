@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {generateKeyPairSync,sign} from 'node:crypto';
+import {approvalTranscript} from './approval_transcript.mjs';
+import {verifyAuthenticatedEnrollmentBoundary as verify} from './verify_authenticated_enrollment_boundary.mjs';
+const now=1790000000;
+const accountId='11111111-1111-4111-8111-111111111111';
+const request={accountId,requestId:'22222222-2222-4222-8222-222222222223',candidateDeviceId:'33333333-3333-4333-8333-333333333333',approverDeviceId:'44444444-4444-4444-8444-444444444444',candidateKeySha256:'a'.repeat(64),nonceSha256:'b'.repeat(64),expiresAt:now+120};
+const {publicKey,privateKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+const trustedAnchor={accountId,deviceId:request.approverDeviceId,publicKeyJwk:publicKey.export({format:'jwk'}),verified:true,revoked:false};
+const signatureBase64url=sign('sha256',Buffer.from(approvalTranscript(request)),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
+const base={authenticatedAccountId:accountId,request,storedRequest:{...request,state:'pending'},trustedAnchor,signatureBase64url,nowSeconds:now};
+assert.equal(verify(base),true);
+assert.equal(verify({...base,authenticatedAccountId:'55555555-5555-4555-8555-555555555555'}),false);
+assert.equal(verify({...base,authenticatedAccountId:null}),false);
+assert.equal(verify({...base,storedRequest:{...base.storedRequest,accountId:'55555555-5555-4555-8555-555555555555'}}),false);
+assert.equal(verify({...base,trustedAnchor:{...trustedAnchor,accountId:'55555555-5555-4555-8555-555555555555'}}),false);
+assert.equal(verify({...base,request:{...request,accountId:'55555555-5555-4555-8555-555555555555'}}),false);
+console.log('Authenticated enrollment boundary isolated tests PASS');
