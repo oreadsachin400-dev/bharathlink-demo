@@ -4,12 +4,13 @@
 // registers a signing key, or grants device access.
 const {approverEligibility}=require('./enrollment-approver-eligibility.cjs');
 const {verifyApprovalSignature}=require('./enrollment-approval-verify.cjs');
+const {fingerprintP256}=require('./enrollment-key-fingerprint.cjs');
 function verifyEnrollmentApproval({request,approver,signingKey,authenticatedUserId,payload,signature,nowSeconds}={}){
   if(!authenticatedUserId||!request||!approver||!signingKey||!payload)return false;
   // A verifier without server-computed key fingerprints must fail closed.
-  if(request.keyFingerprintsVerifiedByServer!==true
-    ||!/^[0-9a-f]{64}$/.test(request.encryptionKeyHash||'')
-    ||!/^[0-9a-f]{64}$/.test(request.signingKeyHash||''))return false;
+  if(fingerprintP256(request.encryptionPublicJwk)!==request.encryptionKeyHash
+    ||fingerprintP256(request.signingPublicJwk)!==request.signingKeyHash
+    ||!request.encryptionKeyHash||!request.signingKeyHash)return false;
   if(authenticatedUserId!==request.userId||authenticatedUserId!==approver.userId)return false;
   if(request.protocolVersion!==1)return false;
   if(request.proposedDeviceId===approver.deviceId)return false;
