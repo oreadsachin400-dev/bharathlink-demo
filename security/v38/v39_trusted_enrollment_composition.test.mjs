@@ -66,3 +66,15 @@ test('valid authenticated JWT enters locked transaction but missing approval rol
  assert(!calls.includes('COMMIT'));
  assert.equal(calls.at(-1),'RELEASE');
 });
+
+test('legacy trusted-device flag is not a signed enrollment approval',async()=>{
+ let connections=0;
+ const service=createV39TrustedEnrollmentService({
+  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated'}),
+  pgPool:{async connect(){connections++;throw Error('must not connect');}}
+ });
+ const result=await service({method:'POST',headers:{authorization:'Bearer valid'},
+  body:{requestId:'22222222-2222-4222-8222-222222222223',signatureBase64url:'signature',trusted:true}});
+ assert.equal(result.status,400);
+ assert.equal(connections,0);
+});
