@@ -18,3 +18,6 @@ Source: read-only TEST Supabase pg_proc query, not inferred from CI.
 
 ## Release gate
 HOLD: do not deploy V39 schema or enable registration until above conditions and CI/device tests pass. This document does not assert implementation or security approval.
+
+## Confirmed direct messaging device write path
+TEST read-only permissions check: authenticated role has INSERT privilege on public.messaging_devices, but not on public.e2ee_v2_devices. Policy messaging_devices_insert_own checks user_id = auth.uid(); messaging_devices_owner_update permits owner updates. This is a separate registration surface that must be covered by cutover and compatibility tests. Do not change live grants until caller inventory and first-device flow are ready.
