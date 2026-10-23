@@ -39,8 +39,8 @@ export function createV39EnrollmentAdapter(pool) {
      },
      async insertV2Device(v) {
       const {rowCount}=await client.query(`INSERT INTO public.e2ee_v2_devices
-       (device_id,user_id,signing_public_key,curve25519_public_key,protocol_version)
-       VALUES($1,$2,$3,$4,$5)`,
+       (device_id,user_id,signing_public_key,curve25519_public_key,protocol_version,created_at,last_seen_at)
+       VALUES($1,$2,$3,$4,$5,now(),now())`,
        [v.deviceId,v.userId,v.signingPublicKey,v.curve25519PublicKey,v.protocolVersion]);
       if(rowCount!==1) throw new Error('device insert failed');
      },
