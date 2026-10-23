@@ -2600,7 +2600,10 @@ const E2EEBackend = {
       &&typeof j.x==='string'&&/^[A-Za-z0-9_-]{43}$/.test(j.x)
       &&typeof j.y==='string'&&/^[A-Za-z0-9_-]{43}$/.test(j.y)
       &&!('d' in j)&&Object.keys(j).every(k=>['kty','crv','x','y','key_ops','ext','alg','use'].includes(k))
-      &&(!('key_ops' in j)||(Array.isArray(j.key_ops)&&j.key_ops.length===0));
+      &&(!('key_ops' in j)||(Array.isArray(j.key_ops)&&j.key_ops.length===0))
+      &&(!('ext' in j)||typeof j.ext==='boolean')
+      &&(!('alg' in j)||typeof j.alg==='string')
+      &&(!('use' in j)||typeof j.use==='string');
     if(typeof deviceId!=='string'||!uuid.test(deviceId)
       ||!validJwk(encryptionPublicJwk)||!validJwk(signingPublicJwk)
       ||(label!==null&&(typeof label!=='string'||label.length>80)))
