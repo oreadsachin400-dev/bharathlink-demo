@@ -12439,7 +12439,9 @@ const App = {
     Lifecycle.run();
     const path = Router.current(), stage = this.stage();
     const route = ROUTES.find(r => r.re.test(path));
-    if (!route || route.stage !== stage) return Router.go(this.defaultRoute(), { replace: true });
+    // TEST email sign-in must remain reachable before a local onboarding session exists.
+    // This exception exposes only the login view; protected app routes still require their normal stage.
+    if (!route || (route.stage !== stage && path !== '/test-login')) return Router.go(this.defaultRoute(), { replace: true });
     if(stage==='app'&&LockSecurity.appLockEnabled()&&!LockSecurity._appUnlocked){
       this.root.replaceChildren(LockSecurity.appGate());
       document.title='Locked | BharathLink';
