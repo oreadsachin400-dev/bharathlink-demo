@@ -2449,6 +2449,34 @@ const Supabase = {
     }
     return data;
   },
+  async restoreAndroidSession() {
+    if (this.accessToken || this.refreshToken) return false;
+    const epoch = this._sessionEpoch || 0;
+    const response = await BLAndroidSession.send('load');
+    const credential = response?.ok && typeof response.refresh === 'string' ? response.refresh : null;
+    if (!credential || (this._sessionEpoch || 0) !== epoch || this.accessToken || this.refreshToken) return false;
+    try {
+      const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { apikey: CONFIG.SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: credential })
+      });
+      const data = await res.json().catch(() => ({}));
+      if ((this._sessionEpoch || 0) !== epoch || this.accessToken || this.refreshToken) return false;
+      if (!res.ok || !data.access_token || !data.refresh_token) {
+        if (res.status === 400 || res.status === 401) void BLAndroidSession.send('clear');
+        return false;
+      }
+      this._sessionEpoch = epoch + 1;
+      this.setAccessToken(data.access_token);
+      this.refreshToken = data.refresh_token;
+      sessionStorage.setItem('bharathlink.phase1b.test_access_token', this.accessToken);
+      sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
+      this.isolateLocalStateForAuthenticatedUser();
+      void BLAndroidSession.send('save', this.refreshToken);
+      return true;
+    } catch (_) { return false; }
+  },
   restoreTestSession() {
     const token = sessionStorage.getItem('bharathlink.phase1b.test_access_token');
     this.refreshToken = sessionStorage.getItem('bharathlink.phase1b.test_refresh_token');
@@ -6142,7 +6170,7 @@ const Views = {
       h('div', { class: 'field' }, h('label', { for: 'test-password' }, 'Password'), password, passErr), btn);
 
     setTimeout(async () => {
-      if (!Supabase.restoreTestSession()) return;
+      if (!Supabase.restoreTestSession() && !(await Supabase.restoreAndroidSession())) return;
       try { const p = await Supabase.syncMyProfile(); if (p) { showProfile(p); if (Router.current() !== '/test-login') App.refresh(); } }
       catch (_) { /* Keep session on transient profile/network failure; user can explicitly sign out. */ }
     }, 0);
@@ -12353,6 +12381,12 @@ const App = {
     Store.init();
     LockSecurity.installLifecycle();
     Supabase.restoreTestSession();
+    if (!Supabase.accessToken) {
+      void Supabase.restoreAndroidSession().then(restored => {
+        if (!restored) return;
+        return Supabase.syncMyProfile().then(() => App.refresh()).catch(() => App.refresh());
+      });
+    }
     if (Supabase.accessToken) {
       Supabase.syncMyProfile().then(() => {
         App.refresh();
