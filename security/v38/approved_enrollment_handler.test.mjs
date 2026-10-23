@@ -5,6 +5,10 @@ const db={transaction:async()=>{called++;throw Error('not approved')}};
 const handler=createApprovedEnrollmentHandler({authenticate:async token=>token==='Bearer verified'?'account-a':null,db,clock:()=>100});
 assert.equal((await handler({method:'POST',headers:{authorization:'Bearer wrong'},body:{requestId:'r',signatureBase64url:'s'}})).status,401);
 assert.equal(called,0);
+for(const authorization of ['verified','Basic verified','Bearer ','Bearer verified extra','Bearer verified\nInjected: x']) {
+ assert.equal((await handler({method:'POST',headers:{authorization},body:{requestId:'r',signatureBase64url:'s'}})).status,401);
+}
+assert.equal(called,0);
 assert.equal((await handler({method:'POST',headers:{authorization:'Bearer verified'},body:{requestId:'r',signatureBase64url:'s',accountId:'attacker'}})).status,400);
 assert.equal(called,0);
 assert.equal((await handler({method:'POST',headers:{authorization:'Bearer verified'},body:{requestId:'r',signatureBase64url:'s'}})).status,403);
