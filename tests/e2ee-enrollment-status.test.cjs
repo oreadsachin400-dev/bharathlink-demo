@@ -36,7 +36,7 @@ async function check({token='access',rows=[{state:'pending',expires_at:'2026-10-
    assert.equal(result.state,state);
    assert.equal(result.canMessage,false,'queue state must never activate messaging');
  }
- for(const rows of [[{state:'ready'}],[{state:'pending'},{state:'approved'}],[null]]){
+ for(const rows of [[{state:'ready'}],[{state:'pending'},{state:'approved'}],[null],null,{},'approved']){
    const out=await check({rows});
    assert.ok(out.error||out.result?.state==='not_found');
    assert.equal(out.result?.canMessage??false,false);
