@@ -8,7 +8,8 @@ export function createApprovedEnrollmentHandler({authenticate,db,clock=()=>Math.
    throw new TypeError('trusted server dependencies required');
  return async function handleApprovedEnrollment(req) {
   try {
-   if(!req||req.method!=='POST'||!req.headers||typeof req.headers.authorization!=='string')
+   if(!req||req.method!=='POST'||!req.headers||typeof req.headers.authorization!=='string'||
+      !/^Bearer [A-Za-z0-9._~+\/-]+$/.test(req.headers.authorization))
      return {status:401,body:{error:'unauthorized'}};
    const accountId=await authenticate(req.headers.authorization);
    if(typeof accountId!=='string'||accountId.length===0)
