@@ -3,17 +3,22 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const {canonicalApproval}=require('../security/enrollment-approval-payload.cjs');
 const {verifyEnrollmentApproval:verify}=require('../security/enrollment-approval-decision.cjs');
+const {fingerprintP256}=require('../security/enrollment-key-fingerprint.cjs');
 const id=n=>n.toString(16).padStart(8,'0')+'-1111-4111-8111-111111111111';
 const keys=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+const encryptionJwk=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'}).publicKey.export({format:'jwk'});
+const signingJwk=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'}).publicKey.export({format:'jwk'});
+const encHash=fingerprintP256(encryptionJwk),signHash=fingerprintP256(signingJwk);
 const payload={userId:id(1),requestId:id(2),proposedDeviceId:id(3),approverDeviceId:id(4),
- challenge:id(5),encryptionKeyHash:'a'.repeat(64),signingKeyHash:'b'.repeat(64),
+ challenge:id(5),encryptionKeyHash:encHash,signingKeyHash:signHash,
  issuedAt:900,expiresAt:1100};
 const signature=crypto.sign('sha256',Buffer.from(canonicalApproval(payload)),
  {key:keys.privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 const base={authenticatedUserId:id(1),nowSeconds:1000,payload,signature,
  request:{userId:id(1),requestId:id(2),proposedDeviceId:id(3),challenge:id(5),
  encryptionKeyHash:'a'.repeat(64),signingKeyHash:'b'.repeat(64),
- status:'pending',protocolVersion:1,keyFingerprintsVerifiedByServer:true,createdAt:900,expiresAt:1100},
+ encryptionPublicJwk:encryptionJwk,signingPublicJwk:signingJwk,
+ status:'pending',protocolVersion:1,createdAt:900,expiresAt:1100},
  approver:{userId:id(1),deviceId:id(4),active:true,revokedAt:null},
  signingKey:{userId:id(1),deviceId:id(4),active:true,revokedAt:null,
  verifiedAt:850,verificationMethod:'audited_recovery',
@@ -25,8 +30,8 @@ for(const field of ['requestId','proposedDeviceId','challenge','encryptionKeyHas
  assert.equal(verify({...base,request:{...base.request,[field]:changed}}),false,field);
 }
 assert.equal(verify({...base,authenticatedUserId:id(9)}),false);
-assert.equal(verify({...base,request:{...base.request,keyFingerprintsVerifiedByServer:false}}),false);
-assert.equal(verify({...base,request:{...base.request,keyFingerprintsVerifiedByServer:undefined}}),false);
+assert.equal(verify({...base,request:{...base.request,encryptionPublicJwk:null}}),false);
+assert.equal(verify({...base,request:{...base.request,signingPublicJwk:null}}),false);
 assert.equal(verify({...base,request:{...base.request,protocolVersion:2}}),false);
 assert.equal(verify({...base,request:{...base.request,protocolVersion:null}}),false);
 assert.equal(verify({...base,request:{...base.request,proposedDeviceId:id(4)}}),false);
