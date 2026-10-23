@@ -2573,10 +2573,15 @@ const E2EEBackend = {
     this._activatePromise=(async()=>{
       if(!Supabase.accessToken)throw new Error('Sign in first.');
       const me=await Supabase.currentAuthUser(); let local=await this.getLocal(me.id);
-      if(local&&local.userId===me.id&&local.privateKey&&local.deviceId){
-        const st=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
-        if(st===true)return local;
+      if(!local||local.userId!==me.id||!local.privateKey||!local.deviceId){
+        // Never silently create a replacement identity key. A new device needs
+        // a server-verified approval from an existing trusted device.
+        throw new Error('E2EE device key missing on this browser. Messaging is locked until trusted-device approval and secure enrollment are available. Do not clear data on your existing trusted device.');
       }
+      const st=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
+      if(st===true)return local;
+      // Preserve local keys when the server rejects or revokes this device.
+      // A revoked device must not silently re-register itself.
       // V38 isolated-branch security hold: never enroll a fresh messaging device via
       // an unsigned direct REST insert. Existing active local devices remain usable.
       // A server-enforced, approved enrollment and recovery flow is required.
@@ -9686,7 +9691,7 @@ const Views = {
           // V27 hot path: reuse device material validated during the current open-chat session.
           const __v7local=await E2EEBackend.getLocal(currentUserId);
           if(!__v7local||!__v7local.deviceId||!__v7local.privateKey){
-            throw new Error('Local device credentials missing.');
+            throw new Error('E2EE device key missing on this browser. Do not clear your trusted device; approval and secure enrollment are required.');
           }
           const __v7fetch0=performance.now();
           __v18StageSet('rpc');__v22RpcAt=performance.now();__v22RpcDoneAt=0;__v22Show();
