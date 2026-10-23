@@ -20,6 +20,8 @@ for(const field of ['encryptionKeyHash','signingKeyHash']){
 }
 assert.equal(verifyApprovalSignature({...payload,expiresAt:1599},sig,jwk),false);
 assert.equal(verifyApprovalSignature(payload,'invalid',jwk),false);
+const noncanonical=sig.slice(0,-1)+(sig.endsWith('A')?'B':'A');
+assert.equal(verifyApprovalSignature(payload,noncanonical,jwk),false);
 assert.equal(verifyApprovalSignature(payload,sig,null),false);
 const other=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
 assert.equal(verifyApprovalSignature(payload,sig,other.publicKey.export({format:'jwk'})),false);
