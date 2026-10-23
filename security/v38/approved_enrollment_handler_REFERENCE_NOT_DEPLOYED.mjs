@@ -11,6 +11,8 @@ export function createApprovedEnrollmentHandler({authenticate,db,clock=()=>Math.
    if(!req||req.method!=='POST'||!req.headers||typeof req.headers.authorization!=='string'||
       !/^Bearer [A-Za-z0-9._~+\/-]+$/.test(req.headers.authorization))
      return {status:401,body:{error:'unauthorized'}};
+   // The trusted authentication adapter must verify JWT signature, audience,
+   // role, expiry and session validity before returning the account identity.
    const accountId=await authenticate(req.headers.authorization);
    if(typeof accountId!=='string'||accountId.length===0)
      return {status:401,body:{error:'unauthorized'}};
