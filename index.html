@@ -2591,6 +2591,27 @@ const E2EEBackend = {
   // Read-only enrollment status. Never interprets an approved queue record as
   // proof that a messaging device is active; activation requires a separate
   // server-side cryptographic authorization and is not implemented here.
+  // Request-only enrollment API. It never activates a device or permits messaging.
+  // Both distinct P-256 public keys are mandatory for the current 4-argument RPC.
+  async requestDeviceEnrollment(deviceId,encryptionPublicJwk,signingPublicJwk,label=null){
+    if(!Supabase.accessToken)throw new Error('Sign in first.');
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const validJwk=j=>j&&typeof j==='object'&&!Array.isArray(j)&&j.kty==='EC'&&j.crv==='P-256'
+      &&typeof j.x==='string'&&/^[A-Za-z0-9_-]{43}$/.test(j.x)
+      &&typeof j.y==='string'&&/^[A-Za-z0-9_-]{43}$/.test(j.y)
+      &&!('d' in j);
+    if(typeof deviceId!=='string'||!uuid.test(deviceId)
+      ||!validJwk(encryptionPublicJwk)||!validJwk(signingPublicJwk)
+      ||(label!==null&&(typeof label!=='string'||label.length>80)))
+      throw new Error('Invalid enrollment request. Two public P-256 keys are required.');
+    const requestId=await this.rpc('request_messaging_device_enrollment',{
+      p_device_id:deviceId,p_public_key_jwk:encryptionPublicJwk,
+      p_device_label:label,p_signing_public_key_jwk:signingPublicJwk
+    });
+    if(typeof requestId!=='string'||!uuid.test(requestId))
+      throw new Error('Invalid enrollment request response.');
+    return {requestId,state:'pending',canMessage:false};
+  },
   async enrollmentRequestStatus(requestId){
     if(!Supabase.accessToken)throw new Error('Sign in first.');
     if(typeof requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))
