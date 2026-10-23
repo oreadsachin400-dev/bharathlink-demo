@@ -25,3 +25,23 @@ Status: SECURITY HOLD — audit only; NOT a deployment migration.
 - Explicit go/no-go after verified TEST migration and two-phone Android tests. Production remains untouched.
 
 This document is an audit gate, not SQL to apply.
+
+## Reconfirmed directly against TEST on 23 Oct 2026
+Read-only pg_proc query independently reconfirmed `public.register_e2ee_v2_device(p_device_id uuid, p_signing_public_key text, p_curve25519_public_key text)` has `prosecdef=true` and `has_function_privilege('authenticated', oid, 'EXECUTE')=true`. This is an active legacy entrypoint, not merely an inferred compatibility risk. A broader follow-up function inventory was blocked by safety checks; no additional grants or entrypoints were verified in that attempt. Do not claim exhaustive caller/grant inventory.
+
+### Mandatory cutover acceptance matrix (must run before TEST release)
+| Case | Expected outcome |
+| --- | --- |
+| Existing authenticated client invokes legacy RPC after cutover | Denied, without creating a device |
+| Unauthenticated user invokes new enrollment | Denied |
+| Candidate provides approver key or `verified=true` | Denied; server retrieves verified trust anchor |
+| Valid signed transcript from trusted non-revoked device | Exactly one enrollment and one receipt |
+| Swapped candidate signing or encryption key | Denied |
+| Wrong account, device, nonce, request or expiry | Denied |
+| Revoked/unverified approver | Denied |
+| Same approval replay or simultaneous reuse | At most one commit |
+| Receipt insertion fails after device insert | Full rollback, request remains eligible for safe retry |
+| First-device bootstrap and recovery | Explicit independent verified authority, never automatic approval |
+| Existing Android and web clients | No silent fallback to legacy enrollment |
+
+Release remains HOLD until these cases are demonstrated against staged TEST migration and physical devices. No changes to existing Supabase objects are authorized by this note.
