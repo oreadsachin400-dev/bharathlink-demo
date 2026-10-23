@@ -78,3 +78,18 @@ test('legacy trusted-device flag is not a signed enrollment approval',async()=>{
  assert.equal(result.status,400);
  assert.equal(connections,0);
 });
+
+
+test('malformed bearer and verifier exception fail closed before database access',async()=>{
+ let connections=0;
+ const service=createV39TrustedEnrollmentService({
+  verifyAccessToken:async()=>{throw new Error('JWT verifier unavailable');},
+  pgPool:{async connect(){connections++;throw new Error('unexpected DB access');}}
+ });
+ const body={requestId:'22222222-2222-4222-8222-222222222223',signatureBase64url:'signature'};
+ for(const authorization of ['Bearer ', 'Bearer abc def', 'Bearer  abc', 'Bearer invalid']){
+  const response=await service({method:'POST',headers:{authorization},body});
+  assert.equal(response.status,401);
+ }
+ assert.equal(connections,0);
+});
