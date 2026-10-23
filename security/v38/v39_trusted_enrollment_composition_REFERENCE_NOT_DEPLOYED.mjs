@@ -4,6 +4,11 @@
 // Does not implement first-device bootstrap, recovery, or legacy RPC cutover.
 import {createApprovedEnrollmentHandler} from './approved_enrollment_handler_REFERENCE_NOT_DEPLOYED.mjs';
 import {createV39EnrollmentAdapter} from './postgres_enrollment_adapter_v39_REFERENCE_NOT_DEPLOYED.mjs';
+import {verifyAuthenticatedEnrollmentBoundary} from './verify_authenticated_enrollment_boundary.mjs';
+
+// Export a read-only, fail-closed identity/signature gate for server integration.
+// A true result is NOT enrollment authorization: DB locking and receipt are still mandatory.
+export {verifyAuthenticatedEnrollmentBoundary};
 
 export function createV39TrustedEnrollmentService({verifyAccessToken,pgPool,clock}={}) {
  if(typeof verifyAccessToken!=='function') throw new TypeError('trusted JWT verifier required');
