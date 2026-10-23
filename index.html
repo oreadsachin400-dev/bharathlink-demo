@@ -6084,7 +6084,7 @@ const Views = {
     setTimeout(async () => {
       if (!Supabase.restoreTestSession()) return;
       try { const p = await Supabase.syncMyProfile(); if (p) { showProfile(p); if (Router.current() !== '/test-login') App.refresh(); } }
-      catch (_) { Supabase.clearTestSession(); }
+      catch (_) { /* Keep session on transient profile/network failure; user can explicitly sign out. */ }
     }, 0);
 
     return Screen({ title: 'Phase 1B test login', back: backRoute, children: [
@@ -12299,7 +12299,7 @@ const App = {
         if('Notification' in window&&Notification.permission==='granted'&&'PushManager' in window){
           Mail.ensurePushSubscription().catch(ex=>console.warn('[BharathMail push] subscription refresh failed:',ex));
         }
-      }).catch(() => Supabase.clearTestSession());
+      }).catch(() => { /* Profile sync failure must not silently erase the test session. */ });
     }
     Supabase.health().then(ok => { window.__bharathlinkSupabaseReachable = !!ok; }).catch(() => { window.__bharathlinkSupabaseReachable = false; });
     window.addEventListener('hashchange', () => Router.onChange());
