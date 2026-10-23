@@ -2206,6 +2206,7 @@ const ProfileMedia = {
 const BLAndroidSession = {
   pending: new Map(),
   ready: false,
+  queue: Promise.resolve(),
   init() {
     if (this.ready || location.origin !== 'https://bharathlink-20-test.netlify.app') return;
     const bridge = window.BLNativeSession;
@@ -2222,6 +2223,12 @@ const BLAndroidSession = {
     };
   },
   send(op, refresh) {
+    // Serialize native operations: a delayed save must not overtake logout clear.
+    const operation = this.queue.catch(() => null).then(() => this.dispatch(op, refresh));
+    this.queue = operation.catch(() => null);
+    return operation;
+  },
+  dispatch(op, refresh) {
     this.init();
     if (!this.ready) return Promise.resolve(null);
     const id = crypto.randomUUID();
@@ -2464,7 +2471,7 @@ const Supabase = {
       const data = await res.json().catch(() => ({}));
       if ((this._sessionEpoch || 0) !== epoch || this.accessToken || this.refreshToken) return false;
       if (!res.ok || !data.access_token || !data.refresh_token) {
-        if (res.status === 400 || res.status === 401) void BLAndroidSession.send('clear');
+        if ((res.status === 400 || res.status === 401) && (this._sessionEpoch || 0) === epoch && !this.accessToken && !this.refreshToken) void BLAndroidSession.send('clear');
         return false;
       }
       this._sessionEpoch = epoch + 1;
