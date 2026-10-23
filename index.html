@@ -6047,7 +6047,9 @@ const Views = {
         h('ul', { class: 'eco__spokes', 'aria-label': 'Services connected to your identity' },
           [['phone', 'Calls'], ['chat', 'Messages'], ['mail', 'Mail'], ['rupee', 'Pay']].map(([ic, l]) => h('li', null, Icon(ic), l)))),
       h('p', { class: 'welcome__lede' }, 'Calling, messaging, mail and payments, all anchored to your mobile number and one trusted identity.'),
-      h('div', { class: 'welcome__actions' }, Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
+      h('div', { class: 'welcome__actions' },
+        Button('Sign in with existing TEST email', { onClick: () => Router.go('/test-login') }),
+        Button('New demo account (mobile OTP test)', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
       h('p', { class: 'welcome__note' }, 'Backend-connected prototype. Verification statuses come only from protected server-controlled fields; real provider APIs are not connected yet.'));
   },
 
