@@ -13,7 +13,7 @@ const signature=crypto.sign('sha256',Buffer.from(canonicalApproval(payload)),
 const base={authenticatedUserId:id(1),nowSeconds:1000,payload,signature,
  request:{userId:id(1),requestId:id(2),proposedDeviceId:id(3),challenge:id(5),
  encryptionKeyHash:'a'.repeat(64),signingKeyHash:'b'.repeat(64),
- status:'pending',protocolVersion:1,createdAt:900,expiresAt:1100},
+ status:'pending',protocolVersion:1,keyFingerprintsVerifiedByServer:true,createdAt:900,expiresAt:1100},
  approver:{userId:id(1),deviceId:id(4),active:true,revokedAt:null},
  signingKey:{userId:id(1),deviceId:id(4),active:true,revokedAt:null,
  verifiedAt:850,verificationMethod:'audited_recovery',
@@ -25,6 +25,7 @@ for(const field of ['requestId','proposedDeviceId','challenge','encryptionKeyHas
  assert.equal(verify({...base,request:{...base.request,[field]:changed}}),false,field);
 }
 assert.equal(verify({...base,authenticatedUserId:id(9)}),false);
+assert.equal(verify({...base,request:{...base.request,keyFingerprintsVerifiedByServer:false}}),false);
 assert.equal(verify({...base,request:{...base.request,protocolVersion:2}}),false);
 assert.equal(verify({...base,request:{...base.request,protocolVersion:null}}),false);
 assert.equal(verify({...base,request:{...base.request,proposedDeviceId:id(4)}}),false);
