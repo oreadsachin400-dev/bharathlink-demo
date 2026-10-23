@@ -5,6 +5,7 @@ on:
     paths:
       - 'index.html'
       - 'tests/android-session-queue.test.cjs'
+      - 'tests/concurrent-login.test.cjs'
       - '.github/workflows/android-session-regression.yml'
   workflow_dispatch:
 jobs:
@@ -18,4 +19,6 @@ jobs:
         with:
           node-version: '22'
       - name: Verify native credential operation ordering
-        run: node tests/android-session-queue.test.cjs
+        run: |
+          node tests/android-session-queue.test.cjs
+          node tests/concurrent-login.test.cjs
