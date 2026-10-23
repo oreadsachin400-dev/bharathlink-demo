@@ -2568,6 +2568,18 @@ const E2EEBackend = {
       if(lastErr)console.warn('Encrypted media registry bind pending:',path,lastErr);
     }
   },
+  // Read-only readiness probe: never export keys, register a device, or alter
+  // backend state. Distinguishes a browser-storage loss from server revocation.
+  async deviceReadiness(){
+    if(!Supabase.accessToken)return {state:'signed_out',canMessage:false};
+    const me=await Supabase.currentAuthUser();
+    const local=await this.getLocal(me.id);
+    if(!local||local.userId!==me.id||!local.deviceId||!local.privateKey)
+      return {state:'local_key_missing',canMessage:false};
+    const active=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
+    if(active!==true)return {state:'device_inactive',canMessage:false};
+    return {state:'ready',canMessage:true};
+  },
   async activate(){
     if(this._activatePromise)return this._activatePromise;
     this._activatePromise=(async()=>{
