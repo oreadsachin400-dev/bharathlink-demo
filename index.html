@@ -2231,26 +2231,32 @@ const Supabase = {
     return changed;
   },
   async refreshAccessToken() {
-    if (!this.refreshToken) throw new Error('Test session expired. Sign in again.');
-    // Serialize refresh rotation: concurrent 401 responses must not reuse a spent token.
+    // Single-flight refresh, scoped to the currently authenticated session.
     if (this._refreshInFlight) return this._refreshInFlight;
-    const refreshOperation = (async () => {
+    const credential = this.refreshToken;
+    if (!credential) throw new Error('Test session expired. Sign in again.');
+    const epoch = this._sessionEpoch || 0;
+    const operation = (async () => {
       const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
         headers: { 'apikey': CONFIG.SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: this.refreshToken })
+        body: JSON.stringify({ refresh_token: credential })
       });
       const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || data.message || 'Test session expired. Sign in again.');
-    this.accessToken = data.access_token;
-    if (data.refresh_token) this.refreshToken = data.refresh_token;
-    sessionStorage.setItem('bharathlink.phase1b.test_access_token', this.accessToken);
-    sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
+      if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || data.message || 'Test session expired. Sign in again.');
+      // A logout or account switch while the request was in flight must never
+      // resurrect the old session or overwrite a newer user's credentials.
+      if ((this._sessionEpoch || 0) !== epoch || this.refreshToken !== credential)
+        throw new Error('Session changed during refresh. Please retry.');
+      this.setAccessToken(data.access_token);
+      if (data.refresh_token) this.refreshToken = data.refresh_token;
+      sessionStorage.setItem('bharathlink.phase1b.test_access_token', this.accessToken);
+      sessionStorage.setItem('bharathlink.phase1b.test_refresh_token', this.refreshToken);
       return this.accessToken;
     })();
-    this._refreshInFlight = refreshOperation;
-    try { return await refreshOperation; }
-    finally { if (this._refreshInFlight === refreshOperation) this._refreshInFlight = null; }
+    this._refreshInFlight = operation;
+    try { return await operation; }
+    finally { if (this._refreshInFlight === operation) this._refreshInFlight = null; }
   },
   headers(extra = {}) {
     return Object.assign({
@@ -2399,6 +2405,8 @@ const Supabase = {
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || data.message || 'Sign-in failed');
+    this._sessionEpoch = (this._sessionEpoch || 0) + 1;
+    this._refreshInFlight = null;
     this.setAccessToken(data.access_token);
     this.refreshToken = data.refresh_token || null;
     this.isolateLocalStateForAuthenticatedUser();
@@ -2416,6 +2424,8 @@ const Supabase = {
     return !!token;
   },
   clearTestSession() {
+    this._sessionEpoch = (this._sessionEpoch || 0) + 1;
+    this._refreshInFlight = null;
     this.setAccessToken(null); this.refreshToken = null;
     sessionStorage.removeItem('bharathlink.phase1b.test_access_token');
     sessionStorage.removeItem('bharathlink.phase1b.test_refresh_token');
