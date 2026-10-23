@@ -8,6 +8,8 @@ const base={nowSeconds:1000,
 assert.equal(eligible(base),true);
 assert.equal(eligible({...base,request:{...base.request,status:'approved'}}),false);
 assert.equal(eligible({...base,nowSeconds:1100}),false);
+assert.equal(eligible({...base,nowSeconds:0}),false);
+assert.equal(eligible({...base,nowSeconds:-1}),false);
 assert.equal(eligible({...base,request:{...base.request,createdAt:1001}}),false);
 assert.equal(eligible({...base,request:{...base.request,createdAt:0}}),false);
 assert.equal(eligible({...base,request:{...base.request,expiresAt:1501}}),false);
