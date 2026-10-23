@@ -21,3 +21,6 @@ HOLD: do not deploy V39 schema or enable registration until above conditions and
 
 ## Confirmed direct messaging device write path
 TEST read-only permissions check: authenticated role has INSERT privilege on public.messaging_devices, but not on public.e2ee_v2_devices. Policy messaging_devices_insert_own checks user_id = auth.uid(); messaging_devices_owner_update permits owner updates. This is a separate registration surface that must be covered by cutover and compatibility tests. Do not change live grants until caller inventory and first-device flow are ready.
+
+## Source caller inventory — isolated security branch (23 Oct 2026)
+Read-only source inspection of `index.html`, `app.js`, and `BharathLink_index.html` found `register_e2ee_v2_device` only in `index.html` inside `E2EEV2DeviceTest` (isolated V2 device plumbing test). `app.js` and `BharathLink_index.html` contain no literal occurrences of that RPC or `messaging_devices`. The current `index.html` references `messaging_devices` in diagnostics, comments, and device lookup via `get_conversation_messaging_devices`; this literal search did not reveal a direct REST insert in that file. This is not a complete inventory of deployed clients, minified code, historical releases, or dynamic endpoint construction. Do not treat it as proof that revoking the RPC is safe.
