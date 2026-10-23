@@ -41,6 +41,10 @@ test('V39 adapter commits only after all transactional operations',async()=>{
  assert.equal(calls.at(-2).sql,'COMMIT');
  assert.equal(calls.at(-1).sql,'RELEASE');
  assert.match(calls.map(x=>x.sql).join('\n'),/FOR UPDATE/);
+ const insert=calls.find(x=>x.sql.startsWith('INSERT INTO public.e2ee_v2_devices'));
+ assert.match(insert.sql,/created_at,last_seen_at/);
+ assert.match(insert.sql,/now\(\),now\(\)/);
+ assert.equal(insert.args.length,5);
 });
 test('V39 adapter rolls back and releases on failed receipt insert',async()=>{
  const calls=[];
