@@ -1,0 +1,50 @@
+name: Package BharathLink TEST Netlify ZIP
+on:
+  workflow_dispatch:
+  push:
+    branches: [security/v38-postgres-isolated-ci]
+    paths:
+      - 'index.html'
+      - 'bharatmail-sw.js'
+      - 'app.css'
+      - 'app.js'
+      - '.github/workflows/package-test-netlify.yml'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate TEST-only release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "security/v38-postgres-isolated-ci"
+          test -s index.html
+          test -s bharatmail-sw.js
+          grep -Fq 'bharathlink-20-test.netlify.app' index.html
+          grep -Fq 'BLAndroidSession' index.html
+          grep -Fq 'restoreAndroidSession' index.html
+          ! grep -Fq 'bharathlink.netlify.app' .github/workflows/package-test-netlify.yml
+      - name: Run native bridge regression tests
+        run: |
+          node tests/android-session-queue.test.cjs
+          node tests/concurrent-login.test.cjs
+          node tests/android-session-restore.test.cjs
+      - name: Prepare deploy directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-site
+          cp index.html bharatmail-sw.js app.css app.js test-site/
+          (cd test-site && sha256sum * > SHA256SUMS.txt)
+          (cd test-site && zip -q -r ../BharathLink-20-TEST-Netlify.zip .)
+          unzip -t BharathLink-20-TEST-Netlify.zip
+      - name: Upload TEST ZIP (manual deployment only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: BharathLink-20-TEST-NETLIFY-MANUAL-DEPLOY
+          path: BharathLink-20-TEST-Netlify.zip
+          retention-days: 7
+          if-no-files-found: error
