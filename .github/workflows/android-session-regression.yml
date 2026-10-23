@@ -1,0 +1,21 @@
+name: Android session bridge regression
+on:
+  push:
+    branches: [security/v38-postgres-isolated-ci]
+    paths:
+      - 'index.html'
+      - 'tests/android-session-queue.test.cjs'
+      - '.github/workflows/android-session-regression.yml'
+  workflow_dispatch:
+jobs:
+  bridge-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify native credential operation ordering
+        run: node tests/android-session-queue.test.cjs
