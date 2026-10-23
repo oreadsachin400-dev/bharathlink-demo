@@ -11,3 +11,14 @@ test('missing independent authority fails closed',()=>{
  assert.throws(()=>authorizeInitialOrRecoveryEnrollment({kind:'initial',accountId:'account',proof:{}}),/independent authority unavailable/);
  assert.throws(()=>authorizeInitialOrRecoveryEnrollment({kind:'recovery',accountId:'account',proof:{},authority:{}}),/independent authority unavailable/);
 });
+
+test('claimed proof cannot bypass initial/recovery security hold',()=>{
+ for(const kind of ['initial','recovery']){
+  for(const proof of [{verified:true,approved:true},{otpVerified:true},{recoveryCode:'123456'},{admin:true}]){
+   let called=0;
+   const authority={verifyIndependentProof:()=>{called++;return true}};
+   assert.throws(()=>authorizeInitialOrRecoveryEnrollment({kind,accountId:'account',proof,authority}),/disabled pending independent authority/);
+   assert.equal(called,0,'reference must never invoke an untrusted authority');
+  }
+ }
+});
