@@ -6084,13 +6084,20 @@ const Views = {
       btn.disabled = true; btn.textContent = 'Connecting…';
       try {
         await Supabase.signInWithPassword(ev, password.value);
-        password.value = '';
+      } catch (ex) {
+        status.replaceChildren(Notice('warn', `Test login failed: ${ex.message || 'Unknown error'}`));
+        btn.disabled = false; btn.textContent = 'Sign in & test Supabase';
+        return;
+      }
+      // Authentication succeeded. A missing profile or transient sync failure
+      // must not destroy valid credentials or force another password login.
+      password.value = '';
+      try {
         const profile = await Supabase.syncMyProfile();
         if (!profile) throw new Error('Signed in, but no profile row was returned.');
         showProfile(profile);
       } catch (ex) {
-        Supabase.clearTestSession();
-        status.replaceChildren(Notice('warn', `Test login failed: ${ex.message || 'Unknown error'}`));
+        status.replaceChildren(Notice('warn', `Signed in successfully. Profile sync unavailable: ${ex.message || 'Please retry later.'}`));
       } finally {
         btn.disabled = false; btn.textContent = 'Sign in & test Supabase';
       }
