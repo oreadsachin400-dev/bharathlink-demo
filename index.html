@@ -2580,12 +2580,9 @@ const E2EEBackend = {
       }
       const st=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
       if(st===true)return local;
-      // Preserve local keys when the server rejects or revokes this device.
-      // A revoked device must not silently re-register itself.
-      // V38 isolated-branch security hold: never enroll a fresh messaging device via
-      // an unsigned direct REST insert. Existing active local devices remain usable.
-      // A server-enforced, approved enrollment and recovery flow is required.
-      throw new Error('New E2EE device enrollment requires trusted-device approval. Registration is temporarily unavailable in this security test branch.');
+      // Keep the original non-extractable private key intact. A revoked or
+      // inactive device must never re-register or send messages automatically.
+      throw new Error('This E2EE device is not active on the server. Messaging remains locked. Keep the local key; trusted-device re-approval is required.');
     })().finally(()=>{this._activatePromise=null;});
     return this._activatePromise;
   },
