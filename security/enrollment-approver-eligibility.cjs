@@ -10,6 +10,7 @@ function approverEligibility({request,approver,signingKey,nowSeconds}={}){
  if(!approver.deviceId||approver.deviceId!==signingKey.deviceId
    ||approver.deviceId===request.proposedDeviceId)return false;
  if(approver.revokedAt!==null||signingKey.revokedAt!==null)return false;
+ if(approver.active!==true||signingKey.active!==true)return false;
  if(!Number.isSafeInteger(signingKey.verifiedAt)
    ||signingKey.verifiedAt>nowSeconds)return false;
  if(!['trusted_device_signature','audited_recovery'].includes(signingKey.verificationMethod))
