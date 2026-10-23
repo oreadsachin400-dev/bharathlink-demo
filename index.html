@@ -2427,7 +2427,9 @@ const Supabase = {
   },
   async signInWithPassword(email, password) {
     // A logout or another login while the request is pending invalidates this response.
-    const epoch = this._sessionEpoch || 0;
+    const epoch = (this._sessionEpoch || 0) + 1;
+    this._sessionEpoch = epoch;
+    this._refreshInFlight = null;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     let res;
@@ -2447,8 +2449,6 @@ const Supabase = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || data.message || 'Sign-in failed');
     if ((this._sessionEpoch || 0) !== epoch) throw new Error('Login session changed. Please retry.');
-    this._sessionEpoch = epoch + 1;
-    this._refreshInFlight = null;
     this.setAccessToken(data.access_token);
     this.refreshToken = data.refresh_token || null;
     this.isolateLocalStateForAuthenticatedUser();
