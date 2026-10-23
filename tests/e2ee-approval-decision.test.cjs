@@ -32,6 +32,8 @@ for(const field of ['requestId','proposedDeviceId','challenge','encryptionKeyHas
 assert.equal(verify({...base,authenticatedUserId:id(9)}),false);
 assert.equal(verify({...base,request:{...base.request,encryptionPublicJwk:null}}),false);
 assert.equal(verify({...base,request:{...base.request,signingPublicJwk:null}}),false);
+assert.equal(verify({...base,request:{...base.request,encryptionPublicJwk:signingJwk}}),false);
+assert.equal(verify({...base,request:{...base.request,signingPublicJwk:encryptionJwk}}),false);
 assert.equal(verify({...base,request:{...base.request,protocolVersion:2}}),false);
 assert.equal(verify({...base,request:{...base.request,protocolVersion:null}}),false);
 assert.equal(verify({...base,request:{...base.request,proposedDeviceId:id(4)}}),false);
