@@ -42,5 +42,8 @@ assert.equal(verify({...base,nowSeconds:1100}),false);
 assert.equal(verify({...base,approver:{...base.approver,active:false}}),false);
 assert.equal(verify({...base,signingKey:{...base.signingKey,active:false}}),false);
 assert.equal(verify({...base,signature:'invalid'}),false);
+assert.equal(verify({...base,signingKey:{...base.signingKey,publicJwk:signingJwk}}),false);
+assert.equal(verify({...base,request:{...base.request,challenge:id(9)}}),false);
+assert.equal(verify({...base,request:{...base.request,expiresAt:1600}}),false);
 assert.equal(verify({...base,signingKey:{...base.signingKey,publicJwk:null}}),false);
 console.log('E2EE DB-bound approval decision PASS (offline only)');
