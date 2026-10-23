@@ -2588,6 +2588,20 @@ const E2EEBackend = {
     if(active!==true)return {state:'device_inactive',canMessage:false};
     return {state:'ready',canMessage:true};
   },
+  // Read-only enrollment status. Never interprets an approved queue record as
+  // proof that a messaging device is active; activation requires a separate
+  // server-side cryptographic authorization and is not implemented here.
+  async enrollmentRequestStatus(requestId){
+    if(!Supabase.accessToken)throw new Error('Sign in first.');
+    if(typeof requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))
+      throw new Error('Invalid enrollment request ID.');
+    const rows=await this.rpc('get_my_messaging_device_enrollment_status',{p_request_id:requestId});
+    if(!Array.isArray(rows)||rows.length!==1)return {state:'not_found',canMessage:false};
+    const status=rows[0];
+    const valid=['pending','approved','rejected','expired','consumed'];
+    if(!status||!valid.includes(status.state))throw new Error('Invalid enrollment status response.');
+    return {state:status.state,expiresAt:status.expires_at||null,canMessage:false};
+  },
   async activate(){
     if(this._activatePromise)return this._activatePromise;
     this._activatePromise=(async()=>{
