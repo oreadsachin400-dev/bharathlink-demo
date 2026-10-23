@@ -26,7 +26,6 @@ jobs:
           grep -Fq 'bharathlink-20-test.netlify.app' index.html
           grep -Fq 'BLAndroidSession' index.html
           grep -Fq 'restoreAndroidSession' index.html
-          ! grep -Fq 'bharathlink.netlify.app' .github/workflows/package-test-netlify.yml
       - name: Run native bridge regression tests
         run: |
           node tests/android-session-queue.test.cjs
