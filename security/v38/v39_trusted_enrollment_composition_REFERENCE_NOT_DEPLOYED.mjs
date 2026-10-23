@@ -18,8 +18,10 @@ export function createV39TrustedEnrollmentService({verifyAccessToken,pgPool,cloc
   authenticate: async authorization=>{
    if(typeof authorization!=='string'||!authorization.startsWith('Bearer ')) return null;
    const token=authorization.slice(7);
+   if (!token || token.trim()!==token || /\s/.test(token)) return null;
    // Never trust unverified JWT payload, account IDs or request-body identities.
-   const verified=await verifyAccessToken(token);
+   let verified;
+   try { verified=await verifyAccessToken(token); } catch { return null; }
    if(!verified||typeof verified.sub!=='string'|| !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verified.sub)||
       !(verified.aud==='authenticated'||(Array.isArray(verified.aud)&&verified.aud.includes('authenticated')))||
       verified.role!=='authenticated'||verified.is_anonymous===true) return null;
