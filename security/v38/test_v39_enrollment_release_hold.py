@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 class EnrollmentReleaseHold(unittest.TestCase):
  def test_main_web_enrollment_is_fail_closed(self):
   page=(ROOT/'index.html').read_text(encoding='utf-8')
-  self.assertIn('New E2EE device enrollment requires trusted-device approval',page)
+  self.assertIn('Messaging is locked until trusted-device approval and secure enrollment are available.',page)
   self.assertIn('V38 SECURITY HOLD: unsigned legacy V2 registration disabled',page)
  def test_server_composition_not_a_browser_import(self):
   page=(ROOT/'index.html').read_text(encoding='utf-8')
