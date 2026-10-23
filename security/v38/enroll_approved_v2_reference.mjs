@@ -14,7 +14,7 @@ export async function enrollApprovedV2({requestId,signatureBase64url,authenticat
       typeof tx.insertV2Device!=='function'||typeof tx.consumeRequest!=='function')
     throw new Error('unsafe transaction adapter');
   const stored=await tx.lockPendingRequest(requestId);
-  if(!stored||stored.accountId!==authenticatedAccountId||stored.state!=='pending')
+  if(!stored||stored.accountId!==authenticatedAccountId||stored.state!=='pending'||stored.requestId!==requestId)
     throw new Error('request unavailable');
   const anchor=await tx.lockTrustedAnchor(stored.accountId,stored.approverDeviceId);
   if(!anchor||anchor.revoked||anchor.verified!==true||
