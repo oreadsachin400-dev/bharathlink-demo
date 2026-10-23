@@ -8,6 +8,7 @@ on:
       - 'tests/concurrent-login.test.cjs'
       - 'tests/android-session-restore.test.cjs'
       - 'tests/e2ee-device-readiness.test.cjs'
+      - 'tests/e2ee-enrollment-status.test.cjs'
       - '.github/workflows/android-session-regression.yml'
   workflow_dispatch:
 jobs:
@@ -26,3 +27,4 @@ jobs:
           node tests/concurrent-login.test.cjs
           node tests/android-session-restore.test.cjs
           node tests/e2ee-device-readiness.test.cjs
+          node tests/e2ee-enrollment-status.test.cjs
