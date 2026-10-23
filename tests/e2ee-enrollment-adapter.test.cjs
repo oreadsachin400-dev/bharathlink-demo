@@ -11,7 +11,6 @@ for(const name of ['p_device_id','p_public_key_jwk','p_device_label','p_signing_
 assert.match(adapter,/request_messaging_device_enrollment/);
 assert.match(adapter,/!\('d' in j\)/,'reject private key material');
 assert.match(adapter,/canMessage:false/,'pending enrollment must never unlock messaging');
-assert.match(adapter,/!\('d' in j\)/,'reject private JWK components');
 assert.match(adapter,/p_signing_public_key_jwk:signingPublicJwk/,'signing key must be sent to RPC');
 assert.doesNotMatch(adapter,/register_messaging_device|activateCurrent|canMessage:true/,'adapter must not activate devices');
 console.log('E2EE enrollment adapter static regression PASS (no live RPC)');
