@@ -6,6 +6,7 @@ on:
       - 'index.html'
       - 'tests/android-session-queue.test.cjs'
       - 'tests/concurrent-login.test.cjs'
+      - 'tests/android-session-restore.test.cjs'
       - '.github/workflows/android-session-regression.yml'
   workflow_dispatch:
 jobs:
@@ -22,3 +23,4 @@ jobs:
         run: |
           node tests/android-session-queue.test.cjs
           node tests/concurrent-login.test.cjs
+          node tests/android-session-restore.test.cjs
