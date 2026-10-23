@@ -16,7 +16,7 @@ const signature=crypto.sign('sha256',Buffer.from(canonicalApproval(payload)),
  {key:keys.privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 const base={authenticatedUserId:id(1),nowSeconds:1000,payload,signature,
  request:{userId:id(1),requestId:id(2),proposedDeviceId:id(3),challenge:id(5),
- encryptionKeyHash:'a'.repeat(64),signingKeyHash:'b'.repeat(64),
+ encryptionKeyHash:encHash,signingKeyHash:signHash,
  encryptionPublicJwk:encryptionJwk,signingPublicJwk:signingJwk,
  status:'pending',protocolVersion:1,createdAt:900,expiresAt:1100},
  approver:{userId:id(1),deviceId:id(4),active:true,revokedAt:null},
