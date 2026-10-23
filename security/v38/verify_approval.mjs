@@ -3,7 +3,9 @@
 import { createPublicKey, verify, createHash } from 'node:crypto';
 
 export function verifyApproval({ publicKeyJwk, payload, signatureBase64url }) {
-  if (!publicKeyJwk || publicKeyJwk.kty !== 'EC' || publicKeyJwk.crv !== 'P-256' ||
+  if (!publicKeyJwk || typeof publicKeyJwk !== 'object' || Array.isArray(publicKeyJwk) ||
+      Object.keys(publicKeyJwk).sort().join(',') !== 'crv,kty,x,y' ||
+      publicKeyJwk.kty !== 'EC' || publicKeyJwk.crv !== 'P-256' ||
       typeof publicKeyJwk.x !== 'string' || typeof publicKeyJwk.y !== 'string' ||
       typeof payload !== 'string' || typeof signatureBase64url !== 'string') return false;
   try {
