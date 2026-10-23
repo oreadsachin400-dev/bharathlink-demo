@@ -2572,11 +2572,19 @@ const E2EEBackend = {
   // backend state. Distinguishes a browser-storage loss from server revocation.
   async deviceReadiness(){
     if(!Supabase.accessToken)return {state:'signed_out',canMessage:false};
-    const me=await Supabase.currentAuthUser();
-    const local=await this.getLocal(me.id);
+    // An unavailable network or failed storage read is NOT proof that a key
+    // is missing or that a device has been revoked. Keep these states distinct.
+    let me;
+    try { me=await Supabase.currentAuthUser(); }
+    catch (_) { return {state:'auth_check_unavailable',canMessage:false}; }
+    let local;
+    try { local=await this.getLocal(me.id); }
+    catch (_) { return {state:'local_storage_unavailable',canMessage:false}; }
     if(!local||local.userId!==me.id||!local.deviceId||!local.privateKey)
       return {state:'local_key_missing',canMessage:false};
-    const active=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
+    let active;
+    try { active=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId}); }
+    catch (_) { return {state:'server_check_unavailable',canMessage:false}; }
     if(active!==true)return {state:'device_inactive',canMessage:false};
     return {state:'ready',canMessage:true};
   },
