@@ -15,7 +15,7 @@ export function createV39TrustedEnrollmentService({verifyAccessToken,pgPool,cloc
    const token=authorization.slice(7);
    // Never trust unverified JWT payload, account IDs or request-body identities.
    const verified=await verifyAccessToken(token);
-   if(!verified||typeof verified.sub!=='string'||verified.sub.length===0||
+   if(!verified||typeof verified.sub!=='string'|| !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verified.sub)||
       !(verified.aud==='authenticated'||(Array.isArray(verified.aud)&&verified.aud.includes('authenticated')))||
       verified.role!=='authenticated'||verified.is_anonymous===true) return null;
    return verified.sub;
