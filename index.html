@@ -2606,6 +2606,7 @@ const E2EEBackend = {
       &&(!('use' in j)||typeof j.use==='string');
     if(typeof deviceId!=='string'||!uuid.test(deviceId)
       ||!validJwk(encryptionPublicJwk)||!validJwk(signingPublicJwk)
+      ||(encryptionPublicJwk.x===signingPublicJwk.x&&encryptionPublicJwk.y===signingPublicJwk.y)
       ||(label!==null&&(typeof label!=='string'||label.length>80)))
       throw new Error('Invalid enrollment request. Two public P-256 keys are required.');
     const requestId=await this.rpc('request_messaging_device_enrollment',{
