@@ -14,6 +14,8 @@ assert.equal(eligible({...base,approver:{...base.approver,deviceId:'new-device'}
 assert.equal(eligible({...base,approver:{...base.approver,revokedAt:1}}),false);
 assert.equal(eligible({...base,signingKey:{...base.signingKey,revokedAt:1}}),false);
 assert.equal(eligible({...base,signingKey:{...base.signingKey,verifiedAt:1001}}),false);
+assert.equal(eligible({...base,signingKey:{...base.signingKey,verifiedAt:0}}),false);
+assert.equal(eligible({...base,signingKey:{...base.signingKey,verifiedAt:-1}}),false);
 assert.equal(eligible({...base,signingKey:{...base.signingKey,verificationMethod:'self_declared'}}),false);
 assert.equal(eligible({...base,approver:{...base.approver,active:false}}),false);
 assert.equal(eligible({...base,signingKey:{...base.signingKey,active:false}}),false);
