@@ -49,3 +49,13 @@ test('verification uses a single trusted clock reading and rejects invalid clock
   assert.equal(await reject(signed(),expected),false);
  }
 });
+
+test('missing or malformed trusted expected binding never validates a signed receipt',async()=>{
+ const verify=verifier();
+ for(const context of [
+  {},{...expected,accountId:undefined},{...expected,candidateDeviceId:'invalid'},
+  {...expected,requestId:null},{...expected,nonceSha256:'invalid'},
+  {...expected,expiresAt:undefined},{...expected,expiresAt:NaN},
+  {...expected,expiresAt:-1}
+ ]) assert.equal(await verify(signed(),context),false);
+});
