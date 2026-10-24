@@ -1,13 +1,14 @@
 // V39 reference-only adapter for a private, reviewed PostgreSQL challenge table.
 // NOT DEPLOYED. Never pass a client-controlled SQL executor or expose this through RPC.
 // The private table must have request_id UUID PRIMARY KEY, account_id UUID,
-// candidate_device_id UUID, nonce_sha256 TEXT, issued_at_ms BIGINT,
-// expires_at_ms BIGINT, consumed BOOLEAN, authorized BOOLEAN.
+// candidate_device_id UUID, nonce_sha256 TEXT, expires_at TIMESTAMPTZ,
+// consumed_at TIMESTAMPTZ NULL, authorized BOOLEAN DEFAULT FALSE.
+// Compatible with v39_recovery_consumption_DISPOSABLE_ONLY.sql (not live).
 // Use a trusted server DB connection with least privilege. The INSERT's unique
 // constraint is the concurrency authority; never SELECT-then-INSERT.
 const INSERT=`INSERT INTO bl_v39_recovery_lab.challenges
- (request_id,account_id,candidate_device_id,nonce_sha256,issued_at_ms,expires_at_ms,consumed,authorized)
- VALUES ($1::uuid,$2::uuid,$3::uuid,$4::text,$5::bigint,$6::bigint,false,false)
+ (request_id,account_id,candidate_device_id,nonce_sha256,expires_at,consumed_at,authorized)
+ VALUES ($1::uuid,$2::uuid,$3::uuid,$4::text,to_timestamp($5::double precision / 1000.0),NULL,false)
  ON CONFLICT (request_id) DO NOTHING
  RETURNING request_id`;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -22,7 +23,7 @@ export function createPostgresChallengeStore({query}={}) {
     row.consumed!==false||row.authorized!==false) return false;
   try {
    const result=await query(INSERT,[row.requestId,row.accountId,row.candidateDeviceId,
-     row.nonceSha256,row.issuedAt,row.expiresAt]);
+     row.nonceSha256,row.expiresAt]);
    return result?.rowCount===1&&Array.isArray(result.rows)&&result.rows.length===1&&
      result.rows[0]?.request_id===row.requestId;
   } catch {return false;}
