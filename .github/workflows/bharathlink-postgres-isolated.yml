@@ -46,6 +46,8 @@ jobs:
           python3 -m unittest -v test_enrollment_authorization_reference.py
       - name: Test offline P-256 approval verifier (approval remains disabled)
         run: node --test security/v38/verify_approval.test.mjs security/v38/approval_transcript.test.mjs security/v38/authorize_approval.test.mjs security/v38/verify_enrollment_boundary.test.mjs security/v38/prepare_verified_enrollment.test.mjs security/v38/candidate_key_digest.test.mjs security/v38/enroll_approved_v2_reference.test.mjs security/v38/postgres_enrollment_adapter.test.mjs security/v38/approved_enrollment_handler.test.mjs security/v38/signed_enrollment_adapter_integration.test.mjs security/v38/postgres_enrollment_adapter_v39.test.mjs security/v38/v39_trusted_enrollment_composition.test.mjs security/v38/v39_enrollment_key_compatibility.test.mjs security/v38/v39_bootstrap_recovery_authority.test.mjs security/v38/v39_approver_binding.test.mjs tests/legacy-v2-registration-hold.test.cjs
+      - name: Test V39 authenticated recovery challenge issuance (reference only)
+        run: node --test security/v38/v39_authenticated_challenge_issuer.test.mjs
       - name: Test V39 persisted recovery challenge issuance (reference only)
         run: node --test security/v38/v39_recovery_challenge_store.test.mjs
       - name: Test V39 signed receipt to recovery gate integration (reference only)
