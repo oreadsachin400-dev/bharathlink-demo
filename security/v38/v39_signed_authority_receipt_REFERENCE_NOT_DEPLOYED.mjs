@@ -18,6 +18,11 @@ export function makeSignedRecoveryReceiptVerifier({trustedIssuers,revokedReceipt
   try {
    if(!receipt||typeof receipt!=='object'||Array.isArray(receipt)||
       !expected||typeof expected!=='object'||Array.isArray(expected)) return false;
+   // Expected binding must be a complete trusted-server record, not a partial client object.
+   if(![expected.accountId,expected.candidateDeviceId,expected.requestId]
+       .every(v=>typeof v==='string'&&UUID.test(v))||
+      typeof expected.nonceSha256!=='string'||!HEX.test(expected.nonceSha256)||
+      !Number.isSafeInteger(expected.expiresAt)||expected.expiresAt<0) return false;
    const verificationTime=now();
    if(!Number.isSafeInteger(verificationTime)||verificationTime<0) return false;
    const {issuerId,receiptId,accountId,candidateDeviceId,requestId,nonceSha256,issuedAt,expiresAt,signature}=receipt;
