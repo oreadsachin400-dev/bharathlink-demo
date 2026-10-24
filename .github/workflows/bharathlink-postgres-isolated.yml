@@ -50,6 +50,8 @@ jobs:
         run: node --test security/v38/v39_challenge_policy.test.mjs
       - name: Test V39 authenticated recovery challenge issuance (reference only)
         run: node --test security/v38/v39_authenticated_challenge_issuer.test.mjs
+      - name: Test V39 PostgreSQL recovery challenge insertion adapter (reference only)
+        run: node --test security/v38/v39_recovery_challenge_postgres_adapter.test.mjs
       - name: Test V39 persisted recovery challenge issuance (reference only)
         run: node --test security/v38/v39_recovery_challenge_store.test.mjs
       - name: Test V39 signed receipt to recovery gate integration (reference only)
