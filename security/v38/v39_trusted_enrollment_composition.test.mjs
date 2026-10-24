@@ -111,3 +111,17 @@ test('expired or not-yet-valid JWT rejected before database access',async()=>{
  }
  assert.equal(connections,0);
 });
+
+test('JWT without expiry, wrong subject or invalid not-before never reaches SQL',async()=>{
+ let connections=0;
+ const valid={sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600};
+ const invalid=[{...valid,exp:undefined},{...valid,sub:'attacker'},{...valid,nbf:'tomorrow'},{...valid,is_anonymous:true},{...valid,aud:[]}];
+ for(const claims of invalid){
+  const service=createV39TrustedEnrollmentService({verifyAccessToken:async()=>claims,
+   pgPool:{async connect(){connections++;throw Error('unexpected DB access');}}});
+  const response=await service({method:'POST',headers:{authorization:'Bearer token'},
+   body:{requestId:'22222222-2222-4222-8222-222222222223',signatureBase64url:'A'.repeat(86)}});
+  assert.equal(response.status,401);
+ }
+ assert.equal(connections,0);
+});
