@@ -172,6 +172,18 @@ jobs:
           npm install --no-save --no-audit --no-fund --ignore-scripts pg@8.16.3
           node signed_enrollment_real_postgres_ci.mjs
           test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v38_enrollment_private'")" = 0
+      - name: Test V39 recovery challenge INSERT on real disposable PostgreSQL (rolled back)
+        shell: bash
+        env:
+          LOCAL_TEST_DATABASE_URL: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30
+          PGAPPNAME: bharathlink-v38-ci
+        run: |
+          set -euo pipefail
+          python3 security/v38/validate_target.py
+          cd security/v38
+          npm install --no-save --no-audit --no-fund --ignore-scripts pg@8.16.3
+          node v39_recovery_challenge_insert_real_postgres_ci.mjs
+          test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v39_recovery_lab'")" = 0
       - name: Test V39 adapter on actual disposable PostgreSQL (rollback and replay)
         shell: bash
         env:
