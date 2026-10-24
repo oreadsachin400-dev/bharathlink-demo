@@ -26,3 +26,9 @@ for (const [name,mutate] of [
  ['wrong algorithm',f=>{f.anchor.algorithm='P-256'}],
  ['signature tamper',f=>{f.response.signature=randomBytes(64).toString('base64')}]
 ]) test(name,()=>{const f=fixture();mutate(f);assert.throws(()=>verifyLegacyDeviceProof({...f,now:name==='expired'?2000:1500}))});
+
+test('missing revocation state is denied',()=>{const f=fixture();delete f.anchor.revoked;assert.throws(()=>verifyLegacyDeviceProof({...f,now:1500}))});
+test('missing issue timestamp is denied',()=>{const f=fixture();delete f.challenge.issuedAt;assert.throws(()=>verifyLegacyDeviceProof({...f,now:1500}))});
+test('non-integer issue timestamp is denied',()=>{const f=fixture();f.challenge.issuedAt='1000';assert.throws(()=>verifyLegacyDeviceProof({...f,now:1500}))});
+test('reversed challenge time range is denied',()=>{const f=fixture();f.challenge.issuedAt=2000;assert.throws(()=>verifyLegacyDeviceProof({...f,now:1500}))});
+test('invalid current time is denied',()=>{const f=fixture();assert.throws(()=>verifyLegacyDeviceProof({...f,now:NaN}))});
