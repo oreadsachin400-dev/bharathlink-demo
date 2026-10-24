@@ -9,7 +9,7 @@ DO $$
 BEGIN
  IF has_function_privilege('authenticated','public.register_e2ee_v2_device(uuid,text,text)','EXECUTE')
  OR has_function_privilege('anon','public.register_e2ee_v2_device(uuid,text,text)','EXECUTE')
- OR has_function_privilege('PUBLIC','public.register_e2ee_v2_device(uuid,text,text)','EXECUTE')
+
  THEN RAISE EXCEPTION 'legacy registration RPC still executable'; END IF;
 END $$;
 -- Commit is deliberately absent: this artifact is a review-only cutover fragment.
