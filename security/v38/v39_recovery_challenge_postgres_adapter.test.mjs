@@ -11,7 +11,10 @@ test('insert uses parameterized SQL, unique conflict and binding',async()=>{
   sql=s;params=p;return {rowCount:1,rows:[{request_id:row.requestId}]};}});
  assert.equal(await store.insertChallengeIfAbsent(row),true);
  assert.match(sql,/ON CONFLICT \(request_id\) DO NOTHING/);
- assert.equal(params.length,6);
+ assert.equal(params.length,5);
+ assert.match(sql,/to_timestamp\(\$5::double precision \/ 1000\.0\)/);
+ assert.match(sql,/consumed_at,authorized/);
+ assert.equal(params[4],row.expiresAt);
  assert.deepEqual(params.slice(0,3),[row.requestId,row.accountId,row.candidateDeviceId]);
 });
 test('duplicate, database failure and mismatched returned ID fail closed',async()=>{
