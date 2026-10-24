@@ -2,7 +2,7 @@
 import {prepareRecoveryChallenge} from './v39_recovery_challenge_REFERENCE_NOT_DEPLOYED.mjs';
 export function createChallengeIssuer({store,clock=Date.now,random}={}) {
  if(typeof store?.insertChallengeIfAbsent!=='function'||typeof clock!=='function') throw new TypeError('missing dependencies');
- return async ({accountId,candidateDeviceId,requestId})=>{
+ return async ({accountId,candidateDeviceId,requestId}={})=>{
   try {
    const {challenge,serverRecord}=prepareRecoveryChallenge({
     accountId,candidateDeviceId,requestId,now:clock(),
