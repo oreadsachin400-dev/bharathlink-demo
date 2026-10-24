@@ -1,0 +1,21 @@
+// Reference-only trusted-server boundary. NOT DEPLOYED.
+// The account identity is derived from a trusted authentication callback,
+// never from the client request body.
+import {createChallengeIssuer} from './v39_recovery_challenge_store_REFERENCE_NOT_DEPLOYED.mjs';
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function createAuthenticatedChallengeIssuer({authenticate,store,clock,random}={}) {
+ if(typeof authenticate!=='function') throw new TypeError('TRUSTED_AUTHENTICATOR_REQUIRED');
+ const issue=createChallengeIssuer({store,...(clock===undefined?{}:{clock}),...(random===undefined?{}:{random})});
+ return async function handle({authorization,body}={}) {
+  try {
+   if(typeof authorization!=='string'||!/^Bearer [A-Za-z0-9._~+\/-]+$/.test(authorization)||
+      !body||typeof body!=='object'||Array.isArray(body)||
+      Object.keys(body).sort().join(',')!=='candidateDeviceId,requestId') {
+    return {ok:false,reason:'REQUEST_DENIED'};
+   }
+   const accountId=await authenticate(authorization);
+   if(typeof accountId!=='string'||!UUID.test(accountId)) return {ok:false,reason:'REQUEST_DENIED'};
+   return await issue({accountId,candidateDeviceId:body.candidateDeviceId,requestId:body.requestId});
+  } catch {return {ok:false,reason:'REQUEST_DENIED'};}
+ };
+}
