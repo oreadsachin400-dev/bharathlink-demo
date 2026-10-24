@@ -17,7 +17,10 @@ export function createAuthenticatedChallengeIssuer({authenticate,store,clock,ran
     return {ok:false,reason:'REQUEST_DENIED'};
    }
    const accountId=await authenticate(authorization);
-   if(typeof accountId!=='string'||!UUID.test(accountId)) return {ok:false,reason:'REQUEST_DENIED'};
+   if(typeof accountId!=='string'||!UUID.test(accountId)||
+      typeof body.candidateDeviceId!=='string'||!UUID.test(body.candidateDeviceId)||
+      typeof body.requestId!=='string'||!UUID.test(body.requestId))
+    return {ok:false,reason:'REQUEST_DENIED'};
    // The server policy must enforce rate limits, abuse controls and request ownership.
    // Any result other than explicit true fails closed before storage is touched.
    if(await authorizeChallenge({accountId,candidateDeviceId:body.candidateDeviceId,requestId:body.requestId})!==true)
