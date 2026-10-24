@@ -29,3 +29,10 @@ test('invalid challenge binding cannot reach store',async()=>{
  assert.deepEqual(result,{ok:false,reason:'NOT_STORED'});
  assert.equal(calls,0);
 });
+
+test('missing issue payload fails closed without persistence',async()=>{
+ let calls=0;
+ const issue=createChallengeIssuer({...deps,store:{insertChallengeIfAbsent:async()=>{calls++;return true;}}});
+ assert.deepEqual(await issue(),{ok:false,reason:'NOT_STORED'});
+ assert.equal(calls,0);
+});
