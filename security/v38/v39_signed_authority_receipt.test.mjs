@@ -38,3 +38,14 @@ test('untrusted, revoked, tampered and expired receipts fail closed',async()=>{
 test('missing trusted server config rejects verifier construction',()=>{
  assert.throws(()=>makeSignedRecoveryReceiptVerifier({}));
 });
+
+test('verification uses a single trusted clock reading and rejects invalid clocks',async()=>{
+ let reads=0;
+ const check=verifier({now:()=>{reads++;return reads===1?2000:500000;}});
+ assert.equal(await check(signed(),expected),true);
+ assert.equal(reads,1);
+ for(const value of [NaN,Infinity,-1,1.5]){
+  const reject=verifier({now:()=>value});
+  assert.equal(await reject(signed(),expected),false);
+ }
+});
