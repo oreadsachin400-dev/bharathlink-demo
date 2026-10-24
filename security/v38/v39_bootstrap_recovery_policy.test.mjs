@@ -21,3 +21,11 @@ test('invalid account and unsupported types fail closed',()=>{
  assert.equal(classifyEnrollmentAuthority({kind:'initial',authenticatedAccountId:'not-uuid'}).reason,'INVALID_ACCOUNT');
  assert.equal(classifyEnrollmentAuthority({kind:'unexpected',authenticatedAccountId:accountId}).reason,'UNSUPPORTED_ENROLLMENT');
 });
+
+test('policy cannot be bypassed with inherited or malformed approver properties',()=>{
+ const forged=Object.create({accountId,deviceId:'22222222-2222-4222-8222-222222222222',verified:true,revoked:false});
+ for(const kind of ['initial','recovery','additional-device']){
+  const result=classifyEnrollmentAuthority({kind,authenticatedAccountId:accountId,verifiedApprover:forged});
+  assert.equal(result.allowed,false);
+ }
+});
