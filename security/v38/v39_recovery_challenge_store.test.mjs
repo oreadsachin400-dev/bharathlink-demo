@@ -45,3 +45,31 @@ test('null, arrays and scalar issue payloads fail closed without storage',async(
  }
  assert.equal(calls,0);
 });
+
+test('concurrent same-request issuance returns only one challenge when store enforces atomic uniqueness',async()=>{
+ const issued=new Set();
+ let inserts=0;
+ const store={insertChallengeIfAbsent:async row=>{
+  inserts++;
+  if(issued.has(row.requestId)) return false;
+  issued.add(row.requestId);
+  await Promise.resolve();
+  return true;
+ }};
+ const issue=createChallengeIssuer({...deps,store});
+ const results=await Promise.all(Array.from({length:12},()=>issue(ids)));
+ assert.equal(results.filter(x=>x.ok===true).length,1);
+ assert.equal(results.filter(x=>x.ok===false&&x.reason==='NOT_STORED').length,11);
+ assert.equal(inserts,12);
+});
+test('issuance never returns challenge while persistence is unresolved',async()=>{
+ let complete;
+ const gate=new Promise(resolve=>{complete=resolve;});
+ const issue=createChallengeIssuer({...deps,store:{insertChallengeIfAbsent:async()=>{await gate;return true;}}});
+ let settled=false;
+ const pending=issue(ids).then(value=>{settled=true;return value;});
+ await Promise.resolve();
+ assert.equal(settled,false);
+ complete();
+ assert.equal((await pending).ok,true);
+});
