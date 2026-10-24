@@ -25,6 +25,21 @@ try {
  nonce_sha256 text NOT NULL CHECK(nonce_sha256 ~ '^[0-9a-f]{64}$'),
  expires_at timestamptz NOT NULL,consumed_at timestamptz,
  authorized boolean NOT NULL DEFAULT false CHECK(authorized=false))`);
+ // Match the private-table security posture used by the disposable recovery lab.
+ await client.query('ALTER TABLE bl_v39_recovery_lab.challenges ENABLE ROW LEVEL SECURITY');
+ await client.query('ALTER TABLE bl_v39_recovery_lab.challenges FORCE ROW LEVEL SECURITY');
+ await client.query('REVOKE ALL ON SCHEMA bl_v39_recovery_lab FROM PUBLIC');
+ await client.query('REVOKE ALL ON TABLE bl_v39_recovery_lab.challenges FROM PUBLIC');
+ const security=await client.query(`SELECT c.relrowsecurity AS rls,c.relforcerowsecurity AS force_rls,
+ has_schema_privilege('public','bl_v39_recovery_lab','USAGE') AS public_schema_usage,
+ has_table_privilege('public','bl_v39_recovery_lab.challenges','INSERT') AS public_insert
+ FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname='bl_v39_recovery_lab' AND c.relname='challenges'`);
+ assert.equal(security.rowCount,1);
+ assert.equal(security.rows[0].rls,true);
+ assert.equal(security.rows[0].force_rls,true);
+ assert.equal(security.rows[0].public_schema_usage,false);
+ assert.equal(security.rows[0].public_insert,false);
  const store=createPostgresChallengeStore({query:(sql,params)=>client.query(sql,params)});
  const row={requestId:'11111111-1111-4111-8111-111111111111',
  accountId:'22222222-2222-4222-8222-222222222222',
