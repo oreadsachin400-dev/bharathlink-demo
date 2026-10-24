@@ -31,8 +31,8 @@ try {
  await client.query('REVOKE ALL ON SCHEMA bl_v39_recovery_lab FROM PUBLIC');
  await client.query('REVOKE ALL ON TABLE bl_v39_recovery_lab.challenges FROM PUBLIC');
  const security=await client.query(`SELECT c.relrowsecurity AS rls,c.relforcerowsecurity AS force_rls,
- has_schema_privilege('public','bl_v39_recovery_lab','USAGE') AS public_schema_usage,
- has_table_privilege('public','bl_v39_recovery_lab.challenges','INSERT') AS public_insert
+ EXISTS(SELECT 1 FROM aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a WHERE a.grantee=0 AND a.privilege_type='USAGE') AS public_schema_usage,
+ EXISTS(SELECT 1 FROM aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a WHERE a.grantee=0 AND a.privilege_type='INSERT') AS public_insert
  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
  WHERE n.nspname='bl_v39_recovery_lab' AND c.relname='challenges'`);
  assert.equal(security.rowCount,1);
