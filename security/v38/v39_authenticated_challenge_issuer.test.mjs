@@ -7,6 +7,7 @@ const valid={authorization:'Bearer server-verified-token',body};
 test('trusted authenticated account is bound to persisted challenge',async()=>{
  let persisted;
  const handle=createAuthenticatedChallengeIssuer({
+  authorizeChallenge:async()=>true,
   authenticate:async()=>accountId,store:{insertChallengeIfAbsent:async row=>{persisted=row;return true;}},
   clock:()=>1000,random:n=>Buffer.alloc(n,1)});
  const result=await handle(valid);
@@ -17,6 +18,7 @@ test('trusted authenticated account is bound to persisted challenge',async()=>{
 test('unverified identity, injected account, malformed auth cannot issue',async()=>{
  let authCalls=0,storeCalls=0;
  const handle=createAuthenticatedChallengeIssuer({
+  authorizeChallenge:async()=>true,
   authenticate:async()=>{authCalls++;return null;},
   store:{insertChallengeIfAbsent:async()=>{storeCalls++;return true;}},
   clock:()=>1000,random:n=>Buffer.alloc(n,1)});
@@ -33,6 +35,7 @@ test('unverified identity, injected account, malformed auth cannot issue',async(
 test('client supplied account cannot override trusted identity',async()=>{
  let storeCalls=0;
  const handle=createAuthenticatedChallengeIssuer({
+  authorizeChallenge:async()=>true,
   authenticate:async()=>accountId,
   store:{insertChallengeIfAbsent:async()=>{storeCalls++;return true;}},
   clock:()=>1000,random:n=>Buffer.alloc(n,1)});
