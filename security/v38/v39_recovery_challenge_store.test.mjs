@@ -36,3 +36,12 @@ test('missing issue payload fails closed without persistence',async()=>{
  assert.deepEqual(await issue(),{ok:false,reason:'NOT_STORED'});
  assert.equal(calls,0);
 });
+
+test('null, arrays and scalar issue payloads fail closed without storage',async()=>{
+ let calls=0;
+ const issue=createChallengeIssuer({...deps,store:{insertChallengeIfAbsent:async()=>{calls++;return true;}}});
+ for(const payload of [null,[],false,7,'bad']){
+  assert.deepEqual(await issue(payload),{ok:false,reason:'NOT_STORED'});
+ }
+ assert.equal(calls,0);
+});
