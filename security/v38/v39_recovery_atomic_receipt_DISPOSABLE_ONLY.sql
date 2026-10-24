@@ -69,6 +69,17 @@ BEGIN
  VALUES(p_request,p_receipt,p_account);
  RETURN true;
 END $$;
+-- The disposable vanilla PostgreSQL service does not provision Supabase roles.
+-- Create NOLOGIN stand-ins inside this rolled-back transaction solely for ACL tests.
+DO $roles$
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+  CREATE ROLE anon NOLOGIN;
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+  CREATE ROLE authenticated NOLOGIN;
+ END IF;
+END $roles$;
 -- PostgreSQL grants EXECUTE on new functions to PUBLIC by default.
 -- Explicitly revoke this privilege even in the disposable lab.
 REVOKE ALL ON FUNCTION bl_v39_atomic_recovery_lab.consume_evidence(uuid,uuid,uuid,uuid,text) FROM PUBLIC;
