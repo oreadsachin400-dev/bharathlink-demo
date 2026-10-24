@@ -48,8 +48,19 @@ try {
  consumed:false,authorized:false};
  assert.equal(await store.insertChallengeIfAbsent(row),true);
  assert.equal(await store.insertChallengeIfAbsent(row),false);
- const db=await client.query('SELECT request_id,authorized,consumed_at,expires_at FROM bl_v39_recovery_lab.challenges');
+ // Reusing a request ID for another account must never overwrite its binding.
+ assert.equal(await store.insertChallengeIfAbsent({...row,
+  accountId:'55555555-5555-4555-8555-555555555555'}),false);
+ // Invalid nonce or a forged authorized flag must fail before any SQL write.
+ assert.equal(await store.insertChallengeIfAbsent({...row,
+  requestId:'66666666-6666-4666-8666-666666666666',nonceSha256:'invalid'}),false);
+ assert.equal(await store.insertChallengeIfAbsent({...row,
+  requestId:'77777777-7777-4777-8777-777777777777',authorized:true}),false);
+
+ const db=await client.query('SELECT request_id,account_id,nonce_sha256,authorized,consumed_at,expires_at FROM bl_v39_recovery_lab.challenges');
  assert.equal(db.rowCount,1);
+ assert.equal(db.rows[0].account_id,row.accountId);
+ assert.equal(db.rows[0].nonce_sha256,row.nonceSha256);
  assert.equal(db.rows[0].authorized,false);
  assert.equal(db.rows[0].consumed_at,null);
  assert.equal(new Date(db.rows[0].expires_at).getTime(),row.expiresAt);
