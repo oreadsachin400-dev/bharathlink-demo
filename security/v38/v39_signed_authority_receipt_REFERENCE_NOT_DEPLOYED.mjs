@@ -18,13 +18,15 @@ export function makeSignedRecoveryReceiptVerifier({trustedIssuers,revokedReceipt
   try {
    if(!receipt||typeof receipt!=='object'||Array.isArray(receipt)||
       !expected||typeof expected!=='object'||Array.isArray(expected)) return false;
+   const verificationTime=now();
+   if(!Number.isSafeInteger(verificationTime)||verificationTime<0) return false;
    const {issuerId,receiptId,accountId,candidateDeviceId,requestId,nonceSha256,issuedAt,expiresAt,signature}=receipt;
    if(typeof issuerId!=='string'||!trustedIssuers.has(issuerId)||
       ![receiptId,accountId,candidateDeviceId,requestId].every(v=>typeof v==='string'&&UUID.test(v))||
       !HEX.test(nonceSha256)||typeof expected.nonceSha256!=='string'||
       revokedReceiptIds.has(receiptId)||!Number.isSafeInteger(issuedAt)||
       !Number.isSafeInteger(expiresAt)||expiresAt<=issuedAt||expiresAt-issuedAt>300000||
-      !Number.isSafeInteger(now())||now()<issuedAt||now()>=expiresAt||
+      verificationTime<issuedAt||verificationTime>=expiresAt||
       accountId!==expected.accountId||candidateDeviceId!==expected.candidateDeviceId||
       requestId!==expected.requestId||nonceSha256!==expected.nonceSha256||
       expiresAt>expected.expiresAt) return false;
