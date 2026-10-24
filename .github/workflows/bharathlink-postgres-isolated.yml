@@ -90,6 +90,16 @@ jobs:
           python3 security/v38/validate_target.py
           psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f security/v38/atomic_enrollment_v39_DISPOSABLE_ONLY.sql
           test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v39_atomic_lab'")" = 0
+      - name: Test V39 legacy RPC privilege cutover on disposable PostgreSQL
+        shell: bash
+        env:
+          LOCAL_TEST_DATABASE_URL: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/bharathlink_disposable_v30
+          PGAPPNAME: bharathlink-v38-ci
+        run: |
+          set -euo pipefail
+          python3 security/v38/validate_target.py
+          psql "$LOCAL_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f security/v38/v39_legacy_rpc_privilege_disposable_ci.sql
+          test "$(psql "$LOCAL_TEST_DATABASE_URL" -X -Atqc "SELECT count(*) FROM pg_namespace WHERE nspname='bl_v39_legacy_rpc_lab'")" = 0
       - name: Test V39 proposed enrollment schema with rollback and privilege assertions
         shell: bash
         env:
