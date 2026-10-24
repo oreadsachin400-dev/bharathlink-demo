@@ -22,6 +22,9 @@ assert.equal(check({storedRequest:{...base.storedRequest,state:'approved'}}),fal
 assert.equal(check({storedRequest:{...base.storedRequest,nonceSha256:'c'.repeat(64)}}),false);
 assert.equal(check({request:{...request,candidateKeySha256:'c'.repeat(64)}}),false);
 assert.equal(check({trustedAnchor:{...trustedAnchor,revoked:true}}),false);
+assert.equal(check({trustedAnchor:{...trustedAnchor,revoked:undefined}}),false);
+assert.equal(check({trustedAnchor:{...trustedAnchor,revoked:null}}),false);
+assert.equal(check({trustedAnchor:{...trustedAnchor,revoked:'false'}}),false);
 assert.equal(check({trustedAnchor:{...trustedAnchor,verified:false}}),false);
 assert.equal(check({trustedAnchor:{...trustedAnchor,accountId:'55555555-5555-4555-8555-555555555555'}}),false);
 assert.equal(check({trustedAnchor:{...trustedAnchor,deviceId:request.candidateDeviceId}}),false);
