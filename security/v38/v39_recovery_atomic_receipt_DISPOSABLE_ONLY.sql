@@ -133,4 +133,43 @@ BEGIN
  IF (SELECT bool_or(authorized) FROM bl_v39_atomic_recovery_lab.challenges)
  THEN RAISE EXCEPTION 'evidence consumption authorized enrollment'; END IF;
 END $checks$;
+-- Negative cases on separate records: revoked receipts and expired challenges.
+DO $negative_checks$
+DECLARE accepted boolean;
+BEGIN
+ INSERT INTO bl_v39_atomic_recovery_lab.challenges
+ (request_id,account_id,candidate_device_id,nonce_sha256,expires_at)
+ VALUES
+ ('55555555-5555-4555-8555-555555555555',
+  '11111111-1111-4111-8111-111111111111',
+  '33333333-3333-4333-8333-333333333333',repeat('c',64),now()+interval '5 minutes'),
+ ('66666666-6666-4666-8666-666666666666',
+  '11111111-1111-4111-8111-111111111111',
+  '33333333-3333-4333-8333-333333333333',repeat('d',64),now()-interval '1 second');
+ INSERT INTO bl_v39_atomic_recovery_lab.authority_receipts
+ (receipt_id,request_id,account_id,candidate_device_id,issuer_id,verified_by_server,revoked_at)
+ VALUES
+ ('77777777-7777-4777-8777-777777777777',
+  '55555555-5555-4555-8555-555555555555',
+  '11111111-1111-4111-8111-111111111111',
+  '33333333-3333-4333-8333-333333333333','independent-verifier-lab',true,now()),
+ ('88888888-8888-4888-8888-888888888888',
+  '66666666-6666-4666-8666-666666666666',
+  '11111111-1111-4111-8111-111111111111',
+  '33333333-3333-4333-8333-333333333333','independent-verifier-lab',true,NULL);
+ SELECT bl_v39_atomic_recovery_lab.consume_evidence(
+ '55555555-5555-4555-8555-555555555555',
+ '77777777-7777-4777-8777-777777777777',
+ '11111111-1111-4111-8111-111111111111',
+ '33333333-3333-4333-8333-333333333333',repeat('c',64)) INTO accepted;
+ IF accepted THEN RAISE EXCEPTION 'revoked receipt accepted'; END IF;
+ SELECT bl_v39_atomic_recovery_lab.consume_evidence(
+ '66666666-6666-4666-8666-666666666666',
+ '88888888-8888-4888-8888-888888888888',
+ '11111111-1111-4111-8111-111111111111',
+ '33333333-3333-4333-8333-333333333333',repeat('d',64)) INTO accepted;
+ IF accepted THEN RAISE EXCEPTION 'expired challenge accepted'; END IF;
+ IF (SELECT count(*) FROM bl_v39_atomic_recovery_lab.consumption_audit)<>1
+ THEN RAISE EXCEPTION 'negative cases created audit entries'; END IF;
+END $negative_checks$;
 ROLLBACK;
