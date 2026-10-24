@@ -24,7 +24,9 @@ export function createV39TrustedEnrollmentService({verifyAccessToken,pgPool,cloc
    try { verified=await verifyAccessToken(token); } catch { return null; }
    if(!verified||typeof verified.sub!=='string'|| !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verified.sub)||
       !(verified.aud==='authenticated'||(Array.isArray(verified.aud)&&verified.aud.includes('authenticated')))||
-      verified.role!=='authenticated'||verified.is_anonymous===true) return null;
+      verified.role!=='authenticated'||verified.is_anonymous===true||
+      !Number.isSafeInteger(verified.exp)||verified.exp<=Math.floor(Date.now()/1000)||
+      (verified.nbf!==undefined&&(!Number.isSafeInteger(verified.nbf)||verified.nbf>Math.floor(Date.now()/1000)))) return null;
    return verified.sub;
   },
   db,
