@@ -69,6 +69,20 @@ BEGIN
  VALUES(p_request,p_receipt,p_account);
  RETURN true;
 END $$;
+-- PostgreSQL grants EXECUTE on new functions to PUBLIC by default.
+-- Explicitly revoke this privilege even in the disposable lab.
+REVOKE ALL ON FUNCTION bl_v39_atomic_recovery_lab.consume_evidence(uuid,uuid,uuid,uuid,text) FROM PUBLIC;
+DO $privilege_checks$
+BEGIN
+ IF has_schema_privilege('anon','bl_v39_atomic_recovery_lab','USAGE')
+ OR has_schema_privilege('authenticated','bl_v39_atomic_recovery_lab','USAGE')
+ THEN RAISE EXCEPTION 'client role can access private recovery schema'; END IF;
+ IF has_function_privilege('anon',
+   'bl_v39_atomic_recovery_lab.consume_evidence(uuid,uuid,uuid,uuid,text)','EXECUTE')
+ OR has_function_privilege('authenticated',
+   'bl_v39_atomic_recovery_lab.consume_evidence(uuid,uuid,uuid,uuid,text)','EXECUTE')
+ THEN RAISE EXCEPTION 'client role can execute recovery consumption'; END IF;
+END $privilege_checks$;
 DO $checks$
 DECLARE accepted boolean;
 BEGIN
