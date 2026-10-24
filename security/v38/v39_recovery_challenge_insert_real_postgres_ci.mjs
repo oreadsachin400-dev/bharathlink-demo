@@ -77,6 +77,17 @@ try {
  assert.equal(stored.rows[0].nonce_sha256,createHash('sha256').update(Buffer.from(first.challenge.nonce,'base64')).digest('hex'));
  assert.equal(stored.rows[0].authorized,false);
  assert.equal(stored.rows[0].consumed_at,null);
+ // Expired challenges must never be usable, and no issued challenge grants authority.
+ const expiry=await client.query(`SELECT count(*)::int AS eligible FROM bl_v39_recovery_lab.challenges
+ WHERE request_id=$1 AND account_id=$2 AND candidate_device_id=$3
+ AND expires_at>now() AND consumed_at IS NULL AND authorized=false`,
+ [request.requestId,request.accountId,request.candidateDeviceId]);
+ assert.equal(expiry.rows[0].eligible,0);
+ const binding=await client.query(`SELECT count(*)::int AS matching FROM bl_v39_recovery_lab.challenges
+ WHERE request_id=$1 AND account_id=$2 AND candidate_device_id=$3
+ AND nonce_sha256=$4 AND authorized=false AND consumed_at IS NULL`,
+ [request.requestId,request.accountId,request.candidateDeviceId,stored.rows[0].nonce_sha256]);
+ assert.equal(binding.rows[0].matching,1);
  console.log('PASS: real PostgreSQL insert, duplicate denial, stored challenge binding and expiry');
 } finally {
  if(begun) await client.query('ROLLBACK');
