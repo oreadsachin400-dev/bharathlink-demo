@@ -7,7 +7,7 @@ const HEX=/^[0-9a-f]{64}$/;
 export function verifyEnrollmentApproval({request, signatureBase64url, trustedAnchor, storedRequest, nowSeconds}) {
   try {
     if (!Number.isSafeInteger(nowSeconds) || !storedRequest ||
-        !trustedAnchor || trustedAnchor.revoked === true ||
+        !trustedAnchor || trustedAnchor.revoked !== false ||
         trustedAnchor.verified !== true) return false;
     // All approval fields must match an authoritative stored request.
     // A caller-supplied request cannot define its own authorization target.
