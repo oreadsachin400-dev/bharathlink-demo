@@ -10,7 +10,7 @@ test('invalid JWT and caller-supplied identity cannot reach database',async()=>{
  let connects=0;
  const pgPool={async connect(){connects++;throw Error('unexpected database connection');}};
  const service=createV39TrustedEnrollmentService({
-  verifyAccessToken:async token=>token==='good'?{sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated'}:null,
+  verifyAccessToken:async token=>token==='good'?{sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600}:null,
   pgPool,clock:()=>1790000000
  });
  const request=(authorization,body={requestId:'r',signatureBase64url:'s'})=>({
@@ -24,7 +24,7 @@ test('anonymous or wrong-audience JWT rejected before SQL',async()=>{
  let connects=0;
  const service=createV39TrustedEnrollmentService({
   verifyAccessToken:async token=>token==='anon'?
-   {sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',is_anonymous:true}:{sub:'11111111-1111-4111-8111-111111111111',aud:'other',role:'authenticated'},
+   {sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600,is_anonymous:true}:{sub:'11111111-1111-4111-8111-111111111111',aud:'other',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600},
   pgPool:{async connect(){connects++;throw Error('must not connect');}}
  });
  for(const token of ['anon','other']){
@@ -38,7 +38,7 @@ test('anonymous or wrong-audience JWT rejected before SQL',async()=>{
 test('JWT with authenticated audience but non-authenticated role fails closed',async()=>{
  let connections=0;
  const service=createV39TrustedEnrollmentService({
-  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'anon'}),
+  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'anon',exp:Math.floor(Date.now()/1000)+3600}),
   pgPool:{async connect(){connections++;throw Error('must not connect');}}
  });
  const result=await service({method:'POST',headers:{authorization:'Bearer token'},body:{requestId:'r',signatureBase64url:'s'}});
@@ -53,7 +53,7 @@ test('valid authenticated JWT enters locked transaction but missing approval rol
   release(){calls.push('RELEASE');}
  };}};
  const service=createV39TrustedEnrollmentService({
-  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated'}),
+  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600}),
   pgPool,clock:()=>1790000000
  });
  const result=await service({method:'POST',headers:{authorization:'Bearer valid'},
@@ -70,7 +70,7 @@ test('valid authenticated JWT enters locked transaction but missing approval rol
 test('legacy trusted-device flag is not a signed enrollment approval',async()=>{
  let connections=0;
  const service=createV39TrustedEnrollmentService({
-  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated'}),
+  verifyAccessToken:async()=>({sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600}),
   pgPool:{async connect(){connections++;throw Error('must not connect');}}
  });
  const result=await service({method:'POST',headers:{authorization:'Bearer valid'},
@@ -90,6 +90,24 @@ test('malformed bearer and verifier exception fail closed before database access
  for(const authorization of ['Bearer ', 'Bearer abc def', 'Bearer  abc', 'Bearer invalid']){
   const response=await service({method:'POST',headers:{authorization},body});
   assert.equal(response.status,401);
+ }
+ assert.equal(connections,0);
+});
+
+test('expired or not-yet-valid JWT rejected before database access',async()=>{
+ let connections=0;
+ const service=createV39TrustedEnrollmentService({
+  verifyAccessToken:async token=>({
+   sub:'11111111-1111-4111-8111-111111111111',aud:'authenticated',role:'authenticated',
+   exp:token==='expired'?Math.floor(Date.now()/1000)-1:Math.floor(Date.now()/1000)+3600,
+   ...(token==='future'?{nbf:Math.floor(Date.now()/1000)+300}:{})
+  }),
+  pgPool:{async connect(){connections++;throw Error('unexpected DB access');}}
+ });
+ for(const token of ['expired','future']){
+  const result=await service({method:'POST',headers:{authorization:'Bearer '+token},
+   body:{requestId:'22222222-2222-4222-8222-222222222223',signatureBase64url:'signature'}});
+  assert.equal(result.status,401);
  }
  assert.equal(connections,0);
 });
