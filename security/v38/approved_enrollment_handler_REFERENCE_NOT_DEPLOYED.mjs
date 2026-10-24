@@ -19,7 +19,9 @@ export function createApprovedEnrollmentHandler({authenticate,db,clock=()=>Math.
    const body=req.body;
    if(!body||typeof body!=='object'||Array.isArray(body)||
       Object.keys(body).sort().join(',')!=='requestId,signatureBase64url'||
-      typeof body.requestId!=='string'||typeof body.signatureBase64url!=='string')
+      typeof body.requestId!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i).test(body.requestId)||
+      typeof body.signatureBase64url!=='string'||body.signatureBase64url.length<80||body.signatureBase64url.length>512||
+      !/^[A-Za-z0-9_-]+$/.test(body.signatureBase64url))
      return {status:400,body:{error:'invalid request'}};
    const result=await enrollApprovedV2({requestId:body.requestId,
      signatureBase64url:body.signatureBase64url,
