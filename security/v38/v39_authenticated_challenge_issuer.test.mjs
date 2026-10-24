@@ -43,3 +43,24 @@ test('client supplied account cannot override trusted identity',async()=>{
  assert.equal(result.ok,false);
  assert.equal(storeCalls,0);
 });
+
+test('invalid request UUIDs never reach policy or storage',async()=>{
+ let policyCalls=0,storageCalls=0;
+ const handle=createAuthenticatedChallengeIssuer({
+  authenticate:async()=>accountId,
+  authorizeChallenge:async()=>{policyCalls++;return true;},
+  store:{insertChallengeIfAbsent:async()=>{storageCalls++;return true;}},
+  clock:()=>1000,random:n=>Buffer.alloc(n,1)
+ });
+ for(const invalid of [
+  {candidateDeviceId:'not-a-uuid',requestId:body.requestId},
+  {candidateDeviceId:body.candidateDeviceId,requestId:'not-a-uuid'},
+  {candidateDeviceId:null,requestId:body.requestId},
+  {candidateDeviceId:body.candidateDeviceId,requestId:null}
+ ]){
+  assert.deepEqual(await handle({authorization:valid.authorization,body:invalid}),
+   {ok:false,reason:'REQUEST_DENIED'});
+ }
+ assert.equal(policyCalls,0);
+ assert.equal(storageCalls,0);
+});
