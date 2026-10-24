@@ -33,7 +33,7 @@ const args={requestId:request.requestId,authenticatedAccountId:request.accountId
  signatureBase64url,nowSeconds:now};
 const ok=adapter();assert.equal((await enrollApprovedV2({...args,db:ok.db})).deviceId,request.candidateDeviceId);
 assert.equal(ok.state.committed,true);
-for(const options of [{badKey:true},{swappedKeys:true},{nonceTampered:true},{forgedSignature:true},{expiredAnchor:true},{revoked:true},{failConsume:true},{wrongAnchorAccount:true},{wrongAnchorDevice:true},{wrongRequestAccount:true},{wrongRequestDevice:true},{wrongRequestId:true},{notPending:true},{failInsert:true}]){
+for(const options of [{badKey:true},{swappedKeys:true},{nonceTampered:true},{forgedSignature:true},{expiredAnchor:true},{revoked:true},{revoked:null},{revoked:'unknown'},{failConsume:true},{wrongAnchorAccount:true},{wrongAnchorDevice:true},{wrongRequestAccount:true},{wrongRequestDevice:true},{wrongRequestId:true},{notPending:true},{failInsert:true}]){
  const x=adapter(options);
  await assert.rejects(enrollApprovedV2({...args,db:x.db}));
  assert.equal(x.state.committed,false);
