@@ -17,9 +17,9 @@ const eq = (a,b) => typeof a === 'string' && typeof b === 'string' && a === b;
 export function verifyLegacyDeviceProof({ challenge, anchor, response, now = Date.now() }) {
   if (!challenge || !anchor || !response) throw new Error('MISSING_PROOF');
   if (!uuid(challenge.requestId) || !uuid(challenge.accountId) || !uuid(challenge.deviceId)) throw new Error('BAD_BINDING');
-  if (!eq(anchor.accountId, challenge.accountId) || !eq(anchor.deviceId, challenge.deviceId) || anchor.revoked === true || anchor.verified !== true) throw new Error('UNTRUSTED_ANCHOR');
+  if (!eq(anchor.accountId, challenge.accountId) || !eq(anchor.deviceId, challenge.deviceId) || anchor.revoked !== false || anchor.verified !== true) throw new Error('UNTRUSTED_ANCHOR');
   if (!eq(response.requestId, challenge.requestId) || !eq(response.accountId, challenge.accountId) || !eq(response.deviceId, challenge.deviceId)) throw new Error('PROOF_BINDING_MISMATCH');
-  if (!Number.isSafeInteger(challenge.expiresAt) || now >= challenge.expiresAt || now < challenge.issuedAt || challenge.expiresAt - challenge.issuedAt > 300000) throw new Error('CHALLENGE_EXPIRED');
+  if (!Number.isSafeInteger(now) || !Number.isSafeInteger(challenge.issuedAt) || !Number.isSafeInteger(challenge.expiresAt) || challenge.issuedAt >= challenge.expiresAt || now >= challenge.expiresAt || now < challenge.issuedAt || challenge.expiresAt - challenge.issuedAt > 300000) throw new Error('CHALLENGE_EXPIRED');
   if (challenge.consumed !== false || typeof challenge.nonce !== 'string' || b64(challenge.nonce).length !== 32) throw new Error('BAD_CHALLENGE');
   if (anchor.algorithm !== 'Ed25519') throw new Error('UNSUPPORTED_LEGACY_ALGORITHM');
   const raw = b64(anchor.signingPublicKey);
