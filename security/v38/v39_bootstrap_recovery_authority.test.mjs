@@ -22,3 +22,20 @@ test('claimed proof cannot bypass initial/recovery security hold',()=>{
   }
  }
 });
+
+test('bootstrap and recovery reject malformed authority inputs without invoking verifier',()=>{
+ let invoked=0;
+ const authority={verifyIndependentProof:()=>{invoked++;return true}};
+ for(const kind of ['initial','recovery']){
+  for(const accountId of ['',null,undefined,42]){
+   assert.throws(()=>authorizeInitialOrRecoveryEnrollment({kind,accountId,proof:{},authority}));
+  }
+  for(const proof of [null,undefined,[],true,'OTP']){
+   assert.throws(()=>authorizeInitialOrRecoveryEnrollment({kind,accountId:'account',proof,authority}));
+  }
+ }
+ for(const kind of ['unknown','trusted-device',null,undefined]){
+  assert.throws(()=>authorizeInitialOrRecoveryEnrollment({kind,accountId:'account',proof:{},authority}));
+ }
+ assert.equal(invoked,0);
+});
