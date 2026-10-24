@@ -6,8 +6,10 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 export function createAuthenticatedChallengeIssuer({authenticate,store,clock,random}={}) {
  if(typeof authenticate!=='function') throw new TypeError('TRUSTED_AUTHENTICATOR_REQUIRED');
  const issue=createChallengeIssuer({store,...(clock===undefined?{}:{clock}),...(random===undefined?{}:{random})});
- return async function handle({authorization,body}={}) {
+ return async function handle(request={}) {
   try {
+   if(!request||typeof request!=='object'||Array.isArray(request)) return {ok:false,reason:'REQUEST_DENIED'};
+   const {authorization,body}=request;
    if(typeof authorization!=='string'||!/^Bearer [A-Za-z0-9._~+\/-]+$/.test(authorization)||
       !body||typeof body!=='object'||Array.isArray(body)||
       Object.keys(body).sort().join(',')!=='candidateDeviceId,requestId') {
