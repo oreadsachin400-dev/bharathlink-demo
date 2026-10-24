@@ -17,7 +17,7 @@ export async function enrollApprovedV2({requestId,signatureBase64url,authenticat
   if(!stored||stored.accountId!==authenticatedAccountId||stored.state!=='pending'||stored.requestId!==requestId)
     throw new Error('request unavailable');
   const anchor=await tx.lockTrustedAnchor(stored.accountId,stored.approverDeviceId);
-  if(!anchor||anchor.revoked||anchor.verified!==true||
+  if(!anchor||anchor.revoked!==false||anchor.verified!==true||
      anchor.accountId!==stored.accountId||anchor.deviceId!==stored.approverDeviceId)
     throw new Error('approver unavailable');
   const {state,signingPublicKey,curve25519PublicKey,...request}=stored;
