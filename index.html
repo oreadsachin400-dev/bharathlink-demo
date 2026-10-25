@@ -1998,6 +1998,17 @@ const Util = {
     return (first + last).toUpperCase();
   },
   firstName(name) { return String(name || '').trim().split(/\s+/)[0] || ''; },
+  relativeDateTime(ts) {
+    const d=ts instanceof Date?ts:new Date(ts);
+    if(!Number.isFinite(d.getTime()))return 'Date unavailable';
+    const tz='Asia/Kolkata';
+    const parts=x=>Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(x).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
+    const dayNumber=x=>{const p=parts(x);return Math.floor(Date.UTC(p.year,p.month-1,p.day)/86400000);};
+    const delta=dayNumber(d)-dayNumber(new Date());
+    const day=delta===0?'Today':delta===-1?'Yesterday':delta===1?'Tomorrow':new Intl.DateTimeFormat('en-IN',{timeZone:tz,day:'numeric',month:'short',year:'numeric'}).format(d);
+    const time=new Intl.DateTimeFormat('en-IN',{timeZone:tz,hour:'numeric',minute:'2-digit',hour12:true}).format(d);
+    return day+', '+time;
+  },
   time(ts) { try { return new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit' }).format(ts); } catch (e) { return ''; } },
   dateTime(ts) { try { return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(ts); } catch (e) { return ''; } },
   rupees(v) { return '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
@@ -11310,7 +11321,7 @@ const Views = {
         const recipientAddress=String(m.to||'').trim();
         const recipientName=String(m.to_name||m.recipient_name||m.recipientName||'').trim();
         const title=m.folder==='inbox'?(m.from||'Unknown'):(recipientName?`To ${recipientName}`:(recipientAddress?`To ${recipientAddress}`:'Recipient unavailable'));
-        const mailDateLabel=(()=>{const timestamp=Number(m.at);if(!Number.isFinite(timestamp)||timestamp<=0)return 'Date unavailable';const d=new Date(timestamp);const dateKey=x=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(x);const today=new Date();const yesterday=new Date(today.getTime()-86400000);const key=dateKey(d);const day=key===dateKey(today)?'Today':key===dateKey(yesterday)?'Yesterday':new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'}).format(d);return `${day}, ${new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).format(d)}`;})();
+        const mailDateLabel=Util.relativeDateTime(m.at);
         const preview=String(m.body||'').replace(/\s+/g,' ').trim().slice(0,110);
         const href=m.folder==='drafts'?`#/mail/compose?draft=${m.id}`:`#/mail/${m.id}`;
         const route=href.slice(1);
