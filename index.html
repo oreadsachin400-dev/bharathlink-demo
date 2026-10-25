@@ -11307,7 +11307,10 @@ const Views = {
       folderCountEl.textContent=`${items.length} ${items.length===1?'message':'messages'}`;
       const rows=items.map(m=>{
         const unread=m.folder==='inbox'&&!m.read;
-        const title=m.folder==='inbox'?(m.from||'Unknown'):`To ${m.to||''}`;
+        const recipientAddress=String(m.to||'').trim();
+        const recipientName=String(m.to_name||m.recipient_name||m.recipientName||'').trim();
+        const title=m.folder==='inbox'?(m.from||'Unknown'):(recipientName?`To ${recipientName}`:(recipientAddress?`To ${recipientAddress}`:'Recipient unavailable'));
+        const mailDateLabel=(()=>{const timestamp=Number(m.at);if(!Number.isFinite(timestamp)||timestamp<=0)return 'Date unavailable';const d=new Date(timestamp);const dateKey=x=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(x);const today=new Date();const yesterday=new Date(today.getTime()-86400000);const key=dateKey(d);const day=key===dateKey(today)?'Today':key===dateKey(yesterday)?'Yesterday':new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'}).format(d);return `${day}, ${new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).format(d)}`;})();
         const preview=String(m.body||'').replace(/\s+/g,' ').trim().slice(0,110);
         const href=m.folder==='drafts'?`#/mail/compose?draft=${m.id}`:`#/mail/${m.id}`;
         const route=href.slice(1);
@@ -11329,7 +11332,8 @@ const Views = {
             h('span',{class:'bl-mail-source'},m.source==='external'?'Internet email':'BharathMail')
           ),
           h('span',{class:'bl-mail-meta'},
-            h('span',{class:'bl-mail-time'},m.folder==='sent'?(m.read_at?'✓✓ Read':'✓ Sent'):Util.time(m.at)),
+            h('span',{class:'bl-mail-time'},mailDateLabel),
+            m.folder==='sent'?h('span',{class:'bl-mail-delivery'},m.read_at?'✓✓ Read':m.delivery==='external'?'Sent · delivery unconfirmed':'✓ Sent'):null,
             h('button',{type:'button',class:`bl-mail-star-btn${m.starred?' is-starred':''}`,'aria-label':m.starred?'Unstar mail':'Star mail',onClick:e=>{e.stopPropagation();Mail.action(m.id,'star');}},m.starred?'★':'☆')
           )
         );
