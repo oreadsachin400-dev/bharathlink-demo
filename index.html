@@ -5914,7 +5914,9 @@ const Views = {
         h('ul', { class: 'eco__spokes', 'aria-label': 'Services connected to your identity' },
           [['phone', 'Calls'], ['chat', 'Messages'], ['mail', 'Mail'], ['rupee', 'Pay']].map(([ic, l]) => h('li', null, Icon(ic), l)))),
       h('p', { class: 'welcome__lede' }, 'Calling, messaging, mail and payments, all anchored to your mobile number and one trusted identity.'),
-      h('div', { class: 'welcome__actions' }, Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
+      h('div', { class: 'welcome__actions' },
+        Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') }),
+        Button('Sign in with Email (TEST)', { variant: 'secondary', onClick: () => Router.go('/test-login') })),
       h('p', { class: 'welcome__note' }, 'Backend-connected prototype. Verification statuses come only from protected server-controlled fields; real provider APIs are not connected yet.'));
   },
 
@@ -12241,7 +12243,7 @@ const ROUTES = [
   { re: /^\/entities$/,          stage: 'app',     view: () => Views.entities() },
   { re: /^\/mobile-link$/,       stage: 'app',     view: () => Views.mobile('link') },
   { re: /^\/otp-link$/,          stage: 'app',     view: () => Views.otp('link') },
-  { re: /^\/test-login$/,        stage: 'app',     view: () => Views.testLogin('/identity') },
+  { re: /^\/test-login$/,        stage: 'auth',    view: () => Views.testLogin('/welcome') },
   { re: /^\/e2ee-v2-test$/,       stage: 'app',     view: () => Views.e2eeV2Test() },
   { re: /^\/calls$/,             stage: 'app',     view: () => Views.calls() },
   { re: /^\/call\/([\w-]+)$/,    stage: 'app',     view: id => Views.callDetail(id) },
@@ -12303,7 +12305,7 @@ const App = {
     Lifecycle.run();
     const path = Router.current(), stage = this.stage();
     const route = ROUTES.find(r => r.re.test(path));
-    if (!route || route.stage !== stage) return Router.go(this.defaultRoute(), { replace: true });
+    if (!route || (route.stage !== stage && !(path === '/test-login' && stage === 'app'))) return Router.go(this.defaultRoute(), { replace: true });
     if(stage==='app'&&LockSecurity.appLockEnabled()&&!LockSecurity._appUnlocked){
       this.root.replaceChildren(LockSecurity.appGate());
       document.title='Locked | BharathLink';
