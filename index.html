@@ -2330,6 +2330,13 @@ const Supabase = {
     s.verifiedIdentity = (p.legal_name_verified && legalName)
       ? { legalName, verificationId: `server:${p.account_id}`, source: 'BharathLink backend' }
       : null;
+    // A returning authenticated user already has server-issued identity IDs.
+    // Do not repeat local onboarding or allocate provisional IDs on this device.
+    // Require BOTH IDs; incomplete server profiles must still use setup.
+    if (p.account_id && p.messaging_id && (p.bharatmail_address || p.bharatmail_id)) {
+      s.onboarding = s.onboarding || {};
+      s.onboarding.complete = true;
+    }
     Store.persist();
     return true;
   },
