@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'in.bharathlink.demo'
+    compileSdk 35
+    defaultConfig {
+        applicationId = (project.findProperty('appId') ?: 'in.bharathlink.testlogin.v4.isolated')
+        minSdk 30
+        targetSdk 35
+        versionCode = (project.findProperty('versionCode') ?: '1').toInteger()
+        versionName = (project.findProperty('versionName') ?: '1.0.0-test')
+    }
+    signingConfigs {
+        testdebug {
+            storeFile file("${rootDir}/keystore/bharathlink-test-debug.p12")
+            storeType 'pkcs12'
+            storePassword 'bharathlink-test'
+            keyAlias 'bharathlink-test'
+            keyPassword 'bharathlink-test'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.testdebug }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
