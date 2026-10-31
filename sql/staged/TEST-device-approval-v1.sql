@@ -81,7 +81,8 @@ DECLARE
 BEGIN
   IF p_user_id IS NULL OR p_request_id IS NULL OR p_approver_device_id IS NULL
      OR p_payload_digest IS NULL OR p_signing_key_digest IS NULL
-     OR p_payload_digest !~ '^[a-f0-9]{64}
+     OR p_payload_digest !~ '^[a-f0-9]{64}$'
+     OR p_signing_key_digest !~ '^[a-f0-9]{64}$' THEN
     RAISE EXCEPTION 'Approval rejected' USING ERRCODE='42501';
   END IF;
 
