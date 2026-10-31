@@ -8,6 +8,7 @@ on:
     paths:
       - 'BharathLink-V36HF-SecurityPatch-TEST-SOURCE*.zip'
       - '.github/workflows/build-v36hf-kotlin-test.yml'
+      - '.github/scripts/v36hf_startup_rescue.py'
 
 permissions:
   contents: read
@@ -64,6 +65,9 @@ jobs:
           unzip -q "$SOURCE_ARCHIVE" -d v36hf-kotlin-build
           test -f v36hf-kotlin-build/settings.gradle.kts
           test -f v36hf-kotlin-build/app/src/main/AndroidManifest.xml
+
+      - name: Apply source-verified startup rescue patch
+        run: python3 .github/scripts/v36hf_startup_rescue.py
 
       - name: Run offline security/config checks
         run: python3 scripts/run_static_checks.py
