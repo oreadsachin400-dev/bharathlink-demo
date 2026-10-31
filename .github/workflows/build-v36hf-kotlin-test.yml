@@ -9,6 +9,7 @@ on:
       - 'BharathLink-V36HF-SecurityPatch-TEST-SOURCE*.zip'
       - '.github/workflows/build-v36hf-kotlin-test.yml'
       - '.github/scripts/v36hf_startup_rescue.py'
+      - '.github/scripts/v36hf_webview_diag.py'
 
 permissions:
   contents: read
@@ -68,6 +69,9 @@ jobs:
 
       - name: Apply source-verified startup rescue patch
         run: python3 .github/scripts/v36hf_startup_rescue.py
+
+      - name: Apply WebView diagnostic patch
+        run: python3 .github/scripts/v36hf_webview_diag.py
 
       - name: Run offline security/config checks
         run: python3 scripts/run_static_checks.py
