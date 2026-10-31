@@ -9,6 +9,7 @@ on:
       - 'supabase/functions/bl20-device-approval/**'
       - 'sql/staged/TEST-device-approval-v1.sql'
       - 'tests/device-approval-crypto.test.mjs'
+      - 'tests/fixtures/device-approval-*.sql'
       - '.github/workflows/device-approval-security-tests.yml'
 
 permissions:
@@ -31,3 +32,34 @@ jobs:
           grep -q 'STAGED ONLY' sql/staged/TEST-device-approval-v1.sql
           grep -q 'BHARATHLINK_DEVICE_APPROVAL_ENABLED' supabase/functions/bl20-device-approval/index.ts
           echo 'No SQL migration or Edge Function deployed by this workflow.'
+
+  database-atomicity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: approval_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: approval_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare disposable synthetic PostgreSQL schema
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+      - name: Apply exact staged SQL migration in disposable database
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v1.sql
+      - name: Execute positive/negative authorization and atomic replay tests
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-assertions.sql
