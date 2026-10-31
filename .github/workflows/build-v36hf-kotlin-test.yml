@@ -1,0 +1,85 @@
+name: BharathLink V36HF Kotlin TEST APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-v36hf-kotlin-test
+    paths:
+      - 'BharathLink-V36HF-SecurityPatch-TEST-SOURCE*.zip'
+      - '.github/workflows/build-v36hf-kotlin-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  kotlin-v36hf-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate the exact reviewed source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(BharathLink-V36HF-SecurityPatch-TEST-SOURCE*.zip)
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "::error::Upload exactly one BharathLink-V36HF-SecurityPatch-TEST-SOURCE ZIP to this branch."
+            exit 1
+          fi
+          printf '%s  %s\n' '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c' "${archives[0]}" | sha256sum --check
+          echo "SOURCE_ARCHIVE=${archives[0]}" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+
+      - name: Install Android SDK 34
+        run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+
+      - name: Unpack V36HF into isolated build directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q "$SOURCE_ARCHIVE" -d v36hf-kotlin-build
+          test -f v36hf-kotlin-build/settings.gradle.kts
+          test -f v36hf-kotlin-build/app/src/main/AndroidManifest.xml
+
+      - name: Run offline security/config checks
+        run: python3 scripts/run_static_checks.py
+        working-directory: v36hf-kotlin-build
+
+      - name: Run Kotlin unit tests and compile debug APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+
+      - name: Verify APK signing and SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk'
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/apk-signing.txt
+          sha256sum "$APK" > v36hf-kotlin-build/apk.sha256
+
+      - name: Publish signed TEST artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: BharathLink-V36HF-Kotlin-TEST-APK
+          path: |
+            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+            v36hf-kotlin-build/apk-signing.txt
+            v36hf-kotlin-build/apk.sha256
+          if-no-files-found: error
+          retention-days: 14
