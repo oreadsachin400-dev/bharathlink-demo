@@ -1,0 +1,33 @@
+name: BharathLink Device Approval v1 Security Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-device-approval-v1-test
+    paths:
+      - 'supabase/functions/bl20-device-approval/**'
+      - 'sql/staged/TEST-device-approval-v1.sql'
+      - 'tests/device-approval-crypto.test.mjs'
+      - '.github/workflows/device-approval-security-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  negative-path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run real ECDSA-P256 WebCrypto verification and security contract tests
+        run: node --test tests/device-approval-crypto.test.mjs
+      - name: Confirm no integration is being automatically enabled
+        run: |
+          set -eu
+          grep -q 'STAGED ONLY' sql/staged/TEST-device-approval-v1.sql
+          grep -q 'BHARATHLINK_DEVICE_APPROVAL_ENABLED' supabase/functions/bl20-device-approval/index.ts
+          echo 'No SQL migration or Edge Function deployed by this workflow.'
