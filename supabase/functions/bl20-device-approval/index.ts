@@ -3,6 +3,8 @@
 // Do not deploy with BHARATHLINK_DEVICE_APPROVAL_ENABLED=true yet.
 import {isUuid,verifyDeviceApproval,sha256Hex} from "./approval-crypto.mjs";
 
+// Deployment gate: enable only in a separately reviewed release.
+const APPROVAL_FEATURE_RELEASED = false;
 const allowedOrigin="https://bharathlink-20-test.netlify.app";
 function response(data,status=200) {
   return new Response(JSON.stringify(data),{status,headers:{
@@ -29,7 +31,8 @@ Deno.serve(async req=>{
     "cache-control":"no-store"
   }});
   if(req.method!=="POST") return response({approved:false,error:"Method not allowed"},405);
-  if(Deno.env.get("BHARATHLINK_DEVICE_APPROVAL_ENABLED")!=="true")
+  if(!APPROVAL_FEATURE_RELEASED ||
+     Deno.env.get("BHARATHLINK_DEVICE_APPROVAL_ENABLED")!=="true")
     return response({approved:false,error:"Trusted-device approval not enabled"},503);
   if(Number(req.headers.get("content-length")||0)>1024)
     return response({approved:false,error:"Request too large"},413);
