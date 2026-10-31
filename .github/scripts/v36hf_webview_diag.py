@@ -92,4 +92,15 @@ s=activity.read_text()
 assert 'dispatchTouchEvent' not in s and 'startupUserInteracted' not in s
 assert 'addJavascriptInterface' not in s and 'getSecureToken' not in s
 assert 'Open in Browser' in s
-print("V36HF_WEBVIEW_DIAG_PASS; versionCode=38")
+# Isolate this debug diagnostic install from the existing BharathLink TEST app.
+# A different debug signing key cannot replace an installed package with the same ID.
+one(gradle, 'applicationIdSuffix = ".test"', 'applicationIdSuffix = ".test.v36hfdiag"')
+one(gradle,
+    'manifestPlaceholders["appHost"] = "ais-dev-rct6nb4sdglft27shfgdyd-143017817560.asia-southeast1.run.app"',
+    'manifestPlaceholders["appHost"] = "bharathlink-20-test.netlify.app"')
+strings = root / "app/src/main/res/values/strings.xml"
+one(strings, '<string name="app_name">BharathLink</string>',
+    '<string name="app_name">BharathLink DIAG TEST</string>')
+assert 'applicationIdSuffix = ".test.v36hfdiag"' in gradle.read_text()
+print("V36HF_WEBVIEW_DIAG_PASS; versionCode=38; isolated packageId=com.bharathlink.app.test.v36hfdiag")
+
