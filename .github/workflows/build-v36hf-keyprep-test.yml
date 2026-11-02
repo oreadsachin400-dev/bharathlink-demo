@@ -1,0 +1,87 @@
+name: BharathLink V36HF KeyPrep TEST APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-device-keyprep-v1-test
+    paths:
+      - 'android-keyprep/**'
+      - '.github/scripts/v36hf_keyprep.py'
+      - '.github/workflows/build-v36hf-keyprep-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  keyprep-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify original reviewed source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+
+      - name: Install SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:-/missing}"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+
+      - name: Unpack original source and run previously reviewed patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+
+      - name: Add isolated native KeyPrep launcher
+        run: python3 .github/scripts/v36hf_keyprep.py
+
+      - name: Offline security checks
+        run: python3 scripts/run_static_checks.py
+        working-directory: v36hf-kotlin-build
+
+      - name: Run Kotlin unit tests and compile APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+
+      - name: Verify APK signing and fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/apk-signing.txt
+          sha256sum "$APK" > v36hf-kotlin-build/apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: BharathLink-V36HF-KEYPREP-TEST-APK
+          path: |
+            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+            v36hf-kotlin-build/apk.sha256
+            v36hf-kotlin-build/apk-signing.txt
+          if-no-files-found: error
+          retention-days: 14
