@@ -70,7 +70,13 @@ jobs:
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump permissions "$APK" > v36hf-kotlin-build/inspector-permissions.txt
           grep -q "^package: name='com.bharathlink.app.test.signingaudit' versionCode='1'" v36hf-kotlin-build/inspector-badging.txt
           grep -q "^launchable-activity: name='com.bharathlink.app.signingaudit.SigningAuditActivity'" v36hf-kotlin-build/inspector-badging.txt
-          ! grep -q 'uses-permission:' v36hf-kotlin-build/inspector-permissions.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('v36hf-kotlin-build/inspector-permissions.txt').read_text()
+          assert 'uses-permission:' not in text, 'BLOCKED: unexpected requested permission in APK'
+          assert '\\npermission:' not in text, 'BLOCKED: unnecessary declared permission in APK'
+          print('PASS: packaged APK has no requested or declared permissions')
+          PY
           sha256sum "$APK" > v36hf-kotlin-build/inspector.sha256
           echo 'PASS: independent debug APK; NO update to installed KeyPrep; no permissions'
       - name: Publish optional offline TEST signer-inspector APK
