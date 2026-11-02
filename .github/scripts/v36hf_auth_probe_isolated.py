@@ -83,5 +83,5 @@ assert "create_user\", false" in (dest/"NativeTestAuth.kt").read_text()
 assert "bl20_commit_device_approval" not in source
 assert "bl20_candidate_proof_start" not in source
 assert "register_e2ee_v2_device" not in source
-assert "EphemeralTestSession" in source
+assert "EphemeralTestSession" in (dest/"NativeTestAuth.kt").read_text()
 print("AUTH_PROBE_ISOLATED: different app ID, one launcher, INTERNET only, no KeyStore, no trust writes")
