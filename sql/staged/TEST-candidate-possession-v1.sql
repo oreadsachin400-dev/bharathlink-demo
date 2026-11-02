@@ -29,7 +29,7 @@ CREATE OR REPLACE FUNCTION public.bl20_candidate_proof_payload(
   p_id uuid,p_user_id uuid,p_device_id uuid,p_challenge_id uuid,
   p_expires_at timestamptz,p_ecdh_public_jwk jsonb,p_signing_public_jwk jsonb
 ) RETURNS text
-LANGUAGE sql IMMUTABLE SET search_path TO ''
+LANGUAGE sql STABLE SET search_path TO ''
 AS $body$
  SELECT pg_catalog.concat_ws(E'\n',
   'BHARATHLINK_CANDIDATE_POSSESSION_V1',
