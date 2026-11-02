@@ -1,0 +1,41 @@
+name: BharathLink TEST APK Signing Continuity Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-signing-otp-preflight-v1-test
+    paths:
+      - 'scripts/check_keyprep_signing.py'
+      - 'tests/test_signing_preflight.py'
+      - 'signing-evidence/**'
+      - '.github/workflows/keyprep-signing-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  certificate-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject incompatible certificates and malformed signing reports
+        run: python3 -m unittest discover -s tests -p test_signing_preflight.py -v
+      - name: Verify archived KeyPrep-only certificate metadata
+        run: |
+          python3 scripts/check_keyprep_signing.py signing-evidence/keyprep-only-2026-11-02-apksigner.txt
+      - name: Confirm known earlier KeyPrep signing identity is rejected
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Signer #1 certificate SHA-256 digest: 6d4e8cf80681b219e01af0da655d0d47b51c1a6fd9822becb1dc48ede9434eda\n' > /tmp/old-debug-signer.txt
+          if python3 scripts/check_keyprep_signing.py /tmp/old-debug-signer.txt; then
+            echo 'FAIL: incompatible certificate accepted' >&2
+            exit 1
+          fi
+          echo 'PASS: incompatible update signing certificate blocked'
+      - name: Require explicit future release signing confirmation
+        run: |
+          echo 'NO APK RELEASE: certificate digest alone cannot sign an update.'
+          echo 'A compatible original signing private key and physical installed-app match are still needed.'
