@@ -28,11 +28,12 @@
 - GitHub cryptographic + disposable PostgreSQL workflow:
   https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41419760272 — PASS after fingerprint test correction.
 - Latest native signer compilation workflow:
-  https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41419811511 — use workflow conclusion as the authoritative compile status.
+  https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41419811511 — **SUCCESS** (Kotlin unit tests + compile).
 - TEST database permission check: public/authenticated execution denied; service role only.
 - TEST current state after migration: **8 active messaging devices, 0 enrollment requests, 0 candidate proofs, 0 independently verified signers**.
 - Existing `messaging_devices_insert_trusted_approval_only` RLS `WITH CHECK false` unchanged.
 - Existing `bl20-device-approval` still hard-disabled; no new device is trusted.
+- Supabase security advisor: private candidate table has informational `rls_enabled_no_policy` finding, intentional because it is private and not directly accessible; do not add client RLS policies to expose it.
 
 ## Explicitly NOT complete
 - Authenticated native mobile session binding to the correct user (the UUID typed into the offline utility is only a label).
