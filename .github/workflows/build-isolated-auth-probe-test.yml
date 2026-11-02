@@ -1,0 +1,94 @@
+name: BharathLink Isolated Native Auth Probe TEST APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-auth-probe-isolated-v1-test
+    paths:
+      - 'android-auth-probe/**'
+      - 'android-keyprep/NativeTestAuth.kt'
+      - 'android-keyprep/NativeAuthConfig.kt'
+      - 'android-keyprep/EphemeralTestSession.kt'
+      - 'android-keyprep/AuthBindingPolicy.kt'
+      - '.github/scripts/v36hf_auth_probe_isolated.py'
+      - '.github/workflows/build-isolated-auth-probe-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  stateless-otp-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source archive SHA256 integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Build isolated native-only Android TEST source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_auth_probe_isolated.py
+      - name: Enforce no old KeyPrep identity or device trust
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=v36hf-kotlin-build/app/src/main/java/com/bharathlink/app/keyprep
+          test ! -e "$SRC/DeviceKeyPrepActivity.kt"
+          grep -q 'applicationIdSuffix = ".test.authprobe"' v36hf-kotlin-build/app/build.gradle.kts
+          grep -q 'create_user", false' "$SRC/NativeTestAuth.kt"
+          grep -q '/auth/v1/user' "$SRC/NativeTestAuth.kt"
+          ! grep -rE 'SUPABASE_SERVICE_ROLE_KEY|addJavascriptInterface|bl20_commit_device_approval|bl20_candidate_proof_finish|register_e2ee_v2_device' "$SRC"
+          ! grep -E 'KeyStore|LocalApprovalKeys' "$SRC/NativeAuthProbeActivity.kt"
+      - name: Compile app and run negative auth/session JUnit tests
+        working-directory: v36hf-kotlin-build
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - name: Verify signed TEST artifact and exact unique package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/auth-probe-signing.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" > v36hf-kotlin-build/auth-probe-badging.txt
+          grep -q "^package: name='com.bharathlink.app.test.authprobe' versionCode='1'" v36hf-kotlin-build/auth-probe-badging.txt
+          ! grep -q "com.bharathlink.app.test.keypreponly" v36hf-kotlin-build/auth-probe-badging.txt
+          grep -q "^launchable-activity: name='com.bharathlink.app.keyprep.NativeAuthProbeActivity'" v36hf-kotlin-build/auth-probe-badging.txt
+          sha256sum "$APK" > v36hf-kotlin-build/auth-probe.sha256
+          echo "PASS: unique app ID; old KeyPrep not replaced; TEST-only signed debug APK"
+      - name: Publish stateless standalone TEST auth-only APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: BharathLink-TEST-AuthProbe-Standalone-APK
+          path: |
+            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+            v36hf-kotlin-build/auth-probe.sha256
+            v36hf-kotlin-build/auth-probe-signing.txt
+            v36hf-kotlin-build/auth-probe-badging.txt
+          if-no-files-found: error
+          retention-days: 10
