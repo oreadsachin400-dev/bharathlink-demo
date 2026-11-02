@@ -86,7 +86,8 @@ BEGIN
  context:=public.bl20_candidate_proof_start(u,device,keyA,keyB);
  proof:=(context->>'proofId')::uuid;
  UPDATE bl20_candidate_v1_private.proofs
- SET expires_at=clock_timestamp()-interval '1 second'
+ SET created_at=clock_timestamp()-interval '11 minutes',
+     expires_at=clock_timestamp()-interval '10 minutes'
  WHERE id=proof;
  IF public.bl20_candidate_proof_context(u,proof) IS NOT NULL
  THEN RAISE EXCEPTION 'Expired challenge still available'; END IF;
