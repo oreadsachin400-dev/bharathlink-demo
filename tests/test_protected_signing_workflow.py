@@ -36,9 +36,6 @@ class ProtectedSigningWorkflowTests(unittest.TestCase):
         checker=self.workflow.index("python3 scripts/check_keyprep_release.py")
         uploader=self.workflow.index("uses: actions/upload-artifact@v4")
         self.assertLess(checker,uploader)
-        self.assertIn("apksigner\" sign",self.workflow.replace('" sign',r'\" sign')) if False else None
-        self.assertIn("apksigner\" verify",self.workflow.replace('" verify',r'\" verify')) if False else None
-        self.assertIn("apksigner\" sign",self.workflow) if False else None
         self.assertIn('apksigner" sign',self.workflow)
         self.assertIn('apksigner" verify',self.workflow)
         self.assertIn('aapt" dump badging',self.workflow)
