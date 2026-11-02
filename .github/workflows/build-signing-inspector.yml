@@ -1,0 +1,88 @@
+name: BharathLink Offline KeyPrep Signer Inspector TEST APK
+
+on:
+  push:
+    branches:
+      - bharathlink-signing-inspector-v1-test
+    paths:
+      - 'android-signing-inspector/**'
+      - '.github/scripts/v36hf_signing_inspector.py'
+      - '.github/workflows/build-signing-inspector.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-inspector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned archived source (not a release APK)
+        run: echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Stage minimal read-only standalone inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_signing_inspector.py
+      - name: Verify no secrets, network or device trust APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=v36hf-kotlin-build/app/src/main/java/com/bharathlink/app/signingaudit
+          test "$(find v36hf-kotlin-build/app/src/main -type f \( -name '*.java' -o -name '*.kt' \) | wc -l)" -eq 2
+          test "$(find v36hf-kotlin-build/app/src/test -type f \( -name '*.java' -o -name '*.kt' \) | wc -l)" -eq 1
+          ! grep -rE 'android.permission|SUPABASE|KeyStore|HttpURLConnection|requestPermissions|bl20_' "$SOURCE"
+          grep -q 'applicationIdSuffix = ".test.signingaudit"' v36hf-kotlin-build/app/build.gradle.kts
+          echo 'PASS: only platform PackageManager inspection; no network or private-key access'
+      - name: Run negative tests and compile standalone APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+      - name: Validate exact package and no requested permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/inspector-signing.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" > v36hf-kotlin-build/inspector-badging.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump permissions "$APK" > v36hf-kotlin-build/inspector-permissions.txt
+          grep -q "^package: name='com.bharathlink.app.test.signingaudit' versionCode='1'" v36hf-kotlin-build/inspector-badging.txt
+          grep -q "^launchable-activity: name='com.bharathlink.app.signingaudit.SigningAuditActivity'" v36hf-kotlin-build/inspector-badging.txt
+          ! grep -q 'uses-permission:' v36hf-kotlin-build/inspector-permissions.txt
+          sha256sum "$APK" > v36hf-kotlin-build/inspector.sha256
+          echo 'PASS: independent debug APK; NO update to installed KeyPrep; no permissions'
+      - name: Publish optional offline TEST signer-inspector APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: BharathLink-TEST-KeyPrep-Signer-Inspector-APK
+          path: |
+            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+            v36hf-kotlin-build/inspector.sha256
+            v36hf-kotlin-build/inspector-signing.txt
+            v36hf-kotlin-build/inspector-badging.txt
+            v36hf-kotlin-build/inspector-permissions.txt
+          if-no-files-found: error
+          retention-days: 10
