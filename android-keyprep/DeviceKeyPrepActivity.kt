@@ -102,7 +102,7 @@ class DeviceKeyPrepActivity : Activity() {
     }
 }
 
-private object LocalApprovalKeys {
+internal object LocalApprovalKeys {
     private const val STORE = "bharathlink_local_keyprep_v1"
     private const val PREFIX = "bharathlink.test.keyprep.p256."
     private const val PROVIDER = "AndroidKeyStore"
@@ -189,6 +189,72 @@ private object LocalApprovalKeys {
             throw ex
         }
         return status(activity, account)
+    }
+
+    /**
+     * STAGED ONLY: for a future separately authenticated enrollment UI.
+     * Not called by the offline KeyPrep UI and does not send anything to a server.
+     * An unverified UUID label is NOT account authentication or device approval.
+     */
+    @Synchronized fun signCandidateServerChallenge(
+        activity: Activity, account: String, canonicalPayload: String
+    ): String {
+        require(Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+            .matches(account)) { "Invalid account label" }
+        require(canonicalPayload.length in 150..2048) { "Invalid payload length" }
+        val parts = canonicalPayload.split('\n')
+        require(parts.size == 8 && parts[0] == "BHARATHLINK_CANDIDATE_POSSESSION_V1") {
+            "Unsupported challenge domain"
+        }
+        require(parts[1] == account) { "Account label mismatch" }
+        val uuidPattern = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+        require(uuidPattern.matches(parts[2]) && uuidPattern.matches(parts[4])) {
+            "Malformed proof identifier"
+        }
+        val currentDevice = prefs(activity).getString("device:" + account, null)
+            ?: error("Local keys unavailable")
+        require(parts[3] == currentDevice) { "Device mismatch" }
+        val expiry = try { java.time.Instant.parse(parts[5]) }
+                     catch (_: Exception) { error("Invalid server challenge expiry") }
+        val now = java.time.Instant.now()
+        require(Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$")
+            .matches(parts[5]))
+        require(expiry.isAfter(now) && !expiry.isAfter(now.plusSeconds(300))) {
+            "Challenge expired or implausibly far in the future"
+        }
+        val keystore = store()
+        val signer = alias(account, currentDevice, "sign")
+        val ecdh = alias(account, currentDevice, "ecdh")
+        if (!keystore.containsAlias(signer) || !keystore.containsAlias(ecdh)) {
+            error("Local keys lost or unavailable")
+        }
+        fun jwkDigest(a: String): String {
+            val jwk = publicJwk(keystore, a)
+            val bytes = listOf(jwk.getString("kty"), jwk.getString("crv"),
+                jwk.getString("x"), jwk.getString("y"))
+                .joinToString("\n").toByteArray(StandardCharsets.UTF_8)
+            return MessageDigest.getInstance("SHA-256").digest(bytes)
+                .joinToString("") { "%02x".format(it) }
+        }
+        require(parts[6] == jwkDigest(ecdh) && parts[7] == jwkDigest(signer)) {
+            "Candidate public key fingerprints mismatch"
+        }
+        val privateKey = keystore.getKey(signer, null) as? java.security.PrivateKey
+            ?: error("No signing key")
+        val signature = Signature.getInstance("SHA256withECDSA").apply {
+            initSign(privateKey)
+            update(canonicalPayload.toByteArray(StandardCharsets.UTF_8))
+        }.sign()
+        val publicKey = keystore.getCertificate(signer).publicKey
+        check(Signature.getInstance("SHA256withECDSA").run {
+            initVerify(publicKey)
+            update(canonicalPayload.toByteArray(StandardCharsets.UTF_8))
+            verify(signature)
+        }) { "Local candidate proof self-verification failed" }
+        // DER-encoded P-256 signature, base64url. The receiving server must
+        // independently validate session, nonce, signer, expiry, and replay.
+        return Base64.encodeToString(signature,
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
     }
 
     @Synchronized fun status(activity: Activity, account: String): String {
