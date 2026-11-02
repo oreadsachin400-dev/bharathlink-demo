@@ -5,9 +5,9 @@ import org.junit.Test
 
 /** All IDs are synthetic, never taken from a real user's screenshots. */
 class LocalBindingGateTest {
-    private val verified="27fec77d-33e7-48d9-b81c-749604e7ebf4"
-    private val other="97fec77d-33e7-48d9-b81c-749604e7ebf4"
-    private val device="f87a199e-1656-494c-a496-28486554780b"
+    private val verified="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private val other="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    private val device="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 
     private fun check(
         uid: String?=verified, current: Boolean=true,

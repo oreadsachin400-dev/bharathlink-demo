@@ -5,9 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthBindingPolicyTest {
-    private val uid="27fec77d-33e7-48d9-b81c-749604e7ebf4"
-    private val other="97fec77d-33e7-48d9-b81c-749604e7ebf4"
-    private val dev="f87a199e-1656-494c-a496-28486554780b"
+    private val uid="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private val other="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    private val dev="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
     private val valid="LOCAL_KEYS_ONLY_NOT_VERIFIED"
     private fun match(subject:String?=uid,label:String?=uid,
                       device:String?=dev,state:String?=valid,
