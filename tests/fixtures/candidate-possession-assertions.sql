@@ -27,6 +27,15 @@ BEGIN
     OR context->>'serverApproved'<>'false'
     OR context->>'payload' NOT LIKE 'BHARATHLINK_CANDIDATE_POSSESSION_V1'||E'\n%'
  THEN RAISE EXCEPTION 'Invalid canonical candidate challenge'; END IF;
+ IF split_part(context->>'payload',E'\\n',7) IS DISTINCT FROM
+    encode(extensions.digest(convert_to(
+      concat_ws(E'\\n','EC','P-256',repeat('a',43),repeat('b',43)),
+      'UTF8'),'sha256'),'hex')
+ OR split_part(context->>'payload',E'\\n',8) IS DISTINCT FROM
+    encode(extensions.digest(convert_to(
+      concat_ws(E'\\n','EC','P-256',repeat('c',43),repeat('d',43)),
+      'UTF8'),'sha256'),'hex')
+ THEN RAISE EXCEPTION 'Public key fingerprints are not canonical'; END IF;
  IF public.bl20_candidate_proof_context(other,proof) IS NOT NULL
  THEN RAISE EXCEPTION 'Wrong account can see proof'; END IF;
  BEGIN
