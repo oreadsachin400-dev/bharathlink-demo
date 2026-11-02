@@ -26,10 +26,11 @@ The installed `BharathLink KeyPrep ONLY TEST` app holds non-exportable AndroidKe
 - Supabase project: `BharathLink-20-TEST` / `fsdusofbpwdrdvgexxyw` only.
 - Hosted email template actual content remains **UNVERIFIED**: email OTP requires `{{ .Token }}` in the existing Magic Link template. If project currently sends link only, the numeric OTP screen will not complete.
 - No OTP messages sent automatically, no Auth configuration or users modified by this development.
-- Back-end `bl20-candidate-possession` and trusted approval endpoints remain hard-disabled.
+- Back-end `bl20-candidate-possession` remains hard-disabled with JWT verification. Final live TEST read-back: **8 active messaging devices, 0 enrollments, 0 candidate proofs, 0 independently verified signers**.
 
 ## Validation and evidence
-- GitHub workflow `.github/workflows/build-isolated-auth-probe-test.yml` checks source ZIP SHA, unique app ID, single native launcher, no old KeyPrep class, no trust writes, Kotlin/JUnit tests, APK signer metadata and SHA-256. Build outcome must be verified in GitHub Actions.
+- GitHub workflow `.github/workflows/build-isolated-auth-probe-test.yml` checks source ZIP SHA, unique app ID, single native launcher, no old KeyPrep class, no trust writes, Kotlin/JUnit tests, APK signer metadata and SHA-256. **Completed PASS:** https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41455968905
+- APK extracted from GitHub artifact and SHA-256 independently verified: `fb45f454949475eb9ce44d90dd3845b34f7f9a7add2d15a7a4b18c290dfc766c`; APK size **6,654,376 bytes**; app package `com.bharathlink.app.test.authprobe` versionCode 1; signer `2923d3ed36ff6d17ec9fd58c418a270e7bbda371285f43bac309fa6291b4245e` (ephemeral debug certificate, no future update compatibility promised).
 - **Physical Android verification not yet performed.** CI compilation, even if green, is not proof that the OTP template sends numeric codes.
 - No server enrollment, identity proof, key migration, approved trust or E2EE status is to be inferred from this test.
 
