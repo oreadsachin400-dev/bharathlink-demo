@@ -12,6 +12,7 @@ src=Path("android-keyprep")
 dest=root/"app/src/main/java/com/bharathlink/app/keyprep"
 dest.mkdir(parents=True,exist_ok=True)
 for file in ["NativeTestAuth.kt","NativeAuthConfig.kt","NativeAuthBindActivity.kt",
+             "EphemeralTestSession.kt",
              "AuthBindingPolicy.kt"]:
     assert (src/file).is_file(),file
     copyfile(src/file,dest/file)
@@ -30,6 +31,7 @@ assert 'signCandidateServerChallenge' in s
 test_dir=root/"app/src/test/java/com/bharathlink/app/keyprep"
 test_dir.mkdir(parents=True,exist_ok=True)
 copyfile(src/"AuthBindingPolicyTest.kt",test_dir/"AuthBindingPolicyTest.kt")
+copyfile(src/"EphemeralTestSessionTest.kt",test_dir/"EphemeralTestSessionTest.kt")
 
 manifest=root/"app/src/main/AndroidManifest.xml"
 ET.register_namespace("android","http://schemas.android.com/apk/res/android")
