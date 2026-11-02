@@ -1,0 +1,113 @@
+name: BharathLink KeyPrep In-Place Auth Update — Protected Signing
+
+# Manual only. Never triggered by pull requests, forks or normal pushes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bharathlink-protected-keyprep-signing
+  cancel-in-progress: false
+
+jobs:
+  sign-existing-keyprep:
+    if: github.ref == 'refs/heads/bharathlink-safe-signing-recovery-v1-test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: keyprep-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fail closed without explicitly recovered original signing key
+        shell: bash
+        env:
+          HAS_KEYSTORE: ${{ secrets.BHARATHLINK_KEYPREP_KEYSTORE_B64 != '' }}
+          HAS_STOREPASS: ${{ secrets.BHARATHLINK_KEYPREP_STORE_PASSWORD != '' }}
+          HAS_KEYPASS: ${{ secrets.BHARATHLINK_KEYPREP_KEY_PASSWORD != '' }}
+          HAS_ALIAS: ${{ secrets.BHARATHLINK_KEYPREP_KEY_ALIAS != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$HAS_KEYSTORE" != "true" ] || [ "$HAS_STOREPASS" != "true" ] ||
+             [ "$HAS_KEYPASS" != "true" ] || [ "$HAS_ALIAS" != "true" ]; then
+            echo 'BLOCKED: reviewed original signing key not present in protected GitHub environment' >&2
+            exit 1
+          fi
+      - name: Verify reviewed original source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Prepare same-package native authenticated TEST update
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_keyprep.py
+          python3 .github/scripts/v36hf_native_auth_bind.py
+      - name: Unit tests and compile only
+        working-directory: v36hf-kotlin-build
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - name: Sign through GitHub protected environment; never print keystore or password
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.BHARATHLINK_KEYPREP_KEYSTORE_B64 }}
+          KS_PASSWORD: ${{ secrets.BHARATHLINK_KEYPREP_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.BHARATHLINK_KEYPREP_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BHARATHLINK_KEYPREP_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$tmp/installed-compatible.jks"
+          test -s "$tmp/installed-compatible.jks"
+          SOURCE=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+          DEST="$tmp/BharathLink-KeyPrep-Auth-Update.apk"
+          test -s "$SOURCE"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
+            --ks "$tmp/installed-compatible.jks" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KS_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out "$DEST" "$SOURCE"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs "$DEST" > "$tmp/signing.txt"
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$DEST" > "$tmp/badging.txt"
+          # Block update if cert, package ID, or version fails exact independent checks.
+          python3 scripts/check_keyprep_release.py "$tmp/signing.txt" "$tmp/badging.txt"
+          mkdir -p "$RUNNER_TEMP/reviewed-keyprep"
+          cp "$DEST" "$RUNNER_TEMP/reviewed-keyprep/BharathLink-KeyPrep-Auth-Update.apk"
+          cp "$tmp/signing.txt" "$RUNNER_TEMP/reviewed-keyprep/signing.txt"
+          cp "$tmp/badging.txt" "$RUNNER_TEMP/reviewed-keyprep/badging.txt"
+          sha256sum "$RUNNER_TEMP/reviewed-keyprep/BharathLink-KeyPrep-Auth-Update.apk" > "$RUNNER_TEMP/reviewed-keyprep/apk.sha256"
+      - name: Upload only cert/package/version-verified TEST artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BharathLink-KeyPrep-Auth-TEST-Reviewed
+          path: ${{ runner.temp }}/reviewed-keyprep/
+          if-no-files-found: error
+          retention-days: 7
