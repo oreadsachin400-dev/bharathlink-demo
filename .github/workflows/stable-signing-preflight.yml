@@ -1,0 +1,36 @@
+name: BharathLink Stable Signing Preflight & Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-safe-signing-recovery-v1-test
+    paths:
+      - 'scripts/check_keyprep_signing.py'
+      - 'scripts/check_keyprep_release.py'
+      - 'tests/test_keyprep_release.py'
+      - 'tests/test_signing_preflight.py'
+      - '.github/workflows/stable-signing-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  negative-release-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify signer continuity and immutable package/version rules
+        run: |
+          python3 -m unittest discover -s tests -p test_signing_preflight.py -v
+          python3 -m unittest discover -s tests -p test_keyprep_release.py -v
+      - name: Confirm no signing credentials are committed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*.p12' -o -iname '*.pfx' \) | grep -q .; then
+            echo 'BLOCKED: private signing material was found in repository' >&2
+            exit 1
+          fi
+          echo 'PASS: repository contains no private signing material'
