@@ -9,6 +9,9 @@ on:
       - 'scripts/check_keyprep_signing.py'
       - 'scripts/check_keyprep_release.py'
       - 'tests/test_keyprep_release.py'
+      - 'tests/test_protected_signing_workflow.py'
+      - '.github/workflows/keyprep-protected-signing.yml'
+      - 'docs/TEST-Email-OTP-Dual-Mode-Template-REVIEW-ONLY.md'
       - 'tests/test_signing_preflight.py'
       - '.github/workflows/stable-signing-preflight.yml'
 
@@ -25,6 +28,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_signing_preflight.py -v
           python3 -m unittest discover -s tests -p test_keyprep_release.py -v
+          python3 -m unittest discover -s tests -p test_protected_signing_workflow.py -v
       - name: Confirm no signing credentials are committed
         shell: bash
         run: |
