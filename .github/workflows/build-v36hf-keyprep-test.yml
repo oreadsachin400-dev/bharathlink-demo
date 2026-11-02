@@ -5,10 +5,13 @@ on:
   push:
     branches:
       - bharathlink-device-keyprep-v1-test
+      - bharathlink-signing-otp-preflight-v1-test
     paths:
       - 'android-keyprep/**'
       - '.github/scripts/v36hf_keyprep.py'
       - '.github/workflows/build-v36hf-keyprep-test.yml'
+      - 'scripts/check_keyprep_signing.py'
+      - 'signing-evidence/**'
 
 permissions:
   contents: read
@@ -74,6 +77,11 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/apk-signing.txt
           sha256sum "$APK" > v36hf-kotlin-build/apk.sha256
+
+      - name: BLOCK upload unless signed with archived KeyPrep ONLY certificate
+        run: |
+          python3 scripts/check_keyprep_signing.py v36hf-kotlin-build/apk-signing.txt
+          echo 'Certificate continuity gate passed (device-side confirmation still needed).'
 
       - uses: actions/upload-artifact@v4
         if: success()
