@@ -1,0 +1,59 @@
+name: BharathLink Native Candidate Signer Compile
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-candidate-proof-v1-test
+    paths:
+      - 'android-keyprep/**'
+      - '.github/workflows/candidate-native-compile.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-signer-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm known source archive SHA256
+        run: echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install Android SDK
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Prepare isolated offline TEST Android source
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_keyprep.py
+      - name: Enforce candidate signer has strict local security guards
+        run: |
+          set -euo pipefail
+          CODE=android-keyprep/DeviceKeyPrepActivity.kt
+          grep -q 'signCandidateServerChallenge' "$CODE"
+          grep -q 'BHARATHLINK_CANDIDATE_POSSESSION_V1' "$CODE"
+          grep -q 'Challenge expired or implausibly far in the future' "$CODE"
+          grep -q 'Candidate public key fingerprints mismatch' "$CODE"
+          grep -q 'serverApproved", false' "$CODE"
+      - name: Run Kotlin unit tests and compile isolated candidate signer
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+      - name: No APK release by this workflow
+        run: echo 'This workflow validates staged code only; device enrollment and E2EE remain disabled.'
