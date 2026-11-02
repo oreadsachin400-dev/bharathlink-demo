@@ -1,0 +1,71 @@
+name: BharathLink Phase 2 Account-to-Key Fail-Closed Gate (compile-only)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase2-account-key-gate-v1-test
+    paths:
+      - 'android-keyprep/**'
+      - '.github/scripts/v36hf_native_auth_bind.py'
+      - '.github/workflows/phase2-account-key-gate.yml'
+      - 'docs/Phase2-Account-Key-Binding-TEST-2026-11-02.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-binding-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate pinned, reviewed TEST source archive
+        run: echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Build only in temporary TEST work directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_keyprep.py
+          python3 .github/scripts/v36hf_native_auth_bind.py
+      - name: Verify non-negotiable security invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=v36hf-kotlin-build/app/src/main/java/com/bharathlink/app/keyprep
+          grep -q 'LocalBindingGate.evaluate' "$SRC/NativeAuthBindActivity.kt"
+          grep -q 'LOCAL_MATCH_ONLY_NOT_TRUSTED' "$SRC/LocalBindingGate.kt"
+          grep -q 'create_user", false' "$SRC/NativeTestAuth.kt"
+          grep -q 'applicationIdSuffix = ".test.keypreponly"' v36hf-kotlin-build/app/build.gradle.kts
+          grep -q 'versionCode = 41' v36hf-kotlin-build/app/build.gradle.kts
+          ! grep -rq 'SUPABASE_SERVICE_ROLE_KEY' "$SRC"
+          ! grep -rq 'register_e2ee_v2_device' "$SRC"
+          ! grep -rq 'bl20_commit_device_approval' "$SRC"
+      - name: JUnit regression gates and Android compilation
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+      - name: Release gate — NO APK ARTIFACT
+        run: |
+          echo 'Compile-only. Existing KeyPrep signer is not recovered.'
+          echo 'Do NOT uninstall/update the existing KeyPrep app or re-label existing keys.'
+          echo 'No backend enrollment or E2EE approvals were performed.'

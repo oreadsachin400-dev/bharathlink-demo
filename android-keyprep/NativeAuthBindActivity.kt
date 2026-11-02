@@ -134,14 +134,18 @@ class NativeAuthBindActivity : Activity() {
             val id=json?.optString("deviceId","")
             val signing=json?.optJSONObject("signingPublicJwk")
             val ecdh=json?.optJSONObject("ecdhPublicJwk")
-            val matching=AuthBindingPolicy.localKeysMatchVerifiedAccount(
-                user.userId,label,id,json?.optString("state"),
+            // This is an inspection gate, NOT proof of authority or device enrollment.
+            // A separate AUTH PROBE package cannot read the old KeyPrep sandbox.
+            val decision=LocalBindingGate.evaluate(
+                user.userId,
+                isForeground && user.tokenForProtectedCall()!=null,
+                label,id,json?.optString("state"),
                 if(signing?.optString("kty")=="EC" && signing.optString("crv")=="P-256")
                   "EC/P-256" else null,
                 if(ecdh?.optString("kty")=="EC" && ecdh.optString("crv")=="P-256")
                   "EC/P-256" else null
             )
-            if(matching && isForeground && user.tokenForProtectedCall()!=null) {
+            if(decision==LocalBindingDecision.LOCAL_MATCH_ONLY_NOT_TRUSTED) {
                 activeSession=user
                 "AUTHENTICATED_LOCAL_KEY_MATCH_ONLY_NOT_TRUSTED\n" +
                 "Authenticated TEST account and previously generated local keys matched.\n" +
