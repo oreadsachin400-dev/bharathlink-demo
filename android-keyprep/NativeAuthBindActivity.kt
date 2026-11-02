@@ -25,6 +25,7 @@ class NativeAuthBindActivity : Activity() {
     private lateinit var verifyButton:Button
     @Volatile private var working=false
     @Volatile private var activeSession:EphemeralTestSession?=null
+    @Volatile private var isForeground=false
 
     override fun onCreate(state:Bundle?) {
         super.onCreate(state)
@@ -140,7 +141,7 @@ class NativeAuthBindActivity : Activity() {
                 if(ecdh?.optString("kty")=="EC" && ecdh.optString("crv")=="P-256")
                   "EC/P-256" else null
             )
-            if(matching && user.tokenForProtectedCall()!=null) {
+            if(matching && isForeground && user.tokenForProtectedCall()!=null) {
                 activeSession=user
                 "AUTHENTICATED_LOCAL_KEY_MATCH_ONLY_NOT_TRUSTED\n" +
                 "Authenticated TEST account and previously generated local keys matched.\n" +
@@ -155,7 +156,13 @@ class NativeAuthBindActivity : Activity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        isForeground=true
+    }
+
     override fun onStop() {
+        isForeground=false
         activeSession?.invalidate()
         activeSession=null
         super.onStop()
