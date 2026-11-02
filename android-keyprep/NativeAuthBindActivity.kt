@@ -24,6 +24,7 @@ class NativeAuthBindActivity : Activity() {
     private lateinit var sendButton:Button
     private lateinit var verifyButton:Button
     @Volatile private var working=false
+    @Volatile private var activeSession:EphemeralTestSession?=null
 
     override fun onCreate(state:Bundle?) {
         super.onCreate(state)
@@ -67,6 +68,15 @@ class NativeAuthBindActivity : Activity() {
             setOnClickListener { performBind() }
         }
         view.addView(verifyButton)
+        view.addView(Button(this).apply {
+            text="SIGN OUT TEST SESSION"
+            setOnClickListener {
+                activeSession?.invalidate()
+                activeSession=null
+                otpField.text.clear()
+                status.text="SIGNED OUT. No device approval or enrollment performed."
+            }
+        })
         status=info("NOT AUTHENTICATED. No device has been enrolled.",14f)
         scroll.addView(view)
         setContentView(scroll)
@@ -114,6 +124,8 @@ class NativeAuthBindActivity : Activity() {
         otpField.text.clear() // never retain/print OTP after verification starts
         runOffMain {
             val user=it.verifyEmailOtp(email,code)
+            activeSession?.invalidate()
+            activeSession=null
             // Critical: account UUID comes ONLY from independently verified /auth/v1/user.
             val raw=LocalApprovalKeys.status(this,user.userId)
             val json=try{JSONObject(raw)}catch(_ : Exception){null}
@@ -128,12 +140,14 @@ class NativeAuthBindActivity : Activity() {
                 if(ecdh?.optString("kty")=="EC" && ecdh.optString("crv")=="P-256")
                   "EC/P-256" else null
             )
-            if(matching) {
+            if(matching && user.tokenForProtectedCall()!=null) {
+                activeSession=user
                 "AUTHENTICATED_LOCAL_KEY_MATCH_ONLY_NOT_TRUSTED\n" +
                 "Authenticated TEST account and previously generated local keys matched.\n" +
                 "deviceId: "+id+"\nserverApproved: false\ntrustedDevice: false\n"+
                 "e2eeV2Ready: false"
             } else {
+                user.invalidate()
                 "AUTHENTICATED_ACCOUNT_BUT_LOCAL_KEYS_NOT_MATCHED\n" +
                 "Existing local keys were not found for the authenticated account. " +
                 "Do NOT regenerate or delete keys. serverApproved: false"
@@ -141,7 +155,15 @@ class NativeAuthBindActivity : Activity() {
         }
     }
 
+    override fun onStop() {
+        activeSession?.invalidate()
+        activeSession=null
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        activeSession?.invalidate()
+        activeSession=null
         otpField.text?.clear()
         super.onDestroy()
     }
