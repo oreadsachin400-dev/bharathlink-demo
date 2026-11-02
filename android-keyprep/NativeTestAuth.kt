@@ -23,8 +23,6 @@ internal class NativeAuthClient(
                 publishableKey.length >= 28) { "Supabase TEST publishable key is not configured" }
     }
 
-    internal data class VerifiedUser(val userId: String, val email: String)
-
     fun requestEmailOtp(emailInput: String) {
         val email = normalizeEmail(emailInput)
         transport.post("/auth/v1/otp", publishableKey, null,
@@ -32,7 +30,7 @@ internal class NativeAuthClient(
         // Never infer that an account exists based on OTP request response.
     }
 
-    fun verifyEmailOtp(emailInput: String, otpInput: String): VerifiedUser {
+    fun verifyEmailOtp(emailInput: String, otpInput: String): EphemeralTestSession {
         val email = normalizeEmail(emailInput)
         val otp = otpInput.trim()
         require(otp.matches(Regex("^[0-9]{6,8}$"))) { "Enter your email OTP code" }
@@ -55,9 +53,10 @@ internal class NativeAuthClient(
         require(AuthBindingPolicy.isValidUuid(serverId) && serverId == verifyId)
         require(serverEmail == email && !user.optBoolean("is_anonymous", false))
         require(user.optString("email_confirmed_at", "").isNotEmpty())
-        // Access and refresh tokens are never written to disk, shown in UI or logged.
-        // The token is used only for this online verification and is then discarded.
-        return VerifiedUser(serverId,serverEmail)
+        // No refresh token retained. Access token is stored only in foreground memory
+        // and invalidated by NativeAuthBindActivity when it leaves the screen.
+        val boundedLifetime = minOf(seconds,3600L) * 1000L
+        return EphemeralTestSession(serverId,serverEmail,token,System.currentTimeMillis()+boundedLifetime)
     }
 
     companion object {
