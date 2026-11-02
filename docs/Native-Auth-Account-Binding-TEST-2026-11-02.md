@@ -18,6 +18,12 @@ The physical KeyPrep TEST app previously generated and retained P-256 signing an
 - Back-end TEST candidate proof and approval edges remain hard disabled.
 - 8 pre-existing messaging devices, 0 enrollment requests, 0 candidate proofs, and 0 verified signer trust anchors at last TEST audit.
 
+## Verification (GitHub CI)
+- [Run #41422308161](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41422308161) — **SUCCESS**.
+- Android Kotlin compilation, existing app tests and newly added negative auth-binding / ephemeral-session tests **PASS**.
+- Source-only, no distributable APK uploaded; no live native OTP or enrollment exercised.
+- Live Supabase TEST read-back: 8 active devices, 0 enrollment requests, 0 candidate proofs, 0 independently verified signing keys, `messaging_devices` INSERT RLS still `WITH CHECK false`.
+
 ## Important release blockers
 - **Signing-key continuity**: GitHub runner's ephemeral debug signing key may not match the certificate of the installed KeyPrep APK. Android requires the same package ID and signing identity to update without uninstall; uninstall would delete the previously tested keys. **Do not distribute the CI debug APK** or ask for uninstall. Secure stable signing is a prerequisite to a safe installed-app update.
 - **OTP template configuration**: Existing Supabase TEST email template must send a numeric OTP (`{{ .Token }}`). If it currently sends only a magic link, the native OTP form cannot complete. This configuration has not been verified or changed.
