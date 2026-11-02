@@ -1,0 +1,65 @@
+name: BharathLink Candidate Possession Security Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-candidate-proof-v1-test
+    paths:
+      - 'sql/staged/TEST-candidate-possession-v1.sql'
+      - 'supabase/functions/bl20-candidate-possession/**'
+      - 'tests/candidate-possession.test.mjs'
+      - 'tests/fixtures/candidate-possession-assertions.sql'
+      - '.github/workflows/candidate-possession-security-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-negative-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Real ECDSA P-256 signature verification tests
+        run: node --test tests/candidate-possession.test.mjs
+      - name: Confirm Edge function is hard disabled and TEST-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'const FEATURE_RELEASED=false' supabase/functions/bl20-candidate-possession/index.ts
+          grep -q 'BHARATHLINK_CANDIDATE_POSSESSION_V1' sql/staged/TEST-candidate-possession-v1.sql
+          echo 'No production or TEST endpoint deployment by CI.'
+  postgres-atomicity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: candidate_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: candidate_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed disposable PostgreSQL 17 synthetic account and device data
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+      - name: Apply staged candidate protocol to disposable DB
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+      - name: Run owner authorization, expiry, replay and no-escalation tests
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/candidate-possession-assertions.sql
