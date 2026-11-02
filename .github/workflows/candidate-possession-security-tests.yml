@@ -7,6 +7,7 @@ on:
       - bharathlink-candidate-proof-v1-test
     paths:
       - 'sql/staged/TEST-candidate-possession-v1.sql'
+      - 'sql/staged/TEST-candidate-fingerprint-v1_1.sql'
       - 'supabase/functions/bl20-candidate-possession/**'
       - 'tests/candidate-possession.test.mjs'
       - 'tests/fixtures/candidate-possession-assertions.sql'
@@ -61,5 +62,7 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
       - name: Apply staged candidate protocol to disposable DB
         run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+      - name: Apply canonical cross-platform fingerprint format
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
       - name: Run owner authorization, expiry, replay and no-escalation tests
         run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/candidate-possession-assertions.sql
