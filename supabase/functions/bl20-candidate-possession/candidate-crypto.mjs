@@ -1,6 +1,6 @@
 // BharathLink TEST candidate proof — verifies possession, NEVER authorizes trust.
 // Input is a DB-originated canonical challenge, not caller-authored text.
-import {validPublicJwk,base64UrlToBytes,derP256ToRaw} from "../bl20-device-approval/approval-crypto.mjs";
+import {validPublicJwk,base64UrlToBytes,derP256ToRaw} from "./approval-crypto.mjs";
 export const CANDIDATE_DOMAIN="BHARATHLINK_CANDIDATE_POSSESSION_V1";
 export function cleanP256PublicJwk(jwk){
   if(!validPublicJwk(jwk)) return false;
