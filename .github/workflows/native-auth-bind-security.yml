@@ -1,0 +1,67 @@
+name: BharathLink Native Auth + Key Binding (compile-only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bharathlink-native-auth-bind-v1-test
+    paths:
+      - 'android-keyprep/**'
+      - '.github/scripts/v36hf_native_auth_bind.py'
+      - '.github/workflows/native-auth-bind-security.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  staged-native-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify reviewed V36HF TEST source
+        run: echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install Android SDK
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Prepare separate TEST work directory
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_keyprep.py
+          python3 .github/scripts/v36hf_native_auth_bind.py
+      - name: Security invariants for session and keys
+        run: |
+          set -euo pipefail
+          SRC=v36hf-kotlin-build/app/src/main/java/com/bharathlink/app/keyprep
+          grep -q '/auth/v1/verify' "$SRC/NativeTestAuth.kt"
+          grep -q '/auth/v1/user' "$SRC/NativeTestAuth.kt"
+          grep -q 'create_user", false' "$SRC/NativeTestAuth.kt"
+          grep -q 'localKeysMatchVerifiedAccount' "$SRC/NativeAuthBindActivity.kt"
+          ! grep -rq 'SUPABASE_SERVICE_ROLE_KEY' "$SRC"
+          ! grep -rq 'addJavascriptInterface' "$SRC"
+          ! grep -rq 'register_e2ee_v2_device' "$SRC"
+          grep -q 'applicationIdSuffix = ".test.keypreponly"' v36hf-kotlin-build/app/build.gradle.kts
+          echo 'Only a public publishable key is configured; no trust/verification flags changed.'
+      - name: Run native auth negative unit tests and compile Kotlin
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+      - name: Stop before distribution — do not overwrite existing Keystore data
+        run: |
+          echo 'Compile-only PASS. This APK is NOT uploaded.'
+          echo 'A stable signing certificate matching the existing installed KeyPrep app is mandatory before a safe update.'
