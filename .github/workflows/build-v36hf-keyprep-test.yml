@@ -75,13 +75,12 @@ jobs:
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/apk-signing.txt
           sha256sum "$APK" > v36hf-kotlin-build/apk.sha256
 
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: BharathLink-V36HF-KEYPREP-TEST-APK
-          path: |
-            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
-            v36hf-kotlin-build/apk.sha256
-            v36hf-kotlin-build/apk-signing.txt
-          if-no-files-found: error
-          retention-days: 14
+      # SECURITY HOLD: original installed KeyPrep signing certificate was produced
+      # by an ephemeral Android debug keystore. Rebuilding on another runner signs
+      # with a different certificate and cannot safely update the installed app.
+      # Keep source, compilation and tests, but do NOT publish misleading APKs.
+      - name: Block debug APK artifact release pending stable signing continuity
+        run: |
+          echo 'RELEASE BLOCKED: original KeyPrep ONLY TEST signing key unavailable in CI'
+          echo 'Do NOT uninstall or clear existing phone KeyPrep storage.'
+          echo 'No downloadable APK is produced by this workflow.'
