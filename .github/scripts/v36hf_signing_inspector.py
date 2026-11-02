@@ -41,8 +41,8 @@ s=s.replace('versionName = "36.0.2-HF-WEBVIEW-DIAG"',
             'versionName = "SIGNER-INSPECTOR-1-TEST"',1)
 # Purge old WebView/AppCompat/network/crypto dependencies: this is ONLY an
 # Android platform PackageManager inspector. JUnit still runs in CI.
-import re
-s=re.sub(r"(?m)^\\s*(?:implementation|androidTestImplementation)\\([^\\n]*\\)\\s*\\n","",s)
+s=chr(10).join(line for line in s.splitlines()
+               if not line.strip().startswith(("implementation(", "androidTestImplementation(")))+chr(10)
 assert 'implementation("androidx.core' not in s
 assert 'implementation("com.google.android.material' not in s
 assert 'testImplementation("junit:junit:4.13.2")' in s
@@ -51,10 +51,10 @@ gradle.write_text(s,encoding="utf-8")
 # The inherited MaterialComponents theme would require the removed UI library.
 # Use the Android platform theme instead; no external UI library needed.
 styles=main/"res/values/styles.xml"
-styles.write_text('<?xml version="1.0" encoding="utf-8"?>\\n'
-                  '<resources><style name="Theme.BharathLink" '
-                  'parent="@android:style/Theme.Material.Light.NoActionBar">'
-                  '</style></resources>\\n',encoding="utf-8")
+styles.write_text('<?xml version="1.0" encoding="utf-8"?>' + chr(10) +
+                  '<resources><style name="Theme.BharathLink" ' +
+                  'parent="@android:style/Theme.Material.Light.NoActionBar">' +
+                  '</style></resources>' + chr(10),encoding="utf-8")
 
 manifest=main/"AndroidManifest.xml"
 ns="{http://schemas.android.com/apk/res/android}"

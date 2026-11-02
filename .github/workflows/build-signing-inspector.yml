@@ -74,7 +74,7 @@ jobs:
           from pathlib import Path
           text=Path('v36hf-kotlin-build/inspector-permissions.txt').read_text()
           assert 'uses-permission:' not in text, 'BLOCKED: unexpected requested permission in APK'
-          assert '\\npermission:' not in text, 'BLOCKED: unnecessary declared permission in APK'
+          assert 'permission:' not in text, 'BLOCKED: unnecessary declared permission in APK'
           print('PASS: packaged APK has no requested or declared permissions')
           PY
           sha256sum "$APK" > v36hf-kotlin-build/inspector.sha256
