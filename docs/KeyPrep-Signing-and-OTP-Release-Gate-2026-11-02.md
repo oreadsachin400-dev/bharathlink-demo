@@ -27,6 +27,11 @@
 - No OTP emails were sent, no user account was created, and Auth settings were not changed in this audit.
 - Future owner-only dashboard check: **Supabase TEST → Authentication → Email Templates → Magic Link**. Verify that it contains `{{ .Token }}`, check delivery provider & rate limits, and change template only after preview/approval. Do NOT enter or disclose real OTP to anyone.
 
+## Actual CI enforcement evidence (2 November 2026)
+- [Preflight negative-test run #41448482934](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41448482934): **SUCCESS**.
+- [KeyPrep build run #41448636377](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41448636377): compilation passed but **signer gate correctly FAILED**, so the artifact upload step did NOT run. This is an intentional compatibility rejection, **not** a successful release.
+- The old `bharathlink-device-keyprep-v1-test` build workflow was separately changed (commit `4635b1c`) to **compile-only with artifact uploads disabled** until a stable compatible signing identity is available. Previous already-downloaded APKs and phone data are unchanged.
+
 ## Tests and release status
 - GitHub preflight workflow: `.github/workflows/keyprep-signing-gate.yml` — negative tests block wrong, missing, malformed and multi-signer digests; archive evidence checks.
 - Current `bharathlink-native-auth-bind-v1-test` implementation remains compile-only, with no APK shipped. Real mobile OTP + key binding cannot be claimed until safe signing and template configuration are verified.
