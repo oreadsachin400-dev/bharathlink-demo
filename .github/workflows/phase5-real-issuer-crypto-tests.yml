@@ -83,12 +83,12 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
           psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
-      - name: Install phase4 challenge and phase5 key-pinned receipt SQL in isolated Postgres
-        run: |
-          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
-          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-issuer-pin-v2.sql
-      - name: Create pending challenge and review-only synthetic issuer case
+      - name: Install phase4 challenge in isolated Postgres
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
+      - name: Create pending challenge and check legacy review-only semantics
         run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-fixture.sql
+      - name: Upgrade to Phase 5 key-pinned receipt and revoke legacy service role
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-issuer-pin-v2.sql
       - name: Replace placeholder with REAL synthetic issuer P-256 key and signature; reject malicious proofs
         run: node tests/phase5-real-signed-recovery-ci.mjs
       - name: Concurrent v2 review receipt consumption with matching issuer fingerprint
