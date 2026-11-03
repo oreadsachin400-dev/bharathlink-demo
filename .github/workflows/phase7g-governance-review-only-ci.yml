@@ -1,0 +1,122 @@
+name: BharathLink Phase 7G — First-Device Governance Review-Only CI
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7g-first-device-governance-ci
+    paths:
+      - 'sql/staged/TEST-first-device-governance-intent-v1.sql'
+      - 'tests/phase7g-*.mjs'
+      - 'tests/fixtures/phase7g-*.sql'
+      - '.github/workflows/phase7g-governance-review-only-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  governance-source-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deny trust escalation and public governance RPC
+        run: node --test tests/phase7g-governance-contract.test.mjs
+      - name: Assert all candidate/recovery/approval endpoints remain OFF
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' supabase/functions/bl20-candidate-possession/index.ts
+          grep -Fqx 'const APPROVAL_FEATURE_RELEASED = false;' supabase/functions/bl20-device-approval/index.ts
+          grep -Fqx 'const V2_RELEASED=false; // deliberately not overridable via environment' supabase/functions/bl20-device-approval-v2/index.ts
+          grep -Fq 'const RECOVERY_RELEASED = false;' supabase/functions/bl20-recovery-v1/index.ts
+          ! grep -Eq 'supabase (functions deploy|db push)|gradle.*assemble' .github/workflows/phase7g-governance-review-only-ci.yml
+          echo 'PASS: all live trust pathways held OFF, no deployment or APK'
+
+  governance-signed-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7g_disposable_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7g_disposable_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Seed synthetic accounts, pending devices and sessions (no live DB)
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-sessions.sql
+      - name: Apply STAGED candidate and independent recovery SQL to disposable DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-issuer-pin-v2.sql
+      - name: Generate genuine synthetic issuer P-256 signature and verify on same Edge verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase5-real-signed-recovery-ci.mjs
+          bash tests/fixtures/phase5-recovery-crypto-concurrency.sh
+      - name: Install 7G private invoker-only governance receipt (no device activation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-first-device-governance-intent-v1.sql
+      - name: Reject invalid owner/session/review/issuer/consent/key/receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7g-governance-denials.sql
+      - name: Compete two SQL clients to stage exactly one non-approval governance intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7g-concurrent-intent.mjs
+      - name: Verify append-only audit and one-way consent-withdrawal veto
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7g-veto-audit.sql
+      - name: Gate check - zero fresh trusted devices or signing keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_devices where user_id='99999999-9999-4999-8999-999999999999'" | grep -qx '0'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from bl20_first_device_v1_private.review_intents where state='governance_vetoed'" | grep -qx '1'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from bl20_first_device_v1_private.audit_events" | grep -qx '2'
+          echo 'PASS: signed synthetic review -> one pending intent -> veto, NO first-device trust'
