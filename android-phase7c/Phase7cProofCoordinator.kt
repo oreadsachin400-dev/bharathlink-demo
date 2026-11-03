@@ -1,5 +1,8 @@
 package com.bharathlink.app.phase7
 
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+
 /**
  * SOURCE ONLY: isolated candidate proof coordinator, not connected to a UI.
  * The Phase 7A Play Protect block and the hard-disabled TEST Edge gate stand.
@@ -11,6 +14,18 @@ internal data class Phase7cPublicJwk(
     fun valid(): Boolean = kty == "EC" && crv == "P-256" &&
         Regex("^[A-Za-z0-9_-]{43}$").matches(x) &&
         Regex("^[A-Za-z0-9_-]{43}$").matches(y)
+
+    /** PostgreSQL jsonb::text order verified against Supabase TEST read-only.
+     * Fixed 4-key JWK, base64url EC coordinates need no JSON escaping.
+     * The server signs SHA-256 of jsonb text for ECDH and ECDSA public keys.
+     */
+    fun postgresPayloadHash(): String {
+        check(valid())
+        val canonical = """{"x": "$x", "y": "$y", "crv": "P-256", "kty": "EC"}"""
+        return MessageDigest.getInstance("SHA-256")
+            .digest(canonical.toByteArray(StandardCharsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+    }
 }
 internal data class Phase7cChallenge(
     val proofId: String, val userId: String, val deviceId: String,
@@ -77,6 +92,14 @@ internal class Phase7cProofCoordinator(
             Phase7bChallengePolicy.accepts(
                 c.payload, userId, deviceId, c.proofId, clockMs()
             )) { "Invalid server challenge" }
+
+        // Prove the signed server payload binds BOTH requested local EC keys.
+        // Otherwise a mismatched ECDH key could be accepted by a weak caller.
+        val payloadLines = c.payload.split('\n')
+        check(payloadLines[6] == ecdh.postgresPayloadHash() &&
+            payloadLines[7] == signing.postgresPayloadHash()) {
+            "Server challenge public-key hashes do not match local TEST keys"
+        }
 
         val signature = signer.sign(c.payload, userId, c.proofId, deviceId)
         check(active()) { "Auth session changed during signing" }
