@@ -31,3 +31,11 @@
 ## Source-control details
 GitHub branch: `bharathlink-phase7c-authenticated-proof-contract-test`
 Workflow: `.github/workflows/phase7c-authenticated-proof-contract-ci.yml`.
+
+## Final verified CI checkpoint
+- Final branch commit for source/tests: `0456a121765f88d6d394cc83e1690ed9d8276056`.
+- GitHub Actions: https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41698418947
+- **CI PASS: 35 JUnit tests actually executed, 13 Phase 7C contract-security cases, 0 failures, 0 errors, 0 skipped.** APK output absent by explicit CI assertion.
+- P-256 challenge payload now checks both **ECDH and signing public JWK SHA-256 hashes**, using the server's PostgreSQL `jsonb::text` canonical serialization. Exact synthetic vector was verified by a read-only query against Supabase-20-TEST: ECDH example hash `d4e14e99b1a297f7501be97a31db9647aabd90274d911f17fde34bdf14b75898`. This prevents signing challenges whose database-held EC keys do not equal the client's intended keys.
+- Final TEST read-only state observed: 8 existing messaging device rows, 0 pending device enrollments, 0 verified signing keys, 0 candidate proofs.
+- These are offline/mock-contract and compilation results only. Server Edge endpoint remains hard-disabled. **No Android installation approval, live backend possession proof, device trust, or full E2EE claim.**
