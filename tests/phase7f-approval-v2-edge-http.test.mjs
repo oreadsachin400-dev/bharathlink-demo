@@ -139,7 +139,7 @@ test("Phase7F Edge v2 demands existing signer signature AND v2 candidate proof I
   });
   await t.test("wrong cryptographic signature fails before approval transaction",async()=>{
     calls=[];
-    const altered={...valid,signatureBase64Url:valid.signature.slice(2)+"AA"};
+    const altered={...valid,signatureBase64Url:valid.signatureBase64Url.slice(2)+"AA"};
     const res=await call(enabled,altered);
     assert.notEqual(res.status,200);
     assert.ok(!calls.some(url=>url.endsWith("/rpc/bl20_commit_device_approval_v2")));
