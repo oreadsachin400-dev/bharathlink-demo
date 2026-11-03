@@ -1,0 +1,103 @@
+name: BharathLink Phase 7F — Proof-Gated Device Approval v2 CI (STAGED ONLY)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7f-possession-gated-device-approval-ci
+    paths:
+      - 'sql/staged/TEST-device-approval-v2-candidate-possession-gate.sql'
+      - 'tests/phase7f-*'
+      - 'tests/fixtures/phase7f-*'
+      - '.github/workflows/phase7f-proof-gated-approval-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract-and-release-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run v2 release gate and policy contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/phase7f-release-gates.test.mjs
+      - name: Verify original protected endpoints unchanged and hard disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' \
+             supabase/functions/bl20-candidate-possession/index.ts
+          grep -Fqx 'const APPROVAL_FEATURE_RELEASED = false;' \
+             supabase/functions/bl20-device-approval/index.ts
+          grep -Fq 'const RECOVERY_RELEASED = false;' \
+             supabase/functions/bl20-recovery-v1/index.ts
+          test ! -e supabase/functions/bl20-first-device-bootstrap/index.ts
+          echo "PASS: no live enablement, endpoint deployment, first-device bootstrap, or APK"
+
+  disposable-postgres-approval-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7f_disposable_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7f_disposable_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Prepare synthetic users, trusted approver and pending requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v2-candidate-possession-gate.sql
+      - name: Validate v2 denies missing/unproven/stale/wrong key and replays
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7f-possession-gate-assertions.sql
+      - name: Test concurrent v2 approvals against real row locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7f-parallel-approval.mjs
+      - name: Verify no first-device bootstrap created
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_devices where user_id='99999999-9999-4999-8999-999999999999'" | grep -qx '0'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select has_function_privilege('service_role','public.bl20_commit_device_approval(uuid,uuid,uuid,text,text)','EXECUTE')" | grep -qx 'f'
+          echo "PASS: synthetic second-device v2 only; first-device deny, legacy service grant revoked"
