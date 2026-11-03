@@ -1,0 +1,80 @@
+name: BharathLink Phase 4 — Atomic Recovery Receipt CI (DISPOSABLE)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase4-recovery-challenge-atomic-v1-test
+    paths:
+      - 'sql/staged/TEST-recovery-challenge-atomic-v1.sql'
+      - 'tests/fixtures/phase4-recovery-*.sql'
+      - 'tests/fixtures/phase4-recovery-concurrency.sh'
+      - 'supabase/functions/bl20-recovery-v1/**'
+      - 'recovery-gate/**'
+      - '.github/workflows/phase4-recovery-transaction-tests.yml'
+      - 'docs/Phase4-Atomic-Recovery-Challenge-2026-11-03.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-review-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Real synthetic independent-review P-256 crypto and negative tests
+        run: node --test tests/independent-review.test.mjs
+      - name: Hard-fail if deployment, approval or E2EE activation was added
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'const RECOVERY_RELEASED = false' supabase/functions/bl20-recovery-v1/index.ts
+          grep -q 'const FEATURE_RELEASED=false' supabase/functions/bl20-candidate-possession/index.ts
+          grep -q 'const APPROVAL_FEATURE_RELEASED = false' supabase/functions/bl20-device-approval/index.ts
+          ! grep -Eiq 'register_e2ee_v2_device|bl20_commit_device_approval|messaging_devices[[:space:]]*([.]|\\()|INSERT INTO public[.]messaging_devices' supabase/functions/bl20-recovery-v1/index.ts
+          ! grep -Eiq 'INSERT INTO public[.]messaging_devices|UPDATE public[.]messaging_devices|INSERT INTO public[.]messaging_device_signing_keys|UPDATE public[.]messaging_device_signing_keys' sql/staged/TEST-recovery-challenge-atomic-v1.sql
+          ! grep -Eq 'supabase (functions deploy|db push)|supabase/migrations|actions/upload-artifact|gradle.*assemble' .github/workflows/phase4-recovery-transaction-tests.yml
+          grep -q 'review_receipt_only' sql/staged/TEST-recovery-challenge-atomic-v1.sql
+          echo 'PASS: no deployments, no APK, no first-device approval, no E2EE activation'
+  postgres-single-use:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: recovery_synthetic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: recovery_synthetic_ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed synthetic-only disposable account/device fixture
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+      - name: Seed synthetic sessions
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-sessions.sql
+      - name: Install candidate possession schema in disposable DB only
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
+      - name: Install STAGED recovery challenge schema in disposable DB ONLY
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
+      - name: Verify no issuer, owner/session binding, malformed/forged/replay denial
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-fixture.sql
+      - name: Compete two independent SQL connections to consume same challenge
+        run: bash tests/fixtures/phase4-recovery-concurrency.sh
