@@ -50,6 +50,16 @@ assert 'testImplementation("junit:junit:4.13.2")' in g
 assert 'applicationIdSuffix = ".test.freshprep"' in g
 gradle.write_text(g, encoding="utf-8")
 
+# The original resources still refer to MaterialComponents, now removed.
+# Override the unused scaffold theme with a platform style for AAPT linking.
+styles = main / "res/values/styles.xml"
+styles.write_text(
+    '<?xml version="1.0" encoding="utf-8"?>' + chr(10) +
+    '<resources><style name="Theme.BharathLink" '
+    'parent="@android:style/Theme.Material.Light.NoActionBar">'
+    '</style></resources>' + chr(10), encoding="utf-8"
+)
+
 # Replace the entire manifest: exactly one launcher, no permissions/queries/
 # providers/receivers/services, and no network or backup.
 ANDROID = "http://schemas.android.com/apk/res/android"
