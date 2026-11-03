@@ -1,3 +1,4 @@
+import {verifyRecoveryReviewSignature,sha256Hex} from './review-crypto.mjs';
 /**
  * BharathLink-20-TEST only. Phase 4 recovery review receipt service.
  * NOT DEPLOYED. Permanently disabled in this reviewed revision.
@@ -8,7 +9,6 @@
 const RECOVERY_RELEASED = false; // do not change without independent audited authority
 const ALLOWED_ORIGIN = 'https://bharathlink-20-test.netlify.app';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SIG=/^[A-Za-z0-9_-]{86}$/;
 const ALLOWED_ACTIONS = new Set(['challenge', 'record-reviewed-evidence']);
 function res(status:number, body:unknown, origin:string|null=null){
   const headers:Record<string,string> = {
@@ -33,37 +33,6 @@ async function jsonApi(url:string,key:string,headers:Record<string,string>,body:
     body:JSON.stringify(body)});
   if(!reply.ok)throw new Error('rpc_failed');
   return reply.json();
-}
-function decodeRawSignature(v:unknown):Uint8Array|null{
- if(typeof v!=='string'||!SIG.test(v))return null;
- try{
-  const b=atob(v.replace(/-/g,'+').replace(/_/g,'/').padEnd(88,'='));
-  if(b.length!==64)return null;
-  const bytes=Uint8Array.from(b,ch=>ch.charCodeAt(0));
-  let canon='';for(const x of bytes)canon+=String.fromCharCode(x);
-  if(btoa(canon).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'')!==v)return null;
-  return bytes;
- }catch{return null;}
-}
-async function verifyPinnedIssuerContext(context:any):Promise<boolean>{
- if(!context || typeof context.payload!=='string' ||
-     !context.payload.startsWith('BHARATHLINK_INDEPENDENT_RECOVERY_REVIEW_V1\n') ||
-     !context.payload.endsWith('\nREVIEW_ELIGIBLE_ONLY_NO_DEVICE_APPROVAL') ||
-     context.deviceTrusted!==false || context.e2eeReady!==false) return false;
- const key=context.issuerPublicJwk,signature=decodeRawSignature(context.signatureBase64Url);
- if(!key || signature===null || typeof key!=='object' ||
-   Object.keys(key).sort().join(',')!=='crv,kty,x,y' ||
-   key.kty!=='EC'||key.crv!=='P-256')return false;
- try{
-   const vk=await crypto.subtle.importKey('jwk',{...key,ext:true,key_ops:['verify']},
-      {name:'ECDSA',namedCurve:'P-256'},false,['verify']);
-   return await crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},vk,signature,
-      new TextEncoder().encode(context.payload));
- }catch{return false;}
-}
-async function sha256Hex(text:string):Promise<string>{
- const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
- return Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
 }
 Deno.serve(async(req:Request)=>{
  const origin=req.headers.get('origin');
@@ -107,12 +76,15 @@ Deno.serve(async(req:Request)=>{
    if(!UUID.test(data.challengeId||''))return res(400,{ok:false},origin);
    const ctx=await rpc('bl20_recovery_v1_review_context',{
       p_user:user.id,p_session:sessionId,p_challenge:data.challengeId});
-   if(!await verifyPinnedIssuerContext(ctx))return res(403,{ok:false},origin);
+   if(!await verifyRecoveryReviewSignature(ctx))return res(403,{ok:false},origin);
    const digest=await sha256Hex(ctx.payload);
    const signatureDigest=await sha256Hex(ctx.signatureBase64Url);
-   const receipt=await rpc('bl20_recovery_v1_review_consume',{
+   const key=ctx.issuerPublicJwk;
+   const issuerKeyDigest=await sha256Hex(['EC','P-256',key.x,key.y].join('\n'));
+   const receipt=await rpc('bl20_recovery_v1_review_consume_v2',{
       p_user:user.id,p_session:sessionId,p_challenge:data.challengeId,
-      p_payload_sha:digest,p_attestation_sha:signatureDigest});
+      p_payload_sha:digest,p_attestation_sha:signatureDigest,
+      p_issuer_public_key_sha:issuerKeyDigest});
    if(receipt?.reviewReceiptStored!==true ||
       receipt?.deviceApproved!==false || receipt?.trustedDevice!==false ||
       receipt?.e2eeV2Ready!==false)return res(403,{ok:false},origin);

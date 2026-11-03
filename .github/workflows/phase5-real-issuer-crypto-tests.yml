@@ -1,0 +1,95 @@
+name: BharathLink Phase 5 — Real Issuer P256 and Atomic Receipt (ISOLATED CI)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase5-issuer-crypto-integration-v1-test
+    paths:
+      - 'supabase/functions/bl20-recovery-v1/**'
+      - 'sql/staged/TEST-recovery-review-issuer-pin-v2.sql'
+      - 'tests/phase5-*.mjs'
+      - 'tests/fixtures/phase5-*.sh'
+      - '.github/workflows/phase5-real-issuer-crypto-tests.yml'
+      - 'docs/Phase5-Signed-Review-CI-2026-11-03.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-and-edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Real signed P-256 tests, forged attestations and negative review cases
+        run: node --test tests/phase5-recovery-issuer-crypto.test.mjs tests/independent-review.test.mjs
+      - name: Check disabled Edge Function TypeScript
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.4
+      - name: Typecheck disabled edge handler and shared verifier
+        run: deno check supabase/functions/bl20-recovery-v1/index.ts
+      - name: Ensure irreversible trust operations remain blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'const RECOVERY_RELEASED = false' supabase/functions/bl20-recovery-v1/index.ts
+          grep -q 'const FEATURE_RELEASED=false' supabase/functions/bl20-candidate-possession/index.ts
+          grep -q 'const APPROVAL_FEATURE_RELEASED = false' supabase/functions/bl20-device-approval/index.ts
+          grep -q 'bl20_recovery_v1_review_consume_v2' supabase/functions/bl20-recovery-v1/index.ts
+          grep -q 'verifyRecoveryReviewSignature' supabase/functions/bl20-recovery-v1/index.ts
+          grep -q 'FROM PUBLIC,anon,authenticated,service_role' sql/staged/TEST-recovery-review-issuer-pin-v2.sql
+          ! grep -Eiq 'register_e2ee_v2_device|bl20_commit_device_approval|messaging_devices[.]insert|trustedDevice:true' supabase/functions/bl20-recovery-v1/index.ts
+          ! grep -Eiq 'INSERT INTO public[.]messaging_devices|UPDATE public[.]messaging_devices|INSERT INTO public[.]messaging_device_signing_keys|UPDATE public[.]messaging_device_signing_keys' sql/staged/TEST-recovery-review-issuer-pin-v2.sql
+          ! grep -Eq 'supabase (functions deploy|db push)|supabase/migrations|actions/upload-artifact|gradle.*assemble' .github/workflows/phase5-real-issuer-crypto-tests.yml
+          echo 'PASS: review-only; no issuer provisioning, APK, live deploy or trust escalation'
+
+  signed-postgres-transaction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: recovery_phase5_synthetic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: recovery_phase5_synthetic_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Seed disposable fixture with two unrelated users, devices, sessions
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-sessions.sql
+      - name: Install candidate protocol in isolated Postgres only
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
+      - name: Install phase4 challenge and phase5 key-pinned receipt SQL in isolated Postgres
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-issuer-pin-v2.sql
+      - name: Create pending challenge and review-only synthetic issuer case
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-fixture.sql
+      - name: Replace placeholder with REAL synthetic issuer P-256 key and signature; reject malicious proofs
+        run: node tests/phase5-real-signed-recovery-ci.mjs
+      - name: Concurrent v2 review receipt consumption with matching issuer fingerprint
+        run: bash tests/fixtures/phase5-recovery-crypto-concurrency.sh
