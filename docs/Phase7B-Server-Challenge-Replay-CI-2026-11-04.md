@@ -31,3 +31,11 @@ Investigate the Phase 7A Play Protect classification and stable signing/distribu
 - Workflow: `.github/workflows/phase7b-candidate-proof-ci.yml`
 
 **CI success must be verified from actual run, not inferred from a commit.**
+
+
+## Native source-only signer (additional Phase 7B work)
+- `android-phase7b/Phase7bChallengePolicy.kt` validates exact server challenge domain, verified account UUID, local device ID, proof ID, nonce, UTC expiry within five minutes, and the signed two public key hashes. No locally generated user-entered challenge is accepted.
+- `android-phase7b/Phase7bCandidateSigner.kt` prepares **public** JWKs from this new TEST package's AndroidKeyStore; after the caller has a valid, foreground-verified TEST Auth session and stored fingerprint match, it signs the exact server-supplied payload with an existing non-exportable P-256 signing alias as DER/base64url. It cannot read the old KeyPrep or Phase 6 aliases.
+- `android-phase7b/Phase7bChallengePolicyTest.kt` adds positive and negative tests for mismatched account/device/proof, expired/future payload, tampering, and malformed fields.
+- `.github/scripts/v36hf_phase7b_compileonly.py` stages these sources over isolated Phase 7A scaffolding. The Phase 7B workflow compiles them and runs JUnit tests but does not upload or issue a new APK.
+- There is **no** native end-to-end network invocation yet, no physical install and no change to the existing TEST Edge gate. Never claim server device enrollment or Play Protect clearance from this compile-only result.
