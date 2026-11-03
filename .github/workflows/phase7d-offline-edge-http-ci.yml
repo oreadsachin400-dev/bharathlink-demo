@@ -1,0 +1,98 @@
+name: BharathLink Phase 7D — Offline Edge HTTP Proof Harness (NO DEPLOYMENT)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7d-offline-http-proof-ci-test
+    paths:
+      - 'tests/phase7d-*.mjs'
+      - 'supabase/functions/bl20-candidate-possession/**'
+      - '.github/workflows/phase7d-offline-edge-http-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-edge-handler-synthetic-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exercise actual hard-gated Edge source in offline synthetic HTTP environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/candidate-possession.test.mjs tests/phase7b-challenge-crypto.test.mjs tests/phase7d-edge-http-contract.test.mjs | tee phase7d-node-output.txt
+      - name: Verify no source release-gate change or deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' supabase/functions/bl20-candidate-possession/index.ts
+          ! grep -riE 'bl20_commit_device_approval|register_e2ee_v2_device' tests/phase7d-edge-http-contract.test.mjs | grep -v 'assert.ok'
+          test ! -e supabase/functions/bl20-candidate-possession/active-index.ts
+          echo 'PASS: only temporary runner copy enabled; live Edge source unchanged'
+      - name: Upload non-sensitive CI evidence, not APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BharathLink-Phase7D-Offline-Synthetic-HTTP-Test-Log
+          path: phase7d-node-output.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  postgres-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7d_disposable_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7d_disposable_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Apply staged candidate SQL only in disposable CI container
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-ci-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+      - name: Assert expiry, replay, account isolation, and parallel consume
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-postgres-smoke.sql
+          node tests/phase7b-concurrent-consume.mjs
+      - name: Ensure zero device trust inserted
+        run: |
+          set -euo pipefail
+          psql -XAt -v ON_ERROR_STOP=1 -c 'select count(*) from public.messaging_devices' | grep -qx '0'
+          echo 'PASS: disposable SQL and zero trusted devices'
