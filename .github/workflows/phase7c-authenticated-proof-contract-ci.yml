@@ -54,6 +54,32 @@ jobs:
       - name: Compile Kotlin and run all negative contract JUnit tests
         working-directory: v36hf-kotlin-build
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Verify JUnit actually executed Phase7C tests (not compile-only PASS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          root = Path("v36hf-kotlin-build/app/build/test-results/testDebugUnitTest")
+          reports=list(root.glob("TEST-*.xml"))
+          assert reports,"No JUnit reports: prevent silent PASS"
+          total=0
+          targeted=0
+          for report in reports:
+              xml=ET.parse(report).getroot()
+              count=int(xml.get("tests","0"))
+              failures=int(xml.get("failures","0"))
+              errors=int(xml.get("errors","0"))
+              skipped=int(xml.get("skipped","0"))
+              assert not failures and not errors and not skipped, report.name
+              total+=count
+              if "Phase7cProofCoordinatorTest" in report.name:
+                  targeted+=count
+          assert targeted>=11,(targeted,reports)
+          assert total>=targeted,(total,targeted)
+          print(f"PASS: {total} actual JUnit tests, {targeted} Phase7C security cases, 0 failed/skipped")
+          PY
       - name: Confirm remote trust and APK distribution remain disabled
         shell: bash
         run: |
