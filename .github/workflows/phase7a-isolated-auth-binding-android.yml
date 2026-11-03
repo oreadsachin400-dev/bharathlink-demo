@@ -1,0 +1,97 @@
+name: BharathLink Phase 7A — Isolated TEST Account / Key Binding APK
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7a-isolated-auth-keybinding-test
+    paths:
+      - 'android-phase7a/**'
+      - 'android-keyprep/NativeTestAuth.kt'
+      - 'android-keyprep/NativeAuthConfig.kt'
+      - 'android-keyprep/AuthBindingPolicy*'
+      - 'android-keyprep/EphemeralTestSession*'
+      - '.github/scripts/v36hf_phase7a_isolated.py'
+      - '.github/workflows/phase7a-isolated-auth-binding-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-phase7a-account-key-match:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source archive checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Assemble isolated Phase7A source in disposable workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_phase7a_isolated.py
+      - name: Static protection and single-purpose package checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=v36hf-kotlin-build/app/src/main/java
+          test "$(find "$SRC" -type f \( -name '*.kt' -o -name '*.java' \) | wc -l)" -eq 6
+          test "$(find v36hf-kotlin-build/app/src/test -type f \( -name '*.kt' -o -name '*.java' \) | wc -l)" -eq 3
+          grep -q 'applicationIdSuffix = ".test.phase7bind"' v36hf-kotlin-build/app/build.gradle.kts
+          ! grep -riE 'SUPABASE_SERVICE_ROLE_KEY|bl20_commit_device_approval|register_e2ee_v2_device|deleteEntry\(|addJavascriptInterface' "$SRC"
+          grep -q 'LOCAL_ACCOUNT_KEY_MATCH_ONLY_NOT_TRUSTED' "$SRC/com/bharathlink/app/phase7/Phase7AuthBindActivity.kt"
+          echo "PASS: no server approval or existing KeyPrep operations"
+      - name: Compile native Android and run account mismatch security tests
+        working-directory: v36hf-kotlin-build
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - name: Verify APK identity, permissions and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/phase7a-apksigner.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" > v36hf-kotlin-build/phase7a-badging.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump permissions "$APK" > v36hf-kotlin-build/phase7a-permissions.txt
+          grep -q "^package: name='com.bharathlink.app.test.phase7bind' versionCode='1'" v36hf-kotlin-build/phase7a-badging.txt
+          grep -q "^launchable-activity: name='com.bharathlink.app.phase7.Phase7AuthBindActivity'" v36hf-kotlin-build/phase7a-badging.txt
+          grep -q "uses-permission: name='android.permission.INTERNET'" v36hf-kotlin-build/phase7a-permissions.txt
+          test "$(grep -c '^uses-permission:' v36hf-kotlin-build/phase7a-permissions.txt)" -eq 1
+          sha256sum "$APK" > v36hf-kotlin-build/phase7a.sha256
+          echo "PASS: unique test package, one INTERNET permission, debug-signed APK"
+      - name: Upload isolated Phase7A TEST APK (never install over KeyPrep)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BharathLink-Phase7A-Account-Key-Binding-TEST-APK
+          path: |
+            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+            v36hf-kotlin-build/phase7a.sha256
+            v36hf-kotlin-build/phase7a-apksigner.txt
+            v36hf-kotlin-build/phase7a-badging.txt
+            v36hf-kotlin-build/phase7a-permissions.txt
+          if-no-files-found: error
+          retention-days: 14
