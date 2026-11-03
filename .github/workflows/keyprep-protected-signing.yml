@@ -69,6 +69,20 @@ jobs:
           python3 .github/scripts/v36hf_webview_diag.py
           python3 .github/scripts/v36hf_keyprep.py
           python3 .github/scripts/v36hf_native_auth_bind.py
+      - name: Block stale pre-Phase-2 account-to-key code before signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=v36hf-kotlin-build/app/src/main/java/com/bharathlink/app/keyprep
+          TESTS=v36hf-kotlin-build/app/src/test/java/com/bharathlink/app/keyprep
+          if [ ! -s "$SOURCE/LocalBindingGate.kt" ] ||
+             [ ! -s "$TESTS/LocalBindingGateTest.kt" ] ||
+             ! grep -q 'LocalBindingGate.evaluate' "$SOURCE/NativeAuthBindActivity.kt" ||
+             ! grep -q 'LOCAL_MATCH_ONLY_NOT_TRUSTED' "$SOURCE/LocalBindingGate.kt"; then
+            echo 'BLOCKED: protected signer source is stale; Phase-2 fail-closed account-to-key gate not integrated' >&2
+            exit 1
+          fi
+          echo 'PASS: current fail-closed binding gate staged for unit testing'
       - name: Unit tests and compile only
         working-directory: v36hf-kotlin-build
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace

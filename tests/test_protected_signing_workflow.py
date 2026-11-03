@@ -40,6 +40,18 @@ class ProtectedSigningWorkflowTests(unittest.TestCase):
         self.assertIn('apksigner" verify',self.workflow)
         self.assertIn('aapt" dump badging',self.workflow)
 
+    def test_never_signs_stale_account_binding_code(self):
+        staging=self.workflow.index("Prepare same-package native authenticated TEST update")
+        gate=self.workflow.index("Block stale pre-Phase-2 account-to-key code before signing")
+        building=self.workflow.index("Unit tests and compile only")
+        signing=self.workflow.index("Sign through GitHub protected environment")
+        self.assertLess(staging,gate)
+        self.assertLess(gate,building)
+        self.assertLess(building,signing)
+        self.assertIn('LocalBindingGate.evaluate',self.workflow)
+        self.assertIn('LocalBindingGateTest.kt',self.workflow)
+        self.assertIn('LOCAL_MATCH_ONLY_NOT_TRUSTED',self.workflow)
+
     def test_signing_keystore_removed_from_runner(self):
         self.assertIn("umask 077",self.workflow)
         self.assertIn('trap \'rm -rf "$tmp"\' EXIT',self.workflow)
