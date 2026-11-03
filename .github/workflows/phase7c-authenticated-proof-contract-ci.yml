@@ -1,0 +1,65 @@
+name: BharathLink Phase 7C — Authenticated Native Proof Contract CI (NO APK)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7c-authenticated-proof-contract-test
+    paths:
+      - 'android-phase7c/**'
+      - '.github/scripts/v36hf_phase7c_compileonly.py'
+      - '.github/workflows/phase7c-authenticated-proof-contract-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-account-challenge-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check pinned TEST source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Stage source-only Phase7C over isolated TEST Android package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_phase7a_isolated.py
+          python3 .github/scripts/v36hf_phase7b_compileonly.py
+          python3 .github/scripts/v36hf_phase7c_compileonly.py
+      - name: Compile Kotlin and run all negative contract JUnit tests
+        working-directory: v36hf-kotlin-build
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Confirm remote trust and APK distribution remain disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'const FEATURE_RELEASED=false' supabase/functions/bl20-candidate-possession/index.ts
+          test ! -d v36hf-kotlin-build/app/build/outputs/apk
+          ! grep -rE 'KeyStore.deleteEntry|bl20_commit_device_approval|register_e2ee_v2_device|SUPABASE_SERVICE_ROLE_KEY' android-phase7c
+          test "$(find android-phase7c -name '*Test.kt' | wc -l)" -eq 1
+          echo "PASS: source-only native TEST auth proof contract; no APK, no activation"
