@@ -16,7 +16,7 @@ test("v2 requires signed candidate proof state bound to both keys",()=>{
   "p_candidate_proof_id","p.state<>'possession_proven'",
   "p.ecdh_public_jwk IS DISTINCT FROM r.proposed_public_key_jwk",
   "p.signing_public_jwk IS DISTINCT FROM r.proposed_signing_public_key_jwk",
-  "p.device_id<>r.proposed_device_id","p.user_id=p_user_id",
+  "p.device_id<>r.proposed_device_id","AND user_id=p_user_id FOR UPDATE",
   "p.consumed_at IS NULL"
  ])assert.ok(sql.includes(required),required);
 });
