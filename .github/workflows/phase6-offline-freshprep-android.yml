@@ -1,0 +1,100 @@
+name: BharathLink Phase 6 — Isolated Offline Fresh Key Prep TEST APK
+
+on:
+  push:
+    branches:
+      - bharathlink-phase6-offline-android-freshprep-v1-test
+    paths:
+      - 'android-freshprep/**'
+      - '.github/scripts/v36hf_freshprep_isolated.py'
+      - '.github/workflows/phase6-offline-freshprep-android.yml'
+      - 'docs/Phase6-Offline-Fresh-Prep-Android-2026-11-03.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-native-selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate archived TEST source ZIP SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Stage disposable standalone TEST in isolated temp directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_freshprep_isolated.py
+      - name: Enforce zero inherited WebView or native KeyPrep sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN=v36hf-kotlin-build/app/src/main
+          test "$(find "$MAIN" -name '*.kt' -o -name '*.java' | wc -l)" -eq 2
+          test "$(find v36hf-kotlin-build/app/src/test -name '*.kt' | wc -l)" -eq 1
+          grep -q 'applicationIdSuffix = ".test.freshprep"' v36hf-kotlin-build/app/build.gradle.kts
+          grep -q 'minSdk = 31' v36hf-kotlin-build/app/build.gradle.kts
+          ! grep -q 'android.permission' "$MAIN/AndroidManifest.xml"
+          ! grep -q '<queries' "$MAIN/AndroidManifest.xml"
+          ! grep -q 'INTERNET' "$MAIN/AndroidManifest.xml"
+          ! grep -q '<service' "$MAIN/AndroidManifest.xml"
+          ! grep -q '<provider' "$MAIN/AndroidManifest.xml"
+          ! grep -q '<receiver' "$MAIN/AndroidManifest.xml"
+          grep -q 'android:allowBackup="false"' "$MAIN/AndroidManifest.xml"
+          ! grep -rE 'SUPABASE_SERVICE_ROLE_KEY|Authorization: Bearer|HttpURLConnection|register_e2ee_v2_device|bl20_commit_device_approval|addJavascriptInterface' "$MAIN/java"
+      - name: JUnit local policy negative tests and Android compilation
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        working-directory: v36hf-kotlin-build
+      - name: Verify exact unique installed package, zero permissions, signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/freshprep-signing.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" > v36hf-kotlin-build/freshprep-badging.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump permissions "$APK" > v36hf-kotlin-build/freshprep-permissions.txt
+          grep -q "^package: name='com.bharathlink.app.test.freshprep' versionCode='1'" v36hf-kotlin-build/freshprep-badging.txt
+          grep -q "^launchable-activity: name='com.bharathlink.app.freshprep.FreshKeyPrepActivity'" v36hf-kotlin-build/freshprep-badging.txt
+          ! grep -q 'uses-permission:' v36hf-kotlin-build/freshprep-permissions.txt
+          ! grep -q 'permission:' v36hf-kotlin-build/freshprep-permissions.txt
+          sha256sum "$APK" > v36hf-kotlin-build/freshprep-apk.sha256
+          echo 'PASS: unique TEST package, Android 12+, no runtime or install permissions'
+      - name: Upload isolated offline debug APK (disposable test only)
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: BharathLink-Phase6-Fresh-Prep-OFFLINE-TEST-APK
+          path: |
+            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
+            v36hf-kotlin-build/freshprep-signing.txt
+            v36hf-kotlin-build/freshprep-badging.txt
+            v36hf-kotlin-build/freshprep-permissions.txt
+            v36hf-kotlin-build/freshprep-apk.sha256
+          if-no-files-found: error
+          retention-days: 14
