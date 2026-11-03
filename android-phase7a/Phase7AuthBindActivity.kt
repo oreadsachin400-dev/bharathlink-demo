@@ -50,6 +50,7 @@ class Phase7AuthBindActivity : Activity() {
     private lateinit var verify: Button
     @Volatile private var busy = false
     @Volatile private var foreground = false
+    private var foregroundEpoch = 0 // invalidates OTP result after any background transition
 
     private fun prefs() = getSharedPreferences(PREF, MODE_PRIVATE)
     private fun store(): KeyStore =
@@ -269,6 +270,7 @@ class Phase7AuthBindActivity : Activity() {
     private fun verifyAndBind() {
         val mail = email.text.toString()
         val code = otp.text.toString()
+        val requestEpoch = foregroundEpoch
         otp.text.clear()
         if (!begin()) return
         Thread {
@@ -278,7 +280,8 @@ class Phase7AuthBindActivity : Activity() {
             val verified = session
             runOnUiThread {
                 try {
-                    val answer = if (!foreground || verified == null ||
+                    val answer = if (!foreground || requestEpoch != foregroundEpoch ||
+                        verified == null ||
                         verified.tokenForProtectedCall() == null) {
                         "TEST AUTH OR SESSION NOT CONFIRMED — BLOCKED."
                     } else bindLocalVerifiedSubject(verified.userId)
@@ -319,6 +322,7 @@ class Phase7AuthBindActivity : Activity() {
     }
     override fun onStop() {
         foreground = false
+        foregroundEpoch++
         if (::otp.isInitialized) otp.text.clear()
         super.onStop()
     }
