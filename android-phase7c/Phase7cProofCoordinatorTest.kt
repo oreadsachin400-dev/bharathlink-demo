@@ -15,7 +15,7 @@ class Phase7cProofCoordinatorTest {
     private val token="synthetic_ci_only_not_a_real_access_token_0123456789"
     private fun payload()=listOf(
         Phase7bChallengePolicy.DOMAIN,account,proof,device,nonce,
-        "2026-11-04T00:04:00.000Z","a".repeat(64),"b".repeat(64)
+        "2026-11-04T00:04:00.000Z",ecdh.postgresPayloadHash(),sign.postgresPayloadHash()
     ).joinToString("\n")
     private fun challenge()=Phase7cChallenge(proof,account,device,sign,payload(),false)
     private fun receipt()=Phase7cReceipt(proof,device,true,false,false,false)
@@ -60,6 +60,22 @@ class Phase7cProofCoordinatorTest {
         catch (_:IllegalStateException) {}
         catch (_:IllegalArgumentException) {}
     }
+    @Test fun matchesPostgreSQLJsonbHashReferenceVector() {
+        // Verified from SELECT jsonb_build_object(...)::text and digest(...) on TEST.
+        assertEquals("d4e14e99b1a297f7501be97a31db9647aabd90274d911f17fde34bdf14b75898",
+            ecdh.postgresPayloadHash())
+        assertNotEquals(ecdh.postgresPayloadHash(),sign.postgresPayloadHash())
+    }
+    @Test fun deniesChangedEcdhOrSigningHashesBeforePrivateKeyUse() {
+        for(hash in listOf(ecdh.postgresPayloadHash(),sign.postgresPayloadHash())) {
+            val modified=payload().replace(hash,"0".repeat(64))
+            val w=Wire(challenge().copy(payload=modified),receipt())
+            val s=Signer()
+            rejects {ctx(w,s).prove(Session(account,token,true),device,ecdh,sign)}
+            assertEquals(0,s.called)
+            assertEquals(0,w.finishes)
+        }
+    }
     @Test fun validSyntheticRoundTripProvesPossessionButNeverTrust() {
         val w=Wire(challenge(),receipt());val s=Signer()
         val r=ctx(w,s).prove(Session(account,token,true),device,ecdh,sign)
@@ -101,7 +117,7 @@ class Phase7cProofCoordinatorTest {
     }
     @Test fun rejectsMalformedSignedPayloadAndExpiredChallengeBeforeSigning() {
         for(p in listOf(payload().replace(account,nonce),
-            payload().replace("a".repeat(64),"bad"),
+            payload().replace(ecdh.postgresPayloadHash(),"bad"),
             payload().replace("00:04:00","00:00:00"),
             payload()+"\nextra")) {
             val w=Wire(challenge().copy(payload=p),receipt());val s=Signer()
