@@ -6,6 +6,8 @@ on:
       - bharathlink-phase7b-challenge-possession-ci-test
     paths:
       - 'tests/phase7b-*.mjs'
+      - 'android-phase7b/**'
+      - '.github/scripts/v36hf_phase7b_compileonly.py'
       - 'tests/fixtures/phase7b-*.sql'
       - 'sql/staged/TEST-candidate-possession-v1.sql'
       - 'supabase/functions/bl20-candidate-possession/**'
@@ -87,3 +89,50 @@ jobs:
             supabase/functions/bl20-candidate-possession/index.ts
           test ! -e supabase/functions/bl20-phase7b-active/index.ts
           echo "PASS: no remote Supabase writes, no device activation, no Android APK"
+
+  native-signer-compile-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned TEST source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Stage Phase7A disposable Kotlin source with Phase7B signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_phase7a_isolated.py
+          python3 .github/scripts/v36hf_phase7b_compileonly.py
+      - name: Compile-only native signer and pure policy JUnit tests
+        working-directory: v36hf-kotlin-build
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: No APK published or remote device trust activated
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'applicationIdSuffix = ".test.phase7bind"' v36hf-kotlin-build/app/build.gradle.kts
+          test -f v36hf-kotlin-build/app/src/main/java/com/bharathlink/app/phase7/Phase7bCandidateSigner.kt
+          echo "PASS: compiled signer source only, no APK release, original KeyPrep unaffected"
