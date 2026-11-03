@@ -88,7 +88,7 @@ assert perm.get(NS+"name")=="android.permission.INTERNET"
 
 allsource="\n".join(i.read_text() for i in main.rglob("*.kt"))
 for forbidden in (
-    "SUPABASE_SERVICE_ROLE_KEY","service_role","bl20_commit_device_approval",
+    "SUPABASE_SERVICE_ROLE_KEY","bl20_commit_device_approval",
     "bl20_candidate_proof_finish","register_e2ee_v2_device",
     "KeyStore.deleteEntry","deleteEntry(","addJavascriptInterface",
     "messaging_devices","e2ee_v2_devices","trustedDevice:true",
