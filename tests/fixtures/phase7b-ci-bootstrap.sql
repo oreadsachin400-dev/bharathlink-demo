@@ -1,0 +1,16 @@
+-- Isolated CI-only PostgreSQL scaffolding. Never apply to Supabase or production.
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+DO $$
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF;
+END $$;
+CREATE TABLE IF NOT EXISTS auth.users(id uuid PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS public.messaging_devices(id uuid PRIMARY KEY);
+INSERT INTO auth.users(id) VALUES
+ ('11111111-1111-4111-8111-111111111111'),
+ ('22222222-2222-4222-8222-222222222222')
+ON CONFLICT DO NOTHING;
