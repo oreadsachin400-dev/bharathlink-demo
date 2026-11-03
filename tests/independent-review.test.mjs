@@ -55,7 +55,6 @@ test('tampered device, key fingerprints, evidence, reviewer, time are signed, no
  f=>{f.trustedRequest.challengeId='88888888-8888-4888-8888-888888888888';},
  f=>{f.trustedRequest.candidateProofId='88888888-8888-4888-8888-888888888888';},
  f=>{f.trustedRequest.ecdhKeyDigest='d'.repeat(64);},
- f=>{f.trustedRequest.signingKeyDigest='d'.repeat(64);},
  f=>{f.trustedReview.evidenceDigest='d'.repeat(64);},
  f=>{f.trustedReview.reviewerIds[1]='88888888-8888-4888-8888-888888888888';},
  f=>{f.trustedReview.issuedAt=tm(-50);}
@@ -73,6 +72,7 @@ test('unproven candidate, invalid proof and changed key digest cannot unlock rec
  await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.candidateProofId=null;});
  await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.challengeId=null;});
  await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.candidateProofSigningDigest='d'.repeat(64);});
+ await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.signingKeyDigest='d'.repeat(64);});
 });
 test('recovery path refuses to override existing verified approver or unknown signer count',async()=>{
  await blocked('NOT_A_FIRST_DEVICE_RECOVERY',f=>{f.trustedRequest.verifiedApproverCount=1;});
