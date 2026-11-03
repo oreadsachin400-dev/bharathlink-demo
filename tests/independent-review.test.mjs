@@ -7,10 +7,10 @@ import {assessIndependentRecovery,canonicalReviewPayload,REVIEW_ELIGIBLE,REVIEW_
 const subtle=webcrypto.subtle;
 const user='11111111-1111-4111-8111-111111111111', session='22222222-2222-4222-8222-222222222222';
 const requestId='33333333-3333-4333-8333-333333333333', deviceId='44444444-4444-4444-8444-444444444444';
-const caseId='55555555-5555-4555-8555-555555555555',r1='66666666-6666-4666-8666-666666666666',r2='77777777-7777-4777-8777-777777777777';
+const caseId='55555555-5555-4555-8555-555555555555', challengeId='99999999-9999-4999-8999-999999999999', proofId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',r1='66666666-6666-4666-8666-666666666666',r2='77777777-7777-4777-8777-777777777777';
 const nowMs=Date.parse('2026-11-03T08:00:00.000Z');
 const tm=s=>new Date(nowMs+s*1000).toISOString();
-const baseRequest=()=>({userId:user,requestId,deviceId,ecdhKeyDigest:'a'.repeat(64),signingKeyDigest:'b'.repeat(64),requestStatus:'pending',consumedAt:null,verifiedApproverCount:0,createdAt:tm(-180),expiresAt:tm(180)});
+const baseRequest=()=>({userId:user,requestId,deviceId,challengeId,candidateProofId:proofId,candidateProofState:'possession_proven',candidateProofSigningDigest:'b'.repeat(64),ecdhKeyDigest:'a'.repeat(64),signingKeyDigest:'b'.repeat(64),requestStatus:'pending',consumedAt:null,verifiedApproverCount:0,createdAt:tm(-180),expiresAt:tm(180)});
 const baseAuth=()=>({userId:user,sessionId:session,validatedByAuthServer:true,activeSessionInDatabase:true});
 const baseReview=()=>({caseId,userId:user,requestId,state:'independently_verified',evidenceDigest:'c'.repeat(64),reviewerIds:[r1,r2],ownerConsentAt:tm(-100),issuedAt:tm(-60),expiresAt:tm(120)});
 function b64Url(bytes){return Buffer.from(bytes).toString('base64url');}
@@ -52,6 +52,8 @@ test('different account, different case, different request and session rejected'
 test('tampered device, key fingerprints, evidence, reviewer, time are signed, not mutable',async()=>{
  for(const tweak of [
  f=>{f.trustedRequest.deviceId='88888888-8888-4888-8888-888888888888';},
+ f=>{f.trustedRequest.challengeId='88888888-8888-4888-8888-888888888888';},
+ f=>{f.trustedRequest.candidateProofId='88888888-8888-4888-8888-888888888888';},
  f=>{f.trustedRequest.ecdhKeyDigest='d'.repeat(64);},
  f=>{f.trustedRequest.signingKeyDigest='d'.repeat(64);},
  f=>{f.trustedReview.evidenceDigest='d'.repeat(64);},
@@ -65,6 +67,12 @@ test('expired or consumed request, bad TTL and malformed digests rejected',async
  await blocked('INVALID_PENDING_REQUEST',f=>{f.trustedRequest.consumedAt=tm(-10);});
  await blocked('INVALID_PENDING_REQUEST',f=>{f.trustedRequest.signingKeyDigest='invalid';});
  await blocked('REQUEST_EXPIRED_OR_INVALID_TTL',f=>{f.trustedRequest.createdAt=tm(-1000);});
+});
+test('unproven candidate, invalid proof and changed key digest cannot unlock recovery',async()=>{
+ await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.candidateProofState='pending';});
+ await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.candidateProofId=null;});
+ await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.challengeId=null;});
+ await blocked('CANDIDATE_POSSESSION_REQUIRED',f=>{f.trustedRequest.candidateProofSigningDigest='d'.repeat(64);});
 });
 test('recovery path refuses to override existing verified approver or unknown signer count',async()=>{
  await blocked('NOT_A_FIRST_DEVICE_RECOVERY',f=>{f.trustedRequest.verifiedApproverCount=1;});

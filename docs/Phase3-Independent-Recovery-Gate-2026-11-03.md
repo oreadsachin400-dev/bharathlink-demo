@@ -33,3 +33,6 @@ A signed review is not sufficient evidence of the real-world quality of identity
 Run node --test tests/independent-review.test.mjs. The tests use real randomly generated synthetic P-256 ECDSA keys and negative cases for tampering, wrong issuer, account/session mismatch, expired/consumed requests, wrong fingerprints, invalid consent and malicious input.
 GitHub CI checks candidate proof and device approval endpoints remain hard-disabled. No signed APK is built/uploaded by this workflow.
 This is REVIEW-ONLY STAGING. No Supabase/DEMO/production/Android state is changed, and NO device trust/enrollment approval is granted.
+
+## Phase 3 v1.1 tightening
+The signed canonical review now binds an independently server-issued challengeId and candidateProofId. A separate, server-verified candidate P-256 possession record must be in possession_proven state and its public signing-key digest must match the pending candidate exactly. These fields MUST be joined from trusted DB state, not uploaded by a client. No challenge is consumed or approved by this offline module; future server activation still requires transactionally atomic nonce consumption and real independent identity authority.

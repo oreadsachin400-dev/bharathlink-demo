@@ -27,6 +27,7 @@ export function canonicalReviewPayload(trustedRequest, trustedAuth, trustedRevie
     REVIEW_DOMAIN,
     trustedRequest.userId, trustedAuth.sessionId,
     trustedRequest.requestId, trustedRequest.deviceId,
+    trustedRequest.challengeId, trustedRequest.candidateProofId,
     trustedRequest.ecdhKeyDigest, trustedRequest.signingKeyDigest,
     trustedReview.caseId, trustedReview.evidenceDigest,
     trustedReview.reviewerIds[0], trustedReview.reviewerIds[1],
@@ -77,6 +78,10 @@ export async function assessIndependentRecovery({trustedRequest, trustedAuth,
   if (Date.parse(r.createdAt) > nowMs || Date.parse(r.expiresAt) <= nowMs ||
       Date.parse(r.expiresAt) - Date.parse(r.createdAt) > 15 * 60 * 1000)
     return denied('REQUEST_EXPIRED_OR_INVALID_TTL');
+  if (!uuid(r.challengeId) || !uuid(r.candidateProofId) ||
+      r.candidateProofState !== 'possession_proven' ||
+      r.candidateProofSigningDigest !== r.signingKeyDigest)
+    return denied('CANDIDATE_POSSESSION_REQUIRED');
   if (!uuid(a.userId) || !uuid(a.sessionId) ||
       a.validatedByAuthServer !== true || a.activeSessionInDatabase !== true ||
       a.userId !== r.userId)
