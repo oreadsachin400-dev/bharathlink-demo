@@ -1,0 +1,37 @@
+name: BharathLink Phase 3 — Independent Recovery Review Gate (TEST only)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase3-independent-recovery-gate-v1-test
+    paths:
+      - 'recovery-gate/**'
+      - 'tests/independent-review.test.mjs'
+      - '.github/workflows/phase3-recovery-review-tests.yml'
+      - 'docs/Phase3-Independent-Recovery-Gate-2026-11-03.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-cryptographic-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run real signed synthetic P-256 cases and negative recovery tests
+        run: node --test tests/independent-review.test.mjs
+      - name: Check feature remains strictly non-operational
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "const FEATURE_RELEASED=false" supabase/functions/bl20-candidate-possession/index.ts
+          grep -q "const APPROVAL_FEATURE_RELEASED = false" supabase/functions/bl20-device-approval/index.ts
+          grep -q "REVIEW_ELIGIBLE_ONLY_NO_DEVICE_APPROVAL" recovery-gate/independent-review.mjs
+          ! grep -Eq 'register_e2ee_v2_device|bl20_commit_device_approval|messaging_devices\.insert|service_role' recovery-gate/independent-review.mjs
+          ! grep -q 'uses: actions/upload-artifact' .github/workflows/phase3-recovery-review-tests.yml
+          echo 'PASS: no deploy, no APK, no registration/approval, no trust escalation'
