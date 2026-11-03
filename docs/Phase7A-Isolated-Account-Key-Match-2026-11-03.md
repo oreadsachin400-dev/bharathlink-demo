@@ -35,3 +35,12 @@ A real server-generated one-time challenge with verified signed possession, rigo
 ## Branch
 `bharathlink-phase7a-isolated-auth-keybinding-test`
 Workflow: `.github/workflows/phase7a-isolated-auth-binding-android.yml`.
+
+## Physical Android installation blocker — 3 November 2026
+The user attempted to install the CI-generated Phase 7A TEST APK on Android. Google Play Protect displayed **Harmful app blocked: This app can put your device or data at risk**. The installation was blocked. No physical OTP account-key binding test is claimed or permitted based on the current result. Preserve the APK for forensic review but do NOT direct the user to disable Play Protect, bypass its classification, or force install.
+
+Artifact independently reviewed offline: GitHub CI ZIP and extracted APK SHA-256 **a16768f0ee8519ecd144ac032c54d32a3735aa6a09577d3f4fc080be77e6cd7e** match, zip structure is intact, the APK is debug signed (certificate CN=Android Debug) and declares INTERNET only. These checks DO NOT establish malware safety, explain Google's classification, or override the warning.
+
+Next safe step: Capture the Play Protect **More details** classification without proceeding with installation; inspect source and bundled dependencies against the category Google reports, review Android security/permissions and signing/distribution. If analysis supports a false-positive determination, use Google's Play Protect developer appeal process. Keep phone test **BLOCKED** until issue is resolved. Phase 6 PASS remains unchanged. Existing KeyPrep, DEMO, TEST Supabase data and device trust flags stay untouched.
+
+Google developer guidance: https://developers.google.com/android/play-protect/warning-dev-guidance
