@@ -1,0 +1,84 @@
+name: BharathLink Phase 7E — Real Edge ↔ Real PostgreSQL Proof CI (OFFLINE)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7e-http-postgres-integration-ci
+    paths:
+      - 'tests/phase7e-*.mjs'
+      - 'supabase/functions/bl20-candidate-possession/**'
+      - 'sql/staged/TEST-candidate-possession-v1.sql'
+      - '.github/workflows/phase7e-edge-postgres-integration-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  edge-postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7e_disposable_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7e_disposable_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install local PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Create ephemeral synthetic schema and load unchanged TEST candidate RPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-ci-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'select count(*) from public.messaging_devices')" -eq 0
+      - name: Execute actual Edge handler + actual PostgreSQL start/verify/atomic-finish
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/phase7e-edge-postgres-integrated.test.mjs | tee phase7e-ci-log.txt
+          grep -q '# fail 0' phase7e-ci-log.txt
+          grep -q '# skipped 0' phase7e-ci-log.txt
+      - name: Verify protected production/TEST source release gates never changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' supabase/functions/bl20-candidate-possession/index.ts
+          grep -Fqx 'const APPROVAL_FEATURE_RELEASED = false;' supabase/functions/bl20-device-approval/index.ts
+          grep -Fq 'const RECOVERY_RELEASED = false;' supabase/functions/bl20-recovery-v1/index.ts
+          test ! -e supabase/functions/bl20-phase7e-live/index.ts
+          psql -XAt -v ON_ERROR_STOP=1 -c 'select count(*) from public.messaging_devices' | grep -qx '0'
+          echo 'PASS: no live enablement, approval, APK, trusted device, or E2EE activation'
+      - name: Upload sanitized CI output, never keys or APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BharathLink-Phase7E-Offline-Edge-Postgres-Log
+          path: phase7e-ci-log.txt
+          if-no-files-found: warn
+          retention-days: 7
