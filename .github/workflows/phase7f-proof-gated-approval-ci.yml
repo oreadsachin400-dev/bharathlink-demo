@@ -6,6 +6,7 @@ on:
       - bharathlink-phase7f-possession-gated-device-approval-ci
     paths:
       - 'sql/staged/TEST-device-approval-v2-candidate-possession-gate.sql'
+      - 'supabase/functions/bl20-device-approval-v2/**'
       - 'tests/phase7f-*'
       - 'tests/fixtures/phase7f-*'
       - '.github/workflows/phase7f-proof-gated-approval-ci.yml'
@@ -27,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test tests/phase7f-release-gates.test.mjs
+          node --test tests/phase7f-release-gates.test.mjs tests/phase7f-approval-v2-edge-http.test.mjs
       - name: Verify original protected endpoints unchanged and hard disabled
         shell: bash
         run: |
@@ -38,6 +39,7 @@ jobs:
              supabase/functions/bl20-device-approval/index.ts
           grep -Fq 'const RECOVERY_RELEASED = false;' \
              supabase/functions/bl20-recovery-v1/index.ts
+          grep -Fqx 'const V2_RELEASED=false; // deliberately not overridable via environment' supabase/functions/bl20-device-approval-v2/index.ts
           test ! -e supabase/functions/bl20-first-device-bootstrap/index.ts
           echo "PASS: no live enablement, endpoint deployment, first-device bootstrap, or APK"
 
