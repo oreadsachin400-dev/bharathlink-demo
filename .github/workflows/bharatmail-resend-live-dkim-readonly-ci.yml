@@ -7,6 +7,7 @@ on:
     paths:
       - 'mail-verifier/**'
       - 'supabase/functions/bl-mail-auth-attest/resend-raw-evidence.mjs'
+      - 'supabase/functions/bharatmail-dkim-check-test/**'
       - 'bharatmail-trust-engine.js'
       - 'tests/bharatmail-trust-engine.test.mjs'
       - 'sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql'
