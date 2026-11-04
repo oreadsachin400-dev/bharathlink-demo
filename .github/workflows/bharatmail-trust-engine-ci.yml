@@ -1,0 +1,48 @@
+name: BharathLink Mail Trust Engine — Offline Security and UI Contract
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-trust-engine-staged-ci
+    paths:
+      - 'bharatmail-trust-engine.js'
+      - 'index.html'
+      - 'tests/bharatmail-trust-engine.test.mjs'
+      - '.github/workflows/bharatmail-trust-engine-ci.yml'
+      - 'docs/BharathMail-Trust-Engine-2026-11-04.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-mail-trust-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse offline engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check bharatmail-trust-engine.js
+      - name: Execute deterministic sender, phishing, payment and UI integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/bharatmail-trust-engine.test.mjs | tee /tmp/bharatmail-trust-results.txt
+          grep -q '# fail 0' /tmp/bharatmail-trust-results.txt
+          grep -q '# skipped 0' /tmp/bharatmail-trust-results.txt
+      - name: Enforce zero backend release, external model request or app distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -E 'fetch\(|XMLHttpRequest|sendBeacon\(' bharatmail-trust-engine.js
+          ! grep -E 'supabase (db push|functions deploy)|assembleDebug|actions/upload-artifact@' .github/workflows/bharatmail-trust-engine-ci.yml
+          grep -Fq 'BharathMail Sender Trust' index.html
+          grep -Fq 'SPF/DKIM/DMARC: not checked' index.html
+          grep -Fq 'Not independently verified' index.html
+          echo 'PASS: no live Supabase/Netlify changes, identity authority, APK, or external AI data transfer'
