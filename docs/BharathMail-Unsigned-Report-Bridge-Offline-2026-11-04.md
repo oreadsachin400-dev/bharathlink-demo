@@ -23,7 +23,9 @@ verified sender.
   aligned to the author From domain. DMARC PASS requires the evaluator's
   qualified strict domain match.
 - The output is **UNSIGNED**: no issuer key is created, loaded, exposed or
-  provisioned in the application module. The integration test generates
+  provisioned in the application module. The downstream synthetic report
+  issuer identifier must be supplied explicitly and must differ from the
+  SMTP receiver's signing-key identifier. The integration test generates
   ephemeral synthetic issuer keys in memory to check that the existing
   signed-report consumer accepts the exact bound schema.
 - Receipt provider ID, sender, routed recipient, MIME SHA-256, nonce and
@@ -46,12 +48,11 @@ replay handling; actual operator storage and deployment require review.
 ## Tests
 
 `mail-verifier/tests/unsigned-report-bridge-offline.test.mjs`
-has nine integration/adversarial checks: exact strict SPF/DKIM/DMARC,
+has ten integration/adversarial checks: exact strict SPF/DKIM/DMARC,
 ephemeral signed-report interoperability, unaligned SPF, DKIM-only DMARC,
 forged Authentication-Results/Received, tampered raw MIME, wrong pinned
-receiver key and recipient, DNS outages/missing DMARC, and missing input.
+receiver key and recipient, DNS outages/missing DMARC, missing input, and rejection of a report issuer key ID that reuses the receiver ID.
 
-Final status is recorded by the GitHub Actions run on this branch;
-passing synthetic tests does not establish a production authority.
+[GitHub Actions CI run #41825648953](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41825648953): **2/2 jobs PASS**, **37/37 offline mail tests PASS** (13 DKIM, 14 signed SMTP SPF/DMARC, 10 unsigned bridge integration), and **142/142 prior security regressions PASS**; **179/179 total**, 0 failures/skips. Passing synthetic tests does not establish a production authority.
 
 **Release disposition: HOLD — no live app, backend or APK modifications.**
