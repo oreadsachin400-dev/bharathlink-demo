@@ -10,7 +10,7 @@
 - Existing full `index.html` loads this module **before** the main app script.
 - New **BharathMail Sender Trust** panel on received-mail detail pages, plus a concise warning label in inbox rows.
 - Four independently unverified trust dimensions: sender domain authentication, sender identity, organization authority, and the legitimacy of any payment request.
-- Signals for malformed From addresses, organizational/authority names using generic public inboxes, internationalized/punycode domain names, potentially lookalike security/login naming, Reply-To domain mismatches, requests to share OTP/password/PIN/CVV, urgent money requests, HTTP/shortened/disguised-IP links, and risky link/request combinations.
+- Signals for malformed From addresses, organizational/authority names using generic public inboxes, internationalized/punycode domain names, potentially lookalike security/login naming, Reply-To domain mismatches, requests to share OTP/password/PIN/CVV (including a second-clause scam after a protective disclaimer), urgent money requests, HTTP/shortened/disguised-IP links, and risky link/request combinations.
 - Multiple reasons are displayed as plain DOM text using the application's existing safe `h(...)` element builder. No external model, email-body upload, automatic spam/deletion action, or external URL fetch.
 - Fixed a misleading existing directory match: **incoming external email no longer receives a "verified email endpoint" UI badge merely because a spoofable From address matches a directory entry.** Existing verified internal BharatMail endpoint display is preserved.
 
@@ -25,7 +25,7 @@
 
 ## Existing backend compatibility and missing production infrastructure
 
-The existing live frontend obtains external messages with a Supabase RLS-protected REST query to `bharatmail_external_messages`. Its selected fields include `from_address`, `subject`, `body`, `html_body`, etc., but **no cryptographically authenticated receiver-computed SPF/DKIM/DMARC result** and no independent third-party issuer/representative authority evidence. Thus this version uses only heuristic warning signals; it **cannot prove an email address fake, prove a human identity, prove authorization, or clear a message as safe**.
+Live TEST schema was inspected read-only on 4 November 2026: the existing external-message table does **not** contain trusted SPF/DKIM/DMARC columns or a Reply-To column. No schema or user rows were changed. The existing live frontend obtains external messages with a Supabase RLS-protected REST query to `bharatmail_external_messages`. Its selected fields include `from_address`, `subject`, `body`, `html_body`, etc., but **no cryptographically authenticated receiver-computed SPF/DKIM/DMARC result** and no independent third-party issuer/representative authority evidence. Thus this version uses only heuristic warning signals; it **cannot prove an email address fake, prove a human identity, prove authorization, or clear a message as safe**.
 
 The `reply_to` check is implemented in the standalone trust engine but requires a trusted server-supplied Reply-To field in real received email records to be active for the existing live external-mail UI. Without it, the check remains unavailable and is not claimed tested end-to-end.
 
@@ -35,7 +35,7 @@ Independent issuer-backed identity, organization role delegation and recipient/p
 
 ## Test coverage and release guard
 
-`tests/bharatmail-trust-engine.test.mjs` contains **20** Node.js cases including negative SPF/DKIM/DMARC claims, public-mail authority impersonation, malformed sender, lookalike domain, shortened links, HTTP or IP destinations, secrets, urgent money, Reply-To differences, bounded untrusted content, no network transmission, and HTML syntax/UI integration.
+`tests/bharatmail-trust-engine.test.mjs` contains **23** Node.js cases including negative SPF/DKIM/DMARC claims, public-mail authority impersonation, malformed sender, lookalike domain, shortened links, HTTP or IP destinations, secrets, urgent money, Reply-To differences, bounded untrusted content, no network transmission, and HTML syntax/UI integration.
 
 `.github/workflows/bharatmail-trust-engine-ci.yml` performs Node syntax and tests with no Supabase deploy, Netlify publish, APK build/upload, or production data access.
 
