@@ -50,14 +50,112 @@
     const urls = safeText(value, MAX_BODY).match(/https?:\/\/[^\s<>"']+/gi) || [];
     return urls.slice(0, 12).map(s => s.replace(/[),.;!?]+$/g, '')).filter(Boolean);
   }
+  // Risk analysis is deliberately bounded. A sender may hide malicious text
+  // beyond the first 12 KB; sampling both ends is a mitigation, not a claim
+  // that all content has been checked.
+  const MAX_HTML = 48000;
+  function boundedSample(value, limit) {
+    if (typeof value !== 'string') return '';
+    if (value.length <= limit) return value;
+    const half = Math.floor(limit / 2);
+    return value.slice(0, half) + '\n' + value.slice(-half);
+  }
+  function decodeHtmlEntities(value) {
+    return value.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|amp|quot|apos|lt|gt|colon|sol);/gi, (_, entity) => {
+      const e = entity.toLowerCase();
+      const named = {amp:'&',quot:'"',apos:"'",lt:'<',gt:'>',colon:':',sol:'/'};
+      if (Object.hasOwn(named, e)) return named[e];
+      let point = e.startsWith('#x') ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      // Do not inject unpaired surrogate or control characters into the result.
+      return point >= 32 && point <= 0x10ffff &&
+        !(point >= 0xd800 && point <= 0xdfff)
+        ? String.fromCodePoint(point) : '';
+    });
+  }
+  function htmlSignals(value) {
+    if (typeof value !== 'string' || value.length === 0) {
+      return {text:'',links:[],partial:false,unparsed:false};
+    }
+    const limited = boundedSample(value, MAX_HTML);
+    const links = [];
+    let anchors = 0, unparsed = false;
+    // Parse *only* the href of conventional anchors for caution signals.
+    // This intentionally is not a security HTML parser; malformed/complex
+    // markup is unreviewed, never claimed clean or executed in a DOM.
+    const anchorRx = /<a\b([^>]{0,2048})>([\s\S]{0,2048}?)<\/a\s*>/gi;
+    let match;
+    while ((match = anchorRx.exec(limited)) !== null) {
+      anchors++;
+      if (anchors > 16) { unparsed = true; break; }
+      const attrs = match[1];
+      const href = attrs.match(/\bhref\s*=\s*(?:"([^"]{0,2048})"|'([^']{0,2048})'|([^\s>'"]{1,2048}))/i);
+      if (!href) { unparsed = true; continue; }
+      const target = decodeHtmlEntities((href[1] ?? href[2] ?? href[3]).trim());
+      const label = decodeHtmlEntities(match[2].replace(/<[^>]*>/g, ' ').trim());
+      links.push({target, label});
+    }
+    if (/<a\b/i.test(limited) && anchors === 0) unparsed = true;
+    const stripped = limited
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
+      .replace(/<[^>]*>/g, ' ');
+    return {
+      text:decodeHtmlEntities(stripped),
+      links,
+      partial:value.length > MAX_HTML,
+      unparsed
+    };
+  }
+  function parsedWebUrl(value) {
+    try {
+      const candidate = value.startsWith('//') ? 'https:' + value : value;
+      const url = new URL(candidate);
+      if (!['https:', 'http:'].includes(url.protocol) || !url.hostname) return null;
+      return url;
+    } catch (_) { return null; }
+  }
+  function inspectUrl(value, reasons) {
+    const raw = decodeHtmlEntities(value.trim());
+    const low = raw.toLowerCase();
+    if (/^(?:javascript|data|file|vbscript|blob):/.test(low)) {
+      add(reasons, 'UNSAFE_HTML_LINK', 'high', 'An HTML link uses an unsafe or non-web destination scheme.');
+      return;
+    }
+    const url = parsedWebUrl(raw);
+    if (!url) {
+      add(reasons, 'UNUSUAL_LINK', 'medium', 'One of the links has an unusual structure.');
+      return;
+    }
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    if (url.protocol === 'http:') {
+      add(reasons, 'INSECURE_LINK', 'medium', 'An email link does not use HTTPS.');
+    }
+    if (url.username || url.password || host.includes('xn--') ||
+        /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.includes('[')) {
+      add(reasons, 'DISGUISED_LINK', 'high', 'A link contains a disguised account/domain form or IP-style destination.');
+    }
+    if (SHORTENER.has(host)) {
+      add(reasons, 'SHORTENED_LINK', 'medium', 'A shortened link hides the destination until opened.');
+    }
+  }
   function inspect(mail) {
     const m = (mail && typeof mail === 'object') ? mail : {};
     const external = String(m.source || '').toLowerCase() === 'external';
     const visibleSender = sender(m.from);
     const subject = safeText(m.subject, MAX_SUBJECT);
-    const body = safeText(m.body, MAX_BODY);
-    const content = (subject + '\n' + body).toLowerCase();
+    const body = boundedSample(m.body, MAX_BODY);
+    const html = external ? htmlSignals(m.html_body) : {text:'',links:[],partial:false,unparsed:false};
+    const content = (subject + '\n' + body + '\n' + html.text).toLowerCase();
     const reasons = [];
+    if (external && (
+      (typeof m.body === 'string' && m.body.length > MAX_BODY) ||
+      (typeof m.subject === 'string' && m.subject.length > MAX_SUBJECT)
+    )) {
+      add(reasons, 'INCOMPLETE_TEXT_SCAN', 'medium', 'This message is longer than the local inspection limit. Unchecked content may contain further risks.');
+    }
+    if (external && (html.partial || html.unparsed)) {
+      add(reasons, 'INCOMPLETE_HTML_SCAN', 'medium', 'Part of the HTML message or its links could not be inspected. Check destinations independently.');
+    }
     if (external && !visibleSender.valid) {
       add(reasons, 'MALFORMED_FROM', 'high', 'The visible sender address could not be parsed as a normal email address.');
     }
@@ -98,24 +196,23 @@
       add(reasons, 'PAYMENT_REQUEST', 'info', 'The email mentions a payment or destination; verify the beneficiary independently.');
     }
     const urls = extractUrls(content);
-    for (const value of urls) {
-      let url;
-      try { url = new URL(value); } catch (_) {
-        add(reasons, 'UNUSUAL_LINK', 'medium', 'One of the links has an unusual structure.');
-        continue;
-      }
-      const host = url.hostname.toLowerCase().replace(/\.$/, '');
-      if (url.protocol === 'http:') {
-        add(reasons, 'INSECURE_LINK', 'medium', 'An email link does not use HTTPS.');
-      }
-      if (url.username || url.password || host.includes('xn--') || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
-        add(reasons, 'DISGUISED_LINK', 'high', 'A link contains a disguised account/domain form or IP-style destination.');
-      }
-      if (SHORTENER.has(host)) {
-        add(reasons, 'SHORTENED_LINK', 'medium', 'A shortened link hides the destination until opened.');
+    for (const value of urls) inspectUrl(value, reasons);
+    // HTML href attributes may not appear in the plain-text alternative.
+    // Analyze them as untrusted text without following links or rendering HTML.
+    if (external) {
+      for (const link of html.links) {
+        inspectUrl(link.target, reasons);
+        const visible = extractUrls(link.label)[0];
+        const shown = visible ? parsedWebUrl(visible) : null;
+        const target = parsedWebUrl(decodeHtmlEntities(link.target.trim()));
+        if (shown && target &&
+          shown.hostname.toLowerCase().replace(/\.$/, '') !==
+          target.hostname.toLowerCase().replace(/\.$/, '')) {
+          add(reasons, 'HTML_LINK_DESTINATION_MISMATCH', 'high', 'A visible website address points to a different website when opened.');
+        }
       }
     }
-    if (urls.length && urgency && (pay || asksForSecret)) {
+    if ((urls.length || html.links.length) && urgency && (pay || asksForSecret)) {
       add(reasons, 'SENSITIVE_LINK_REQUEST', 'medium', 'A link is combined with urgent payment or credential language.');
     }
     // No outgoing client/network request or DNS lookup is performed. Do not infer
@@ -139,10 +236,16 @@
       identityVerification: 'not_verified',
       organizationAuthority: 'not_verified',
       paymentRequestVerification: 'not_verified',
-      reasons: Object.freeze(reasons.slice(0, 8).map(x => Object.freeze(x))),
+      // Prioritize severe signals; limited-size UI must not hide a malicious
+      // HTML destination behind eight earlier low-priority warnings.
+      reasons: Object.freeze(reasons.slice().sort((a,b) =>
+        ({high:0,medium:1,info:2}[a.severity] ?? 3) -
+        ({high:0,medium:1,info:2}[b.severity] ?? 3)
+      ).slice(0, 8).map(x => Object.freeze(x))),
       advice: independentCheck,
+      scanCoverage: 'bounded_heuristics_only',
       limitations: external
-        ? 'SPF, DKIM and DMARC have not been independently authenticated by the receiving server. A genuine email address can still send a scam.'
+        ? 'SPF, DKIM and DMARC have not been independently authenticated by the receiving server. HTML scanning is limited and cannot guarantee link safety. A genuine email address can still send a scam.'
         : 'BharathMail routing does not prove legal identity, authority, or safety.',
       isVerified: false,
       isFakeProven: false
