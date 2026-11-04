@@ -196,6 +196,23 @@ test("huge MIME and invalid receiver envelope IP are blocked before SPF",async()
  }),/smtp_ip/);
  assert.equal(x.calls.length,0);
 });
+test("partial DKIM body signature with malicious appended payment text and SPF fail cannot pass DMARC",async()=>{
+ const original=Buffer.from(msg());
+ const signed=await dkimSign(original,{
+  canonicalization:"relaxed/relaxed",algorithm:"rsa-sha256",strict:true,
+  signTime:new Date(),
+  signatureData:[{signingDomain:DOMAIN,selector:"key1",privateKey:PRIVATE,maxBodyLength:20}]
+ });
+ assert.equal(signed.errors.length,0);
+ const raw=Buffer.concat([Buffer.from(signed.signatures),original,
+  Buffer.from("\r\nURGENT! Transfer money to an unknown account\r\n")]);
+ const f=await fixture(raw,{smtp_client_ip:"198.51.100.4"});
+ const v=await verifySmtpDomainAuthentication(raw,{...f.params,resolveDns:dns().resolver});
+ assert.equal(v.spf,"fail",JSON.stringify(v));
+ assert.notEqual(v.dkim,"pass",JSON.stringify(v));
+ assert.notEqual(v.dmarc,"pass",JSON.stringify(v));
+ assert.equal(v.safe_sender,false);
+});
 test("signed SMTP receipt doesn't by itself approve a production receiving authority",async()=>{
  const f=await fixture();
  const v=await verifySmtpReceiverReceipt(f.envelope,{
