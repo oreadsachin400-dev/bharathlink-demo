@@ -127,7 +127,8 @@
     "mail_dkim_test_ui_must_not_store_password_or_tokens": true,
     "mail_dkim_test_ui_cannot_be_production_sender_badge": true,
     "mail_dkim_ui_must_not_be_served_as_html_from_default_supabase_edge_domain": true,
-    "mail_github_pages_published_test_ui_must_not_claim_person_or_payment_verified": true
+    "mail_github_pages_published_test_ui_must_not_claim_person_or_payment_verified": true,
+    "mail_cryptographic_domain_dkim_cannot_promote_human_identity_or_payment_safety": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -507,7 +508,7 @@
     "original_mime_bytes_not_returned_to_client": true,
     "test_edge_function_name": "bharatmail-dkim-check-test",
     "test_project_id": "fsdusofbpwdrdvgexxyw",
-    "test_edge_function_version": 1,
+    "test_edge_function_version": 3,
     "test_edge_function_status": "ACTIVE",
     "test_edge_function_verify_jwt": true,
     "test_edge_function_deployed": true,
@@ -527,7 +528,7 @@
     "source": "supabase/functions/bharatmail-dkim-check-test/index.ts",
     "dkim_cli": "mail-verifier/check-resend-live-email.mjs",
     "handover": "docs/BharathMail-Resend-Live-DKIM-ReadOnly-TEST-Deployment-2026-11-04.md",
-    "real_next_gate": "User opens live isolated Pages subpath, signs into existing BharathLink-20-TEST user account and invokes Check DKIM domain signature on owned received email; never send secrets in chat",
+    "real_next_gate": "Owner rechecks one previously received TEST email in existing GitHub Pages UI; v3 reads original signed webhook delivery recipient, not mapped BharatLink mailbox. No credentials shared.",
     "test_web_ui_name": "bharatmail-dkim-test-ui",
     "test_web_ui_url": "https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/bharatmail-dkim-test-ui",
     "test_web_ui_status": "RETIRED_NOTICE_HTTP_410_SUPABASE_HTML_UNSUPPORTED",
@@ -557,6 +558,17 @@
     "static_mail_dkim_test_site_supabase_cross_origin_cors_preflight_passed": true,
     "static_mail_dkim_test_site_backend_unauthorized_401_confirmed": true,
     "github_pages_main_original_root_app_files_unchanged": true,
-    "github_pages_new_test_page_path": "bharatmail-dkim-test/index.html"
+    "github_pages_new_test_page_path": "bharatmail-dkim-test/index.html",
+    "test_edge_function_sha256": "a0c186aa029f9d7b24bf54eb2a0e072abb4b0ded5f236f85f04ae9e24c6ca16d",
+    "recipient_binding_original_webhook_event_fix_deployed": true,
+    "original_webhook_and_mailbox_addresses_found_different": 6,
+    "legacy_direct_inbound_rows": 4,
+    "secure_reply_route_inbound_rows": 2,
+    "legacy_and_reply_routes_supported_by_owner_bound_v3": true,
+    "verified_sender_badge_allowed": false,
+    "real_authenticated_email_dkim_v3_retested": false,
+    "proven_bug_cause": "test v1/v2 compared Resend metadata.to against external_messages.to_address which is the mapped virtual mailbox, not the original webhook to_addresses",
+    "test_ci_current_status": "QUEUED_NOT_PASS",
+    "test_ci_current_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41865108458"
   }
 }
