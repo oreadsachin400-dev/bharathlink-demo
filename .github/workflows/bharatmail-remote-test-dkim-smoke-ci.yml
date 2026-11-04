@@ -1,0 +1,58 @@
+name: BharathMail Real HTTPS TEST UI + Unauthenticated DKIM Gate (NO CREDENTIALS)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-resend-live-dkim-readonly
+    paths:
+      - '.github/workflows/bharatmail-remote-test-dkim-smoke-ci.yml'
+      - 'supabase/functions/bharatmail-dkim-test-ui/**'
+      - 'supabase/functions/bharatmail-dkim-check-test/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-https-and-no-user-data-access:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify real remote TEST page and deny unauthenticated DKIM requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          base="https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/"
+          def get(path,method="GET",data=None):
+              req=urllib.request.Request(base+path,method=method,
+                data=data,headers={
+                "User-Agent":"BharathMail-TEST-CI-NoCredentials/1.0",
+                "Content-Type":"application/json" if data is not None else "text/plain",
+                "Cache-Control":"no-store"})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as res:
+                      return res.status,dict(res.headers),res.read(256*1024)
+              except urllib.error.HTTPError as err:
+                  return err.code,dict(err.headers),err.read(256*1024)
+          status,headers,body=get("bharatmail-dkim-test-ui")
+          assert status==200, f"TEST page HTTP {status}; expected 200"
+          assert "text/html" in headers.get("Content-Type","").lower(), "TEST page not HTML"
+          assert b"Check DKIM domain signature" in body, "Missing DKIM button"
+          assert b"BharathLink-20-TEST" in body, "Wrong Supabase project UI"
+          assert b"sb_secret_" not in body and b"service_role" not in body, "secret marker in UI"
+          csp=headers.get("Content-Security-Policy","")
+          assert "frame-ancestors 'none'" in csp and "script-src 'nonce-" in csp, "Missing strict CSP"
+          assert "connect-src https://fsdusofbpwdrdvgexxyw.supabase.co" in csp, "Unexpected network origins"
+          print("PASS: real public HTTPS TEST page, correct UI button and strict CSP; no private email content requested")
+          # Deliberately NO apikey, NO user's JWT, NO Resend token, NO actual
+          # message UUID and NO cross-account data read.
+          code,headers,body=get("bharatmail-dkim-check-test",method="POST",
+            data=b'{"message_id":"00000000-0000-4000-8000-000000000000"}')
+          assert code in (401,403), f"Unauthenticated DKIM request was not denied safely: HTTP {code}"
+          print(f"PASS: remote DKIM-check endpoint denies missing user credentials (HTTP {code})")
+          # The backend MUST NOT return real mail data when anonymous.
+          assert b"domain_dkim_strictly_aligned" not in body, "Unauthenticated DKIM output exposed"
+          print("HOLD: real owned-inbox DKIM check needs a user session; no sender verified in CI")
+          PY
