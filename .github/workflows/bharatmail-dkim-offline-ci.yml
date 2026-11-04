@@ -8,6 +8,7 @@ on:
       - 'mail-verifier/**'
       - '.github/workflows/bharatmail-dkim-offline-ci.yml'
       - 'docs/BharathMail-DKIM-Offline-Verification-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
   workflow_dispatch:
 
 permissions:
@@ -50,3 +51,49 @@ jobs:
           grep -Fq 'raw_mime_size_out_of_range' verify-original-dkim.mjs
           test ! -e ../app/build/outputs/apk
           echo "PASS: DKIM test is an isolated domain-signature proof, not sender identity or live SPF/DMARC clearance"
+
+
+  previous-mail-and-security-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Existing Mail Trust, signed-issuer and first-device HOLD source tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/bharatmail-trust-engine.test.mjs \
+            tests/mail-auth-signed-gate.test.mjs \
+            tests/mail-auth-resend-raw-evidence.test.mjs \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee /tmp/bl-previous-security-tests.log
+          grep -q '# fail 0' /tmp/bl-previous-security-tests.log
+          grep -q '# skipped 0' /tmp/bl-previous-security-tests.log
+      - name: Enforce no real sender verification or live activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' supabase/functions/bl-mail-auth-attest/index.ts
+          node - <<'NODE'
+          const x = require('./docs/security-release-readiness.json');
+          if (x.release_decision !== 'HOLD' || x.mail_dkim_offline?.tested_live_dns !== false ||
+              x.mail_dkim_offline?.deployed_to_supabase_or_netlify !== false ||
+              x.mail_dkim_offline?.verified_person_or_organization !== false) {
+            throw Error('BLOCK: release or DKIM authenticity boundary violated');
+          }
+          console.log('PASS: real DKIM synthetic evidence does not imply SPF/DMARC or sender identity');
+          NODE
