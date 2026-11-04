@@ -98,7 +98,11 @@ begin
 
   -- Edge's deterministic report validator enforces strict SPF/DKIM alignment.
   -- SQL additionally refuses syntactically invalid domains and out-of-time receipts.
-  if p_sender_domain !~ '^[a-z0-9-]+(\.[a-z0-9-]+)+
+  if p_sender_domain !~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$'
+    or not (
+      lower(btrim(p_from_address)) like '%@'||p_sender_domain
+      or lower(btrim(p_from_address)) like '%@'||p_sender_domain||'>'
+    ) then return 'from_domain_mismatch'; end if;
   if p_issued_at > now()+interval '30 seconds'
     or p_issued_at < now()-interval '3 minutes' then return 'expired_attestation'; end if;
 
