@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-W27mgnumAU4tJBtymaNbenVuYT5z2mvDDQdo5y3waO4=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
-<title>BharathLink Mail | DKIM Domain Test</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-14JTD/Th4ccRaTztLU8OTLUsdgHla+OctdJd1oaWBNE=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
 header strong{display:block;font-size:20px;letter-spacing:.01em}header small{color:#dbe2f3}section{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:17px;box-shadow:0 1px 3px #13255009}
@@ -106,8 +106,25 @@ function makeMail(row){
    const checked=await request('/functions/v1/bharatmail-dkim-check-test','POST',{message_id:row.id},true);
    const pass=checked.domain_dkim==='pass'&&checked.domain_dkim_strictly_aligned===true;
    result.className='result '+(pass?'pass':'warn');
+   const knownReasons={
+    signature_time_invalid_or_expired:'Signature time is invalid or expired. This older email should not be treated as currently authenticated; try a fresh test email.',
+    cryptographic_signature_failed:'The original message did not pass the cryptographic signature check.',
+    signature_temporary_verification_error:'The independent verification service could not complete the check.',
+    signature_policy_rejected:'Signature or signing key did not satisfy strict security requirements.',
+    signature_not_verifiable:'The cryptographic signature could not be verified with available DNS evidence.',
+    signing_domain_mismatch:'Signing domain does not match the visible sender domain.',
+    no_dkim_signature:'No DKIM signature was found in original email.',
+    strong_signature_requirements_not_met:'A signature exists but strict signed-From, key or complete-message checks were not satisfied.',
+    raw_from_header_not_unique:'Original From headers are missing or ambiguous.',
+    raw_from_sender_mismatch:'Original From header differs from authenticated provider metadata.',
+    verification_unavailable:'The independent signature verifier could not complete the check.',
+    no_qualified_aligned_dkim:'No acceptable strictly aligned DKIM signature was found.'
+   };
+   const reason=typeof checked.dkim_reason==='string'&&
+      Object.prototype.hasOwnProperty.call(knownReasons,checked.dkim_reason)
+      ?knownReasons[checked.dkim_reason]:'The result did not meet strict DKIM requirements.';
    result.textContent=pass?'DKIM domain signature: VALID. Person, bank, authority and payment still NOT VERIFIED.':
-    'DKIM domain signature: NOT VERIFIED. That does not prove this email is fake. Person and payment are NOT VERIFIED.';
+     'DKIM domain signature: NOT VERIFIED. '+reason+' This does not prove fraud. Sender identity, authority and payment are NOT VERIFIED.';
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
