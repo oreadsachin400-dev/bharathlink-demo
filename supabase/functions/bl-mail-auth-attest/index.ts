@@ -3,6 +3,7 @@
 // signatures or user-supplied Authentication-Results are never sufficient.
 // Never enable without external verification authority and RLS security review.
 import {verifySignedReport} from "./signed-report.mjs";
+import {getBoundRawSha256} from "./resend-raw-evidence.mjs";
 const MAIL_AUTH_RELEASED=false; // hard HOLD, cannot override via env
 const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),
   {status,headers:{"content-type":"application/json","cache-control":"no-store"}});
@@ -27,6 +28,20 @@ Deno.serve(async(req:Request)=>{
     const body=JSON.parse(raw);
     proof=await verifySignedReport(body,JSON.parse(keyJson),verifierKid);
   }catch{return json(401,{ok:false,error:"invalid_signed_verifier_report"});}
+  // Match the verified statement to original Resend-retrieved MIME bytes.
+  // A signed P-256 report ALONE cannot assert that this email was verified.
+  let receiverRaw;
+  try {
+    receiverRaw=await getBoundRawSha256({
+      provider_email_id:proof.provider_email_id,
+      from_address:proof.from_address,
+      recipient_address:proof.recipient_address,
+      apiKey:Deno.env.get("RESEND_API_KEY"),
+      allowedRawHosts:Deno.env.get("BL_MAIL_RAW_DOWNLOAD_HOSTS")
+    });
+  } catch { return json(409,{ok:false,error:"receiver_raw_evidence_unavailable"}); }
+  if(receiverRaw.raw_sha256!==proof.raw_sha256)
+    return json(409,{ok:false,error:"signed_report_raw_mismatch"});
   try{
     // Service-only SECURITY INVOKER transaction performs the authoritative
     // provider-id, recipient, From and message ownership checks atomically.
@@ -39,6 +54,7 @@ Deno.serve(async(req:Request)=>{
         p_from_address:proof.from_address,
         p_recipient_address:proof.recipient_address,
         p_sender_domain:proof.sender_domain,
+        p_raw_sha256:proof.raw_sha256,
         p_spf:proof.spf,p_dkim:proof.dkim,p_dmarc:proof.dmarc,
         p_nonce:proof.nonce,p_kid:proof.kid,
         p_issued_at:new Date(proof.issued_at*1000).toISOString(),
