@@ -7,6 +7,13 @@ on:
     paths:
       - 'scripts/audit_installed_keyprep_signer.py'
       - 'tests/test_installed_keyprep_signer_audit.py'
+      - 'tests/test_historical_apk_workflow_hold.py'
+      - '.github/workflows/build-android-test.yml'
+      - '.github/workflows/build-v36hf-kotlin-test.yml'
+      - '.github/workflows/build-v36hf-keyprep-test.yml'
+      - '.github/workflows/build-phase6-offline-freshprep.yml'
+      - '.github/workflows/build-signing-inspector.yml'
+      - '.github/workflows/phase6-offline-freshprep-android.yml'
       - '.github/workflows/installed-keyprep-signer-audit-ci.yml'
       - 'docs/KeyPrep-Installed-Signer-Local-Audit-2026-11-04.md'
       - 'docs/security-release-readiness.json'
@@ -29,6 +36,7 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_installed_keyprep_signer_audit.py' -v
           python3 -m unittest discover -s tests -p 'test_protected_signing_workflow.py' -v
+          python3 -m unittest discover -s tests -p 'test_historical_apk_workflow_hold.py' -v
       - name: Verify the tool cannot change a phone or access secrets
         shell: bash
         run: |
