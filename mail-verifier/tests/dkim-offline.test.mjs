@@ -124,10 +124,30 @@ test("DNS outage cannot produce a DKIM pass or safe status",async()=>{
  assert.notEqual(r.dkim,"pass");
  assert.equal(r.verified_sender,false);
 });
+test("a DKIM signature covering only an l= body prefix does not authenticate appended instructions",async()=>{
+ const signedLimited=await dkimSign(Buffer.from(msg),{
+   strict:true,algorithm:"rsa-sha256",canonicalization:"relaxed/relaxed",
+   signTime:new Date("2026-11-04T08:00:00Z"),
+   signatureData:[{signingDomain:DOMAIN,selector:"key1",privateKey:keyText,maxBodyLength:20}]
+ });
+ assert.equal(signedLimited.errors.length,0);
+ const received=Buffer.from(signedLimited.signatures+msg+"\r\nSEND MONEY NOW\r\n");
+ const r=await verifyOriginalMimeDkim(received,{expectedFrom:from,resolveTxt:resolver().resolveTxt,now});
+ assert.notEqual(r.dkim,"pass");
+ assert.equal(r.alignedStrict,false);
+});
+test("DKIM public DNS key marked testing-only is not elevated to a qualified domain pass",async()=>{
+ const r=await verifyOriginalMimeDkim(await sign(),{
+   expectedFrom:from,resolveTxt:resolver({txt:dkimTxt+"; t=y"}).resolveTxt,now
+ });
+ assert.notEqual(r.dkim,"pass");
+ assert.equal(r.verified_sender,false);
+});
 test("all mail trust dimensions remain separate after a domain pass",async()=>{
  const r=await verifyOriginalMimeDkim(await sign(),{
    expectedFrom:from,resolveTxt:resolver().resolveTxt,now
  });
+ assert.equal(r.dkim,"pass",JSON.stringify(r));
  for(const key of ["sender_identity","organizational_authority","payment_request"])
    assert.equal(r[key],"not_verified");
  assert.equal(r.spf,"not_checked");assert.equal(r.dmarc,"not_checked");
