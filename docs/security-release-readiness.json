@@ -126,7 +126,8 @@
     "mail_real_dkim_test_deployment_does_not_authorize_production": true,
     "mail_dkim_test_ui_must_not_store_password_or_tokens": true,
     "mail_dkim_test_ui_cannot_be_production_sender_badge": true,
-    "mail_dkim_ui_must_not_be_served_as_html_from_default_supabase_edge_domain": true
+    "mail_dkim_ui_must_not_be_served_as_html_from_default_supabase_edge_domain": true,
+    "mail_github_pages_published_test_ui_must_not_claim_person_or_payment_verified": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -526,7 +527,7 @@
     "source": "supabase/functions/bharatmail-dkim-check-test/index.ts",
     "dkim_cli": "mail-verifier/check-resend-live-email.mjs",
     "handover": "docs/BharathMail-Resend-Live-DKIM-ReadOnly-TEST-Deployment-2026-11-04.md",
-    "real_next_gate": "Upload prepared static TEST ZIP to separate HTTPS site, open it, sign in to BharathLink-20-TEST, click DKIM test on an owned inbound email. No tokens in chat.",
+    "real_next_gate": "User opens live isolated Pages subpath, signs into existing BharathLink-20-TEST user account and invokes Check DKIM domain signature on owned received email; never send secrets in chat",
     "test_web_ui_name": "bharatmail-dkim-test-ui",
     "test_web_ui_url": "https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/bharatmail-dkim-test-ui",
     "test_web_ui_status": "RETIRED_NOTICE_HTTP_410_SUPABASE_HTML_UNSUPPORTED",
@@ -544,9 +545,18 @@
     "test_web_ui_http_410_notice_confirmed": true,
     "test_web_ui_actual_html_served": false,
     "static_mail_dkim_test_site_zip_prepared": true,
-    "static_mail_dkim_test_site_url": null,
-    "static_mail_dkim_test_site_deployed": false,
+    "static_mail_dkim_test_site_url": "https://oreadsachin400-dev.github.io/bharathlink-demo/bharatmail-dkim-test/",
+    "static_mail_dkim_test_site_deployed": true,
     "remote_http_unauthenticated_dkim_denied": true,
-    "remote_ci_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41849734337"
+    "remote_ci_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41849734337",
+    "static_mail_dkim_test_site_status": "PUBLIC_GITHUB_PAGES_HTTPS_TEST_SUBPATH_LIVE",
+    "static_mail_dkim_test_site_pages_build": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41856918589",
+    "static_mail_dkim_test_site_real_https_csp_and_cors_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41857221154",
+    "static_mail_dkim_test_site_real_https_get_200_confirmed": true,
+    "static_mail_dkim_test_site_strict_csp_sha256_hashes_confirmed": true,
+    "static_mail_dkim_test_site_supabase_cross_origin_cors_preflight_passed": true,
+    "static_mail_dkim_test_site_backend_unauthorized_401_confirmed": true,
+    "github_pages_main_original_root_app_files_unchanged": true,
+    "github_pages_new_test_page_path": "bharatmail-dkim-test/index.html"
   }
 }
