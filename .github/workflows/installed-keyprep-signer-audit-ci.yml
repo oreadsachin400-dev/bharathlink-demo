@@ -99,6 +99,8 @@ jobs:
             throw "Blocked: Windows read-only launcher must refuse without an authorized personal USB phone. Exit=$code"
           }
           Write-Host "PASS: Windows launcher refused to claim a phone signer match on a GitHub runner."
+          # The expected native exit=1 is handled; do not propagate it as CI failure.
+          $global:LASTEXITCODE = 0
       - name: Confirm launcher never packaged or installed a phone app
         shell: pwsh
         run: |
