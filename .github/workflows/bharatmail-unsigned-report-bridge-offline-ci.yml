@@ -8,6 +8,7 @@ on:
       - 'mail-verifier/**'
       - '.github/workflows/bharatmail-unsigned-report-bridge-offline-ci.yml'
       - 'docs/BharathMail-Unsigned-Report-Bridge-Offline-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
   workflow_dispatch:
 
 permissions:
