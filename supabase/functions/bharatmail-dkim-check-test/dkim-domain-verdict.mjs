@@ -64,10 +64,33 @@ function qualifiedDomainDkimVerdict(result, expectedSenderAddress, rawMime){
   signedFromHeaderPresent(sig.signingHeaders?.keys)&&
   ["rsa-sha256","ed25519-sha256"].includes(String(sig.algo||"").toLowerCase())
  );
+ // Report only coarse, bounded classes. Never echo raw DKIM headers,
+ // DNS keys, MIME, signature details, From address or signed download URL.
+ const signatures=Array.isArray(result?.results)?result.results:[];
+ const aligned=signatures.filter(sig=>typeof sig.signingDomain==="string"&&
+   sig.signingDomain.toLowerCase()===domain);
+ let reason="no_qualified_aligned_dkim";
+ if(valid)reason="strict_domain_signature_valid";
+ else if(!signatures.length)reason="no_dkim_signature";
+ else if(aligned.some(sig=>sig.signatureTimeValid===false))
+   reason="signature_time_invalid_or_expired";
+ else if(aligned.some(sig=>sig?.status?.result==="temperror"))
+   reason="signature_temporary_verification_error";
+ else if(aligned.some(sig=>sig?.status?.result==="fail"))
+   reason="cryptographic_signature_failed";
+ else if(aligned.some(sig=>sig?.status?.result==="policy"||
+  sig?.status?.testing===true||sig?.status?.underSized))
+   reason="signature_policy_rejected";
+ else if(aligned.some(sig=>sig?.status?.result==="neutral"))
+   reason="signature_not_verifiable";
+ else if(signatures.some(sig=>sig?.status?.result==="pass")&&!aligned.length)
+   reason="signing_domain_mismatch";
+ else if(aligned.some(sig=>sig?.status?.result==="pass"))
+   reason="strong_signature_requirements_not_met";
  return Object.freeze({
   dkim:valid?"pass":"not_verified",
   strictly_aligned:Boolean(valid),
-  reason:valid?"strict_domain_signature_valid":"no_qualified_aligned_dkim"
+  reason
  });
 }
 export {qualifiedDomainDkimVerdict,countRawFromFields};
