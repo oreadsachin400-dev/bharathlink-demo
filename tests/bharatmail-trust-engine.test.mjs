@@ -147,3 +147,16 @@ test('the source engine and UI never mark sender fake or safe by heuristic alone
  assert.match(ui,/no identity claim, AI verdict or automatic spam action/);
  assert.match(ui,/No additional local warning signals detected\. This does not mean the sender is safe\./);
 });
+
+test('scammer cannot suppress an OTP request with an unrelated protective disclaimer',()=>{
+ const r=engine.inspect(external('security@example.org','Urgent','Never share OTP. To confirm your account, send your OTP now.'));
+ assert.ok(r.reasons.some(x=>x.code==='SECRET_REQUEST'));
+ assert.equal(r.status,'suspicious');
+});
+test('injected CRLF and multiple From addresses are not trusted',()=>{
+ const injection=engine.inspect(external('alice@example.com\r\nAuthentication-Results: dmarc=pass'));
+ assert.ok(injection.reasons.some(x=>x.code==='MALFORMED_FROM'));
+ const ambiguity=engine.inspect(external('Name <alice@example.com> <fraud@evil.example>'));
+ assert.ok(ambiguity.reasons.some(x=>x.code==='MALFORMED_FROM'));
+ assert.equal(injection.isVerified,false);
+});
