@@ -191,14 +191,16 @@ function isAllowedRawDownloadHost(host:string):boolean{
    return true;
  return false;
 }
-async function fromResend(row:any,key:string,originalRecipient:string):Promise<Uint8Array>{
+async function fromResend(row:any,key:string,originalRecipient:string,setStage:(stage:string)=>void):Promise<Uint8Array>{
  const providerId=row.provider_email_id;
  if(typeof providerId!=="string"||!UUID.test(providerId))reject("invalid_provider_id");
  if(!key.startsWith("re_")||key.length<10)reject("resend_not_configured");
  const base="https://api.resend.com/emails/receiving/"+providerId;
+ setStage("resend_api_request");
  const api=await fetch(base,{headers:{authorization:"Bearer "+key,accept:"application/json"},
   redirect:"manual",signal:AbortSignal.timeout(10000),cache:"no-store"});
  if(api.status!==200)reject("provider_unavailable");
+ setStage("resend_metadata_read");
  const metadataBytes=await boundedBytes(api,524288);
  let metadata:any;
  try{metadata=JSON.parse(new TextDecoder().decode(metadataBytes))}catch{reject("invalid_provider_metadata")}
@@ -223,10 +225,12 @@ async function fromResend(row:any,key:string,originalRecipient:string):Promise<U
  if(url.protocol!=="https:"||url.port||url.hash||url.username||url.password||
     !isAllowedRawDownloadHost(host)||url.href.length>8192||
     !url.search)reject("unapproved_raw_origin");
+ setStage("original_mime_request");
  const raw=await fetch(url.href,{method:"GET",redirect:"manual",
   signal:AbortSignal.timeout(12000),cache:"no-store",
   headers:{accept:"message/rfc822"}});
  if(raw.status!==200)reject("raw_unavailable");
+ setStage("original_mime_stream");
  const bytes=await boundedBytes(raw,MAX_RAW);
  if(bytes.length<16)reject("raw_message_too_short");
  return bytes;
@@ -276,10 +280,14 @@ export default {
   if(!body||!UUID.test(body.message_id||""))
     return resp(400,{error:"message_id_required"});
   let raw:Uint8Array|undefined;
+  let stage="owned_mail_lookup"; // Coarse fixed stage only; NEVER log message IDs, content, URLs or secrets.
   try{
    const row=await lookupOwnMessage(auth.slice(7),clientKey,base,body.message_id);
+   stage="trusted_route_binding";
    const originalRecipient=await originalRecipientForOwnedMail(row,base);
-   raw=await fromResend(row,key,originalRecipient);
+   stage="resend_api_request";
+   raw=await fromResend(row,key,originalRecipient,s=>{stage=s;});
+   stage="dkim_crypto";
    const dkim=await cryptographicDkim(raw,row.from_address);
    return resp(200,{check:"real_resend_original_mime",domain_dkim:dkim.dkim,
      domain_dkim_strictly_aligned:dkim.strictly_aligned,
@@ -326,11 +334,23 @@ export default {
      invalid_dns_response:"dns_response_invalid",
      invalid_dns_txt:"dns_record_invalid"
    };
+   // Unexpected transport/runtime errors get a fixed, non-sensitive phase code.
+   // A 422 is NEVER evidence that an email is fake or that its sender is verified.
+   const fallbackByStage:Record<string,string>={
+     owned_mail_lookup:"mail_not_owned_or_unavailable",
+     trusted_route_binding:"mail_not_owned_or_unavailable",
+     resend_api_request:"provider_message_unavailable",
+     resend_metadata_read:"provider_metadata_unavailable",
+     original_mime_request:"original_mime_unavailable",
+     original_mime_stream:"provider_response_unavailable",
+     dkim_crypto:"dns_resolver_unavailable"
+   };
+   if(!Object.hasOwn(classifications,code)) console.warn("BLMAIL_DKIM_TEST_UNEXPECTED_PHASE:"+stage);
    return resp(422,{check:"real_resend_original_mime",domain_dkim:"not_checked",
     sender_identity:"not_verified",verified_sender_badge:false,
     spf:"not_checked",dmarc:"not_checked",
     error:"evidence_or_validation_unavailable",
-    diagnostic_reason:classifications[code]||"unclassified_server_failure"});
+    diagnostic_reason:classifications[code]||fallbackByStage[stage]||"unclassified_server_failure"});
   }finally{raw?.fill(0)}
  }
 };
