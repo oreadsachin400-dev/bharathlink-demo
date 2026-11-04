@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-VSHvfmt7gFAeHAxf4f2UCQI4xySUu0dfQp6kST20Z+g=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-mm9xrGRdw4jSKKPMUROA4B7EbGFi1uXumFcvzrER56s=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -13,7 +13,7 @@ button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[
 .result{font-size:.91rem;border-radius:8px;padding:10px 12px;background:#f5f6fb;border:1px solid var(--line);margin:0 0 9px}.result.pass{background:#e7f5ee;color:var(--success)}.result.warn{background:#fff5df;color:var(--warn)}
 #status{padding:9px 0;min-height:24px;color:var(--ink);font-weight:550}.foot{margin-top:20px}a{color:var(--ink)}:focus-visible{outline:3px solid var(--gold);outline-offset:2px}[hidden]{display:none!important}</style></head><body>
 <main><header><strong>BharathLink Mail</strong><small>Real received-email · DKIM domain signature TEST</small></header>
-<section><div class="notice"><b>TEST ONLY:</b> Checks whether an email has a strictly aligned DKIM domain signature. It does <b>not</b> verify the person, bank, organization or payment.</div></section>
+<section><div class="notice"><b>TEST ONLY:</b> Checks DKIM and limited exact-domain DMARC, plus local From/Subject cautions. No body or attachments scanned. It does <b>not</b> verify a person, bank, organization, payment or safety.</div></section>
 <section id="login"><h1>Sign in to BharathLink-20-TEST</h1><p class="hint">Use the existing TEST-project account, not your separate BharathLink Demo account. Login is sent directly to Supabase HTTPS; tokens are held only in memory on this page.</p>
 <label for="email">TEST account email</label><input type="email" id="email" inputmode="email" autocomplete="username" required>
 <label for="password">Password (or choose email OTP)</label><input type="password" id="password" autocomplete="current-password">
@@ -22,7 +22,7 @@ button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[
 <section id="mail-section" hidden><h2>My received TEST email</h2><div class="button-row"><button id="refresh" type="button">Refresh inbox</button><button class="alt" id="clear" type="button">Clear test session</button></div>
 <p class="hint">Only inbound emails visible under your own Supabase account RLS are listed. Email contents and attachments are not shown.</p><p class="notice"><b>Secure inbox routing:</b> Only replies addressed to a registered <code>reply+…@bharathlink.com</code> route can enter this TEST inbox. A direct email to <code>mail@bharathlink.com</code> or another general address may be received but held as <b>pending routing</b>; it is not proof of fraud. To run a fresh DKIM test, first send a new one-recipient email from the BharathLink-20-TEST app to your Gmail, then tap <b>Reply</b> in Gmail (not Compose/Forward). Check that the recipient begins with <code>reply+</code> before sending, and then tap <b>Refresh inbox</b> here. Do not share the complete reply token.</p><div id="mail-list"></div></section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="hint foot">Even after DKIM PASS: SPF not checked · DMARC not checked · Identity not verified · Authority not verified · Payment destination not verified.</p></main>
+<p class="hint foot">On-demand tests may show DKIM and limited DMARC. SPF not checked. Header-only caution is NOT a fraud verdict. Person, organization and payment NOT VERIFIED.</p></main>
 <script>(()=>{'use strict';
 const BASE='https://fsdusofbpwdrdvgexxyw.supabase.co';
 const PUB='sb_publishable_BMNUqIpIRRyjF2vutvi__w_3BGQQQ7Z';
@@ -100,10 +100,49 @@ async function onSignIn(access){
  el('login').hidden=true;el('mail-section').hidden=false;
  await listMail();
 }
+function mailHeaderCaution(fromValue,subjectValue){
+ // Local header-only warning. Never assert verified identity or email safety.
+ const from=typeof fromValue==='string'?fromValue.slice(0,320):'';
+ const subject=typeof subjectValue==='string'?subjectValue.slice(0,300):'';
+ const notes=[];
+ const add=s=>{if(!notes.includes(s))notes.push(s);};
+ const address=from.trim().toLowerCase();
+ const matched=/^[a-z0-9.!#$%&'*+/=?^_\x60{|}~-]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$/i.exec(address);
+ if(!matched||address.includes('..')||/[\r\n\0,<>]/.test(address))
+  add('Unusual sender-address format; independently verify it.');
+ else{
+  const domain=matched[1];
+  if(domain.split('.').some(x=>x.length>63||x.startsWith('-')||x.endsWith('-')))
+   add('Unusual sender-domain format.');
+  if(domain.includes('xn--'))add('Internationalized domain; check exact spelling.');
+  const claim=/(?:\b(?:bank|banking|police|government|govt|official|helpdesk|security team|tax department|income tax|payment support)\b|cyber[\s-]?crime)/i.test(subject);
+  if(claim&&['gmail.com','yahoo.com','outlook.com','hotmail.com','icloud.com','proton.me','protonmail.com'].includes(domain))
+   add('Subject claims an organization or authority but sender uses public email.');
+  if(claim&&/(?:^|[.-])(?:login|verify|secure|security|support|account-update)(?:[.-]|$)/i.test(domain)&&domain.includes('-'))
+   add('Support/security-themed sender domain; check independently.');
+ }
+ if(/\b(?:send|share|provide|submit|reply with)\b.{0,45}\b(?:otp|pin|cvv|password|verification code)\b/i.test(subject))
+  add('Subject appears to request a secret or code.');
+ if(/\b(?:urgent|immediately|last chance|final warning|account blocked|digital arrest)\b/i.test(subject)&&
+    /\b(?:upi|payment|pay|transfer|refund|fee|bank account)\b/i.test(subject))
+  add('Subject combines urgency and a payment request.');
+ if(/https?:\/\//i.test(subject))add('Subject includes a link; destination NOT inspected.');
+ if(fromValue?.length>320||subjectValue?.length>300)add('Header preview truncated; some content unchecked.');
+ return Object.freeze({caution:notes.length>0,notes:Object.freeze(notes.slice(0,4)),
+  scope:'From and Subject only; body, links and attachments not scanned',
+  identity:'not_verified',authority:'not_verified',payment:'not_verified',
+  safe:false,fake_proven:false});
+}
 function makeMail(row){
  const section=document.createElement('div');section.className='mail-item';
  const subject=document.createElement('strong');subject.textContent=String(row.subject||'(No subject)').slice(0,160);
  const from=document.createElement('p');from.className='from';from.textContent='From: '+String(row.from_address||'Unknown').slice(0,230);
+ const risk=mailHeaderCaution(row.from_address,row.subject);
+ const caution=document.createElement('div');caution.className='result'+(risk.caution?' warn':'');
+ caution.setAttribute('role','note');
+ caution.textContent=risk.caution?
+  'HEADER-ONLY CAUTION: '+risk.notes.join(' ')+' Sender identity NOT VERIFIED. Body and attachments not scanned.':
+  'Header-only preview: no warning from sender/subject alone. Body, links and attachments NOT reviewed. Sender identity NOT VERIFIED.';
  const when=document.createElement('p');when.className='date';const stamp=Date.parse(row.created_at);
  when.textContent=Number.isFinite(stamp)?new Date(stamp).toLocaleString():'Date unavailable';
  const btn=document.createElement('button');btn.type='button';btn.textContent='Check DKIM domain signature';
@@ -149,7 +188,7 @@ function makeMail(row){
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
- section.append(subject,from,when,btn,result);return section;
+ section.append(subject,from,when,caution,btn,result);return section;
 }
 async function listMail(){
  setStatus('Loading owned TEST inbox…');
