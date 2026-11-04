@@ -86,3 +86,17 @@ Run: [#41778877831](https://github.com/oreadsachin400-dev/bharathlink-demo/actio
 - Official advisor reference: https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
 
 **Still BLOCKED:** Google Play Protect classification has no confirmed reversal; original KeyPrep signing private-key continuity remains unknown; real physical Android OTP and first-device independently verified identity have not been demonstrated. Green CI means only the documented synthetic/source tests passed.
+
+## Historical OTP evidence reconciliation — no repeat setup
+
+A chronological comparison with the **2 November 2026 phone conversation** found stale OTP status in older repository handovers.
+
+- **Earlier 2 Nov:** Source-only release-gate notes correctly said template/SMTP contents were inaccessible through the Supabase connector and physical phone OTP had not yet been performed.
+- **Later 2 Nov:** Prior phone-session record says custom Supabase TEST Resend Auth SMTP saved, the shared Magic Link template updated with {{ .Token }} and {{ .ConfirmationURL }}, and a standalone Android Auth Probe successfully verified a numeric email OTP, authenticated an existing TEST account and displayed a server-returned account UUID. Screenshot was reviewed in that earlier conversation. This is **historical phone-test evidence**, not a new verification of current hosted template/settings.
+- [Standalone Auth Probe CI #41455968905](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41455968905) separately confirms Android APK build success, **not** real phone OTP delivery.
+- **Still not proven:** authenticated account UUID equals the UUID previously entered in KeyPrep, private-key access between packages, trusted-device approval, E2EE, or a current direct Supabase template/SMTP read.
+- Release matrix OTP status is now HISTORICAL_PHONE_PASS_CURRENT_CONFIG_UNREADABLE. **Do not repeat** Resend SMTP setup, Magic Link template changes, or request another OTP without an observed regression or configuration change.
+- [Supabase June 2026 Free-tier email-template policy](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier) applies only to new Free projects using default SMTP; it is not evidence that this TEST project's previously configured custom Resend SMTP was absent.
+- Future debug APK publishing for the original standalone Auth Probe and later Phase 7A is blocked through compile-only GitHub workflows. Previously created evidence, original KeyPrep and its private keys remain untouched.
+
+**Next real blockers:** Original KeyPrep signing continuity and Google Play Protect classification; subsequently authorized Android account-to-local-key proof. No new identity/trust grant or production release.
