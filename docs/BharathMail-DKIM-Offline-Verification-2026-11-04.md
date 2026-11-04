@@ -4,11 +4,17 @@
 
 ## Verified result
 
-- [GitHub DKIM CI #41821891666](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41821891666): **11/11 tests PASS**.
+- [GitHub DKIM CI #41821891666](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41821891666): **13/13 DKIM tests PASS**.
 - `mail-verifier/verify-original-dkim.mjs` calls maintained `mailauth@8.0.0`'s real `dkimVerify` in strict mode with RSA minimum 2048 bits and SHA-1 disallowed.
 - Tests generate an ephemeral RSA-2048 private/public key in memory, DKIM-sign a synthetic MIME email, and verify the signature against an injected synthetic DNS TXT key. Tampered bodies, wrong DNS keys, forged `Authentication-Results`, invalid or ambiguous From addresses, wrong sender, different signing domain, oversized MIME and DNS failures never produce an aligned PASS.
+- Additional negative tests reject DKIM signatures using `l=` partial-body coverage and keys marked `t=y` testing-only. No authority badge or payment approval is granted.
 - Real DKIM verification checks the **original MIME bytes**, exactly one valid signed From address, the signed `d=` domain matching the expected sender domain, and rejects body-length-limited DKIM signatures. This is stricter than relaxed organizational-domain alignment.
 - An independent DNS resolver must be injected; the module never chooses a default public DNS source implicitly. Its actual trustworthiness and production key-record custody remain separate external gates.
+
+## Combined regression
+
+- [GitHub Actions run #41822446724](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41822446724): **2/2 jobs SUCCESS; 13/13 DKIM cryptographic tests plus 142/142 existing Mail Trust and earlier security tests = 155/155 PASS** (zero failures or skips).
+- No APK, staging deployment, new DB migration, real-email fetch, or production issuer activation.
 
 ## What DKIM PASS means
 
