@@ -17,7 +17,9 @@ function allowlist(spec){
   if(typeof spec!=="string"||spec.length>1000) fail("raw_hosts_not_configured");
   const hosts=spec.split(",").map(s=>s.trim().toLowerCase());
   if(!hosts.length||hosts.length>8||hosts.some(h=>!h||!/^([a-z0-9-]+\.)+[a-z0-9-]+$/.test(h)
-     ||h.startsWith("-")||h.endsWith(".")||h.length>253))
+     ||h.startsWith("-")||h.endsWith(".")||h.length>253
+     ||/^[0-9]{1,3}(?:\.[0-9]{1,3}){3}$/.test(h)
+     ||h.endsWith(".internal")||h.endsWith(".localhost")||h.endsWith(".local")))
       fail("raw_hosts_not_configured");
   return new Set(hosts);
 }
@@ -68,6 +70,7 @@ async function getBoundRawSha256({
   try {
     r=await fetchFn(apiUrl,{
       method:"GET",redirect:"manual",cache:"no-store",
+      signal:AbortSignal.timeout(10000),
       headers:{Authorization:"Bearer "+apiKey,Accept:"application/json"}
     });
   }catch { fail("provider_read_failed"); }
@@ -96,6 +99,7 @@ async function getBoundRawSha256({
   try{
     original=await fetchFn(url,{
       method:"GET",redirect:"manual",cache:"no-store",
+      signal:AbortSignal.timeout(10000),
       headers:{Accept:"message/rfc822"}
     });
   }catch{fail("raw_download_failed");}
