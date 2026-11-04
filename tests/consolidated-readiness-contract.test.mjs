@@ -71,3 +71,13 @@ test("readiness matrix separates CI, physical tests, external third-party gates"
    "INDEPENDENT_SECURITY_REVIEW"
  ])assert.ok(blockers.has(id),id);
 });
+
+test("old Phase7A distribution workflow is permanently compile-only while harmful-app warning unresolved",()=>{
+  const w=source(".github/workflows/phase7a-isolated-auth-binding-android.yml");
+  assert.match(w,/PLAY PROTECT HOLD/);
+  assert.match(w,/:app:testDebugUnitTest/);
+  assert.doesNotMatch(w,/:app:assembleDebug/);
+  assert.doesNotMatch(w,/actions\/upload-artifact@/);
+  assert.doesNotMatch(w,/apksigner\s+sign\b/);
+  assert.match(w,/test ! -d v36hf-kotlin-build\/app\/build\/outputs\/apk/);
+});
