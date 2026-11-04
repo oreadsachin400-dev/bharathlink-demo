@@ -1,0 +1,163 @@
+name: BharathMail — HTML Link Impersonation Caution + Previous Security CI (HOLD)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-html-link-spoofing-caution-ci
+    paths:
+      - 'mail-verifier/**'
+      - 'bharatmail-trust-engine.js'
+      - 'tests/bharatmail-trust-engine.test.mjs'
+      - 'sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql'
+      - 'tests/fixtures/mail-receiver-replay-*'
+      - '.github/workflows/bharatmail-html-link-spoofing-caution-ci.yml'
+      - 'docs/BharathMail-Html-Phishing-Caution-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-crypto-html-caution-and-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned RFC mail verifier (no package scripts)
+        shell: bash
+        working-directory: mail-verifier
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save --package-lock=false
+          npm ls mailauth --depth=0
+      - name: Signed SMTP MIME and replay adapter offline tests
+        shell: bash
+        working-directory: mail-verifier
+        run: |
+          set -euo pipefail
+          node --check verify-and-consume-receiver-test.mjs
+          node --check tests/smtp-receiver-replay-policy.test.mjs
+          node --test tests/*.test.mjs | tee /tmp/bl-mail-replay-node.log
+          grep -q '# fail 0' /tmp/bl-mail-replay-node.log
+          grep -q '# skipped 0' /tmp/bl-mail-replay-node.log
+      - name: Existing sender auth, device and security regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/bharatmail-trust-engine.test.mjs \
+            tests/mail-auth-signed-gate.test.mjs \
+            tests/mail-auth-resend-raw-evidence.test.mjs \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee /tmp/bl-mail-replay-regressions.log
+          grep -q '# fail 0' /tmp/bl-mail-replay-regressions.log
+          grep -q '# skipped 0' /tmp/bl-mail-replay-regressions.log
+          node - <<'NODE'
+          const e=require('./bharatmail-trust-engine.js');
+          const r=e.inspect({source:'external',from:'support@example.com',subject:'account',
+            body:'Hello',html_body:'<a href="https://scam.example">https://bank.example/login</a>'});
+          if(r.isVerified!==false || r.isFakeProven!==false ||
+             r.identityVerification!=='not_verified' ||
+             r.domainAuthentication!=='not_checked' ||
+             !r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'))
+            throw Error('HTML impersonation warning or identity HOLD disappeared');
+          NODE
+
+  disposable-postgres-receiver-key-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic_receiver_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: synthetic_receiver_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Create isolated synthetic roles and append-only receiver tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/mail-auth-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql
+      - name: Key pin immutability, revocation, replay, role privileges and time windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/mail-receiver-replay-key-assertions.sql
+      - name: 24 concurrent independent Postgres consumers and post-revocation denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/fixtures/mail-receiver-replay-concurrency.sh
+          bash tests/fixtures/mail-receiver-replay-concurrency.sh
+      - name: End-to-end real localhost SMTP to pinned-key Postgres replay and revocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tests/mail-receiver-crypto-postgres-integration.test.mjs
+          node --test tests/mail-receiver-crypto-postgres-integration.test.mjs | tee /tmp/bl-mail-smtp-pg-e2e.log
+          grep -q '# fail 0' /tmp/bl-mail-smtp-pg-e2e.log
+          grep -q '# skipped 0' /tmp/bl-mail-smtp-pg-e2e.log
+      - name: Keep all production receiver, key and device release holds
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' supabase/functions/bl-mail-auth-attest/index.ts
+          grep -Fq 'BHARATHLINK_OFFLINE_SMTP_REPLAY_TEST' mail-verifier/verify-and-consume-receiver-test.mjs
+          grep -Fq 'DISPOSABLE TEST ONLY' sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql
+          node - <<'NODE'
+          const r=require('./docs/security-release-readiness.json');
+          if(r.release_decision!=='HOLD' ||
+             r.is_production_authorized!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.real_internet_facing_smtp_receiver_connected!==false ||
+             r.mail_spf_dmarc_offline?.release_authorized!==false ||
+             r.policy?.mail_sender_auth_must_remain_unverified_until_external_verifier!==true ||
+             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
+             r.policy?.mail_receiver_replay_still_test_only!==true ||
+             r.mail_receiver_replay_key_lifecycle_offline?.applied_to_live_database!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.real_live_receiver_or_dns_connected!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.production_authorized!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.changed_android_apk!==false) {
+            throw Error('unsafe mail receiver release configuration');
+          }
+          console.log('PASS: no live receiver authorization and mail identity trust remains HOLD');
+          NODE
