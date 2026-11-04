@@ -21,7 +21,7 @@ test('exposes a stable local API and all four independent trust dimensions fail 
  assert.equal(r.reasons.length,0);
  assert.match(r.limitations,/SPF, DKIM and DMARC/);
 });
-test('a spoofed mail's self-claimed authentication-results cannot create a Verified badge',()=>{
+test("a spoofed mail's self-claimed authentication-results cannot create a Verified badge",()=>{
  const r=engine.inspect(external('Security <alerts@example.com>','Notice','Hello',{
   headers:{'Authentication-Results':'example.com; dmarc=pass; spf=pass; dkim=pass'},
   spf:'pass',dkim:'pass',dmarc:'pass',verified:true,identity_verified:true,
