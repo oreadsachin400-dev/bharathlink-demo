@@ -20,11 +20,17 @@ const readStatus=v=>PROTOCOL.has(v)?v:"none";
 const domainOf=address=>addressPart(address).split("@")[1];
 
 async function deriveOfflineUnsignedMailAuthReport(rawMime,{
-  receiverEnvelope,pinnedReceiverPublicJwk,receiverKid,
+  receiverEnvelope,pinnedReceiverPublicJwk,receiverKid,offlineReportIssuerKid,
   expectedProviderEmailId,expectedFrom,expectedRecipient,
   resolveDns,now=Math.floor(Date.now()/1000)
 }={}){
   if(!Number.isSafeInteger(now)||now<0)throw Error("invalid_now");
+  // The downstream report issuer must be distinct from the SMTP receipt
+  // signer. This identifier is synthetic, not a real provisioned issuer.
+  if(typeof offlineReportIssuerKid!=="string"||
+     !/^[a-zA-Z0-9._-]{1,64}$/.test(offlineReportIssuerKid)||
+     offlineReportIssuerKid===receiverKid)
+    throw Error("distinct_offline_report_issuer_required");
   // Re-validates the original MIME hash, signed receipt, receiver identity,
   // SMTP envelope, author address and independently injected DNS first.
   const auth=await verifySmtpDomainAuthentication(rawMime,{
@@ -50,7 +56,7 @@ async function deriveOfflineUnsignedMailAuthReport(rawMime,{
   const dmarc=domainPass?"pass":auth.dmarc==="pass"?"none":readStatus(auth.dmarc);
   const unsignedReport=validateReport({
     v:1,aud:"bharathlink-mail-auth-v1",
-    kid:receiverKid, // only a TEST placeholder; real report issuer is separate
+    kid:offlineReportIssuerKid, // synthetic placeholder for separate report issuer
     provider_email_id:expectedProviderEmailId,
     from_address:expectedFrom,
     recipient_address:expectedRecipient,
