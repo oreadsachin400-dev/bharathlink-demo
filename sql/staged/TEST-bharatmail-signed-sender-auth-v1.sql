@@ -11,6 +11,7 @@ create table if not exists public.bharatmail_sender_auth_v1 (
   from_address text not null,
   recipient_address text not null,
   sender_domain text not null,
+  raw_sha256 text not null check (raw_sha256 ~ '^[0-9a-f]{64}$'),
   spf_result text not null check (spf_result in ('pass','fail','none','neutral','softfail','temperror','permerror')),
   dkim_result text not null check (dkim_result in ('pass','fail','none','neutral','softfail','temperror','permerror')),
   dmarc_result text not null check (dmarc_result in ('pass','fail','none','neutral','softfail','temperror','permerror')),
@@ -47,6 +48,7 @@ create or replace function public.bl_mail_record_auth_attestation_v1(
  p_from_address text,
  p_recipient_address text,
  p_sender_domain text,
+ p_raw_sha256 text,
  p_spf text,
  p_dkim text,
  p_dmarc text,
@@ -65,6 +67,7 @@ begin
     or p_from_address is null or length(p_from_address)>320
     or p_recipient_address is null or length(p_recipient_address)>254
     or p_sender_domain is null or length(p_sender_domain)>253
+    or p_raw_sha256 is null or p_raw_sha256 !~ '^[0-9a-f]{64}$'
     or p_kid is null or length(p_kid)>64
     or p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$'
     or p_issued_at is null or p_nonce is null
@@ -115,12 +118,12 @@ begin
 
   insert into public.bharatmail_sender_auth_v1 (
     provider_email_id,external_message_id,recipient_user_id,
-    from_address,recipient_address,sender_domain,
+    from_address,recipient_address,sender_domain,raw_sha256,
     spf_result,dkim_result,dmarc_result,verifier_key_id,verifier_issued_at,
     attestation_nonce,report_sha256
   ) values (
     p_provider_email_id,m.id,m.recipient_user_id,
-    p_from_address,p_recipient_address,p_sender_domain,
+    p_from_address,p_recipient_address,p_sender_domain,p_raw_sha256,
     p_spf,p_dkim,p_dmarc,p_kid,p_issued_at,p_nonce,p_sha256
   );
   return 'recorded';
@@ -128,9 +131,9 @@ end;
 $$;
 
 revoke all on function public.bl_mail_record_auth_attestation_v1(
- text,text,text,text,text,text,text,uuid,text,timestamptz,text)
+ text,text,text,text,text,text,text,text,uuid,text,timestamptz,text)
  from public,anon,authenticated;
 grant execute on function public.bl_mail_record_auth_attestation_v1(
- text,text,text,text,text,text,text,uuid,text,timestamptz,text)
+ text,text,text,text,text,text,text,text,uuid,text,timestamptz,text)
  to service_role;
 commit;
