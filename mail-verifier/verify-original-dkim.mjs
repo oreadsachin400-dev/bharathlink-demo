@@ -94,6 +94,9 @@ async function verifyOriginalMimeDkim(raw,{
    Array.isArray(verified.headerFrom)&&verified.headerFrom.length===1&&
    String(verified.headerFrom[0]).toLowerCase()===email;
  const results=Array.isArray(verified?.results)?verified.results:[];
+ console.log("WRAPPER_SYNTHETIC_DKIM_FLAGS",JSON.stringify({fromOK,lookups,results:results.map(v=>({result:v.status?.result,domain:v.signingDomain,algo:v.algo,testing:v.status?.testing,
+   warnings:v.status?.warnings,underSized:v.status?.underSized,signatureTimeValid:v.signatureTimeValid,limited:v.canonBodyLengthLimited,
+   comment:v.status?.comment}))}));
  const passing=fromOK ? results.find(result=>
    result?.status?.result==="pass"&&
    result.signingDomain?.toLowerCase()===domain&&
