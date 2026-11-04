@@ -11,7 +11,7 @@
   if (root) root.BharatMailTrustEngine = api;
 })(typeof window !== 'undefined' ? window : null, function () {
   'use strict';
-  const VERSION = 'bharathmail-trust-local-v2-2026-11-05';
+  const VERSION = 'bharathmail-trust-local-v3-2026-11-05';
   const MAX_SUBJECT = 300;
   const MAX_BODY = 12000;
   const PUBLIC_INBOX = new Set([
@@ -153,12 +153,20 @@
     const action=/(?:\b(?:bhejo|bhejna|bhej\s*do|batao|bata\s*do|dena|de\s*do|send\s*karo|share\s*karo)\b|भेजो|भेजें|भेजिए|भेजना|बताओ|बताएं|बताना|दीजिए|दे\s*दो|देना)/iu;
     const noSecret=/(?:\b(?:mat|nahi|nahin|never|don't|do\s*not)\b|मत|नहीं|ना)\s+(?:(?:[\p{L}\p{N}]+\s+){0,2})(?:bhejo|bhejna|batao|dena|भेजो|भेजें|भेजिए|भेजना|बताओ|देना)/iu;
     const payment=/(?:\b(?:paisa|paise|rupaye|rupiya|rupiye|money|payment)\s+(?:bhejo|bhejna|bhej\s*do|transfer|karo)\b|₹\s*\d+|पैसे|पैसा|रुपये|रुपया|रुपए|भुगतान)/iu;
-    const noPayment=/(?:\b(?:mat|nahi|nahin|don't|do\s*not|never)\b|मत|नहीं)\s+(?:(?:[\p{L}\p{N}]+\s+){0,3})(?:bhejo|bhejna|pay|send|transfer|भेजो|भेजें|भेजना|ट्रांसफर\s*करो)/iu;
+    // Separate requesting money from a routine invoice or statement.
+    // Both are still unverified; this is a bounded linguistic caution only.
+    const amount=/(?:₹\s*[\d,]+(?:\.\d{1,2})?|\b\d[\d,]{0,11}(?:\.\d{1,2})?\s*(?:rs\.?|inr|rupees?|rupaye|rupiya|rupiye|रुपये|रुपए|रुपया)\b)/iu;
+    const sendVerb=/(?:\b(?:send|bhejo|bhejna|bhej\s*do|chahiye|de\s*do|dena|dijiye|pay|transfer|jama\s*karo)\b|भेजो|भेजें|भेजिए|भेजना|भेज\s*दो|चाहिए|दे\s*दो|दीजिए|भुगतान\s*करो|ट्रांसफर\s*करो)/iu;
+    const noPayment=/(?:\b(?:mat|nahi|nahin|don't|do\s*not|never)\b|मत|नहीं)\s+(?:(?:[\p{L}\p{M}\p{N}]+\s+){0,3})(?:bhejo|bhejna|pay|send|transfer|dena|de\s*do|भेजो|भेजें|भेजिए|भेजना|ट्रांसफर\s*करो|भुगतान\s*करो)/iu;
+    const noPaymentAfter=/(?:\b(?:bhejo|bhejna|send|pay|transfer|dena)\s+(?:mat|nahi|nahin)\b|(?:भेजो|भेजना|भेजें|भेजिए|देना)\s+(?:मत|नहीं))/iu;
     const urgent=/(?:\b(?:turant|jaldi|abhi|fauran|aaj\s*hi|khata\s*band)\b|तुरंत|फ़ौरन|जल्दी|अभी|आज\s*ही|अंतिम\s*चेतावनी|डिजिटल\s*अरेस्ट|खाता\s*बंद)/iu.test(content);
-    const parts=content.split(/[.!?;,\n।]+/);
-    return {official,urgent,
+    // Preserve comma-separated thousands and decimal amounts in the same clause.
+    const parts=content.split(/[!?;\n।]+|,(?!\d)|\.(?!\d)/u);
+    const affirmative=p=>!noPayment.test(p)&&!noPaymentAfter.test(p);
+    const moneyRequest=parts.some(p=>amount.test(p)&&sendVerb.test(p)&&affirmative(p));
+    return {official,urgent,moneyRequest,
       secret:parts.some(p=>secret.test(p)&&action.test(p)&&!noSecret.test(p)),
-      pay:parts.some(p=>payment.test(p)&&!noPayment.test(p))};
+      pay:parts.some(p=>(payment.test(p)||amount.test(p)&&sendVerb.test(p))&&affirmative(p))};
   }
   function inspect(mail) {
     const m = (mail && typeof mail === 'object') ? mail : {};
@@ -176,6 +184,8 @@
       add(reasons,'SECRET_REQUEST','high','Email appears to request an OTP or password. Do not share secrets.');
     if(external && local.pay && local.urgent)
       add(reasons,'URGENT_PAYMENT','high','Urgency with a payment request: verify the beneficiary independently.');
+    else if(external && local.moneyRequest)
+      add(reasons,'PAYMENT_SOLICITATION','medium','This message asks for money. Verify the person and beneficiary independently before paying.');
     else if(external && local.pay)
       add(reasons,'PAYMENT_REQUEST','info','Money mentioned: verify the beneficiary independently.');
     if (external && (

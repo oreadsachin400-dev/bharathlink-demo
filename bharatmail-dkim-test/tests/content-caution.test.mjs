@@ -181,3 +181,40 @@ test('All five fictional cases exercise exact caution behavior without verifying
  assert.ok(!codes(advice).includes('SECRET_REQUEST'));
  assert.equal(advice.isVerified,false);
 });
+
+test('Amount-specific Hindi/Hinglish money requests are cautiously distinguished from mentions and safety advice',()=>{
+ const positive=[
+  ['500 rs send karo','PAYMENT_SOLICITATION'],
+  ['500 rupiya chahiye','PAYMENT_SOLICITATION'],
+  ['₹500 bhejo','PAYMENT_SOLICITATION'],
+  ['50,000 rupaye bhejo','PAYMENT_SOLICITATION'],
+  ['अभी ₹50,000 भेजो','URGENT_PAYMENT'],
+  ['Turant 500 rs send karo','URGENT_PAYMENT']
+ ];
+ for(const [body,reason] of positive){
+  const r=inspect('someone@example.com','Payment notice',body);
+  assert.ok(codes(r).includes(reason),body);
+  assert.equal(r.isVerified,false); assert.equal(r.isFakeProven,false);
+  assert.equal(r.identityVerification,'not_verified');
+  assert.equal(r.paymentRequestVerification,'not_verified');
+ }
+ const negative=[
+  '₹500 mat bhejo','₹500 bhejna nahi','₹500 मत भेजो',
+  'Never send ₹500','500 rs send mat karo','Invoice of 500 rs has been paid'
+ ];
+ for(const body of negative){
+  const r=inspect('someone@example.com','Payment note',body);
+  assert.ok(!codes(r).includes('PAYMENT_SOLICITATION'),body);
+  assert.equal(r.isVerified,false);assert.equal(r.isFakeProven,false);
+ }
+});
+test('Risk-engine version and CSP/SRI remain mutually pinned in real and offline demo pages',()=>{
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v3-2026-11-05');
+ const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
+ const hash=sha(engineBytes);
+ for(const source of [html,demo]){
+  assert.ok(source.includes('integrity="sha256-'+hash+'"'));
+  assert.ok(source.includes('&#x27;sha256-'+hash+'&#x27;'));
+ }
+ assert.doesNotMatch(engineBytes.toString('utf8'),/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
+});
