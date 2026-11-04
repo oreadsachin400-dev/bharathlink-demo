@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-jGbbhxkUkVonQC8rSRi5zxPLv//a+gx0uBb2kGjt910=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-W27mgnumAU4tJBtymaNbenVuYT5z2mvDDQdo5y3waO4=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Test</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -40,6 +40,36 @@ async function request(path,method='GET',data,authorized=false){
  if(!response.ok){
   const messages={invalid_credentials:'TEST account email or password is incorrect.',email_not_confirmed:'Confirm the TEST account email first.',otp_expired:'Email OTP expired or incorrect.',over_request_rate_limit:'Too many attempts. Try again later.',login_required:'Sign in first.',mail_not_available_to_user:'This received email does not belong to this TEST account.',test_verifier_not_configured:'DKIM TEST backend is not configured.',evidence_or_validation_unavailable:'Original MIME or domain-signature evidence is unavailable. Do not assume this message is authentic or fake.',provider_unavailable:'Original email is unavailable from the provider.'};
   const code=String(value.error_code||value.code||value.error||'');
+  if(code==='evidence_or_validation_unavailable'){
+   // Server deliberately reports only coarse failure categories AFTER a
+   // signed-in mailbox owner is validated. These are not fake-mail verdicts.
+   const why=String(value.diagnostic_reason||'unclassified_server_failure');
+   const details={
+    session_invalid:'Session expired. Clear test session, then sign in again.',
+    mail_not_owned_or_unavailable:'Mail lookup or account permission failed. Your own email remains unverified.',
+    provider_record_invalid:'Stored mail provider ID is invalid; server repair needed.',
+    provider_credential_unavailable:'Resend receiver access is unavailable. Server configuration needs review.',
+    provider_message_unavailable:'Resend could not retrieve this received message. Check provider access or retention.',
+    provider_metadata_unavailable:'Resend response metadata was not readable.',
+    provider_response_unavailable:'Resend response stream was unavailable.',
+    provider_response_oversized:'Provider response exceeded the safety limit.',
+    provider_response_invalid:'Provider response had invalid bytes.',
+    provider_metadata_binding_failed:'Resend sender or recipient details do not match the stored email. No DKIM claim.',
+    original_mime_unavailable:'Resend has not provided the original raw email for this message.',
+    original_mime_link_unavailable:'The original email download capability is unavailable or expired.',
+    original_mime_origin_not_approved:'Original MIME download host is outside the approved server list.',
+    original_mime_incomplete:'Original raw message is incomplete.',
+    address_metadata_invalid:'Sender or recipient format could not be safely matched.',
+    dns_resolver_unavailable:'Independent DNS verifier is unavailable.',
+    dns_record_unavailable:'Required public DKIM DNS record could not be read.',
+    dns_query_limit:'DKIM DNS query limit reached.',
+    dns_name_not_approved:'Unapproved DKIM DNS query rejected.',
+    dns_response_invalid:'DKIM DNS response was invalid.',
+    dns_record_invalid:'DKIM public key record was malformed.',
+    unclassified_server_failure:'Server verification failed for an unclassified reason.'
+   };
+   throw Error('DKIM NOT CHECKED — '+(details[why]||details.unclassified_server_failure)+' Sender identity and payment still not verified.');
+  }
   throw Error(messages[code]||('Unable to complete request (HTTP '+response.status+'). No sender is verified.'));
  }
  return value;
