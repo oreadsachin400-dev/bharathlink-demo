@@ -157,6 +157,13 @@ jobs:
              r.policy?.mail_sender_auth_must_remain_unverified_until_external_verifier!==true ||
              r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
              r.policy?.mail_html_heuristic_must_not_mark_sender_verified!==true ||
+             r.policy?.mail_cloudflare_worker_candidate_must_remain_offline!==true ||
+             r.policy?.mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review!==true ||
+             r.mail_cloudflare_email_routing_candidate_offline?.cloudflare_email_worker_currently_deployed!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.real_mx_or_dns_modified!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.cloudflare_internal_worker_origin_proven!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.external_spf_dkim_dmarc_independently_verified_in_live_bharathmail!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.production_authorized!==false ||
              r.mail_html_link_phishing_caution_offline?.release_authorized!==false ||
              r.mail_html_link_phishing_caution_offline?.deployed_to_live_netlify_supabase_resend!==false ||
              r.mail_html_link_phishing_caution_offline?.external_spf_dkim_dmarc_verified!==false ||
