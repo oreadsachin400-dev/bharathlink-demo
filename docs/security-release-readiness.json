@@ -114,7 +114,8 @@
     "known_legacy_apk_build_upload_jobs_job_level_disabled": true,
     "mail_sender_auth_must_remain_unverified_until_external_verifier": true,
     "no_new_edge_deploy_or_db_migration_for_mail_auth": true,
-    "mail_dkim_offline_test_cannot_authorize_release": true
+    "mail_dkim_offline_test_cannot_authorize_release": true,
+    "mail_spf_dmarc_requires_real_signed_receiver_and_independent_dns": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -247,5 +248,34 @@
     },
     "partial_body_signature_denied": true,
     "testing_only_dns_key_denied": true
+  },
+  "mail_spf_dmarc_offline": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-smtp-spf-dmarc-offline-ci",
+    "status": "RFC_SPF_DKIM_DMARC_WITH_SYNTHETIC_SIGNED_SMTP_AND_DNS_CI_PASS",
+    "latest_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41824239638",
+    "ci_jobs_passed": 2,
+    "mailauth_version": "8.0.0",
+    "offline_spf_dkim_dmarc_tests_passed": 27,
+    "earlier_mail_security_regressions_passed": 142,
+    "total_node_tests_passed": 169,
+    "original_raw_mime_bound_by_signed_receiver": true,
+    "authenticated_connecting_smtp_ip_in_live_resend": false,
+    "authenticated_envelope_sender_in_live_resend": false,
+    "independently_audited_receiver_issuer_connected": false,
+    "real_receiver_p256_private_key_custody_verified": false,
+    "real_dns_evidence_authenticated": false,
+    "tested_live_email": false,
+    "real_user_domain_auth_verified": false,
+    "real_person_or_organization_verified": false,
+    "actual_live_payment_recipient_verified": false,
+    "deployed_to_supabase_or_netlify": false,
+    "release_authorized": false,
+    "testing_only_result_label": "synthetic_domain_authenticated_only",
+    "source_files": [
+      "mail-verifier/verify-signed-smtp-receipt.mjs",
+      "mail-verifier/verify-smtp-spf-dmarc.mjs"
+    ],
+    "handover": "docs/BharathMail-SPF-DMARC-Offline-2026-11-04.md"
   }
 }
