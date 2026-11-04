@@ -1,0 +1,114 @@
+name: BharathMail — Real Loopback SMTP Evidence Offline CI (HOLD)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-loopback-smtp-receiver-evidence-ci
+    paths:
+      - 'mail-verifier/**'
+      - '.github/workflows/bharatmail-loopback-smtp-evidence-offline-ci.yml'
+      - 'docs/BharathMail-Loopback-SMTP-Evidence-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loopback-smtp-report-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mail-verifier
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned mailauth without package scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save --package-lock=false
+          npm ls mailauth --depth=0
+      - name: Run genuine synthetic RFC and bridge integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check derive-offline-unsigned-auth-report.mjs
+          node --check loopback-smtp-test-receiver.mjs
+          node --check tests/loopback-smtp-receiver-evidence.test.mjs
+          node --test tests/*.test.mjs | tee /tmp/bl-mail-report-bridge.log
+          grep -q '# fail 0' /tmp/bl-mail-report-bridge.log
+          grep -q '# skipped 0' /tmp/bl-mail-report-bridge.log
+      - name: Assert no live receiver, issuer signer, identity or release promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'trustReceived:false' verify-smtp-spf-dmarc.mjs
+          grep -Fq 'const HOST="127.0.0.1"' loopback-smtp-test-receiver.mjs
+          grep -Fq 'socket.remoteAddress' loopback-smtp-test-receiver.mjs
+          grep -Fq 'BHARATHLINK_OFFLINE_SMTP_LOOPBACK_TEST' loopback-smtp-test-receiver.mjs
+          grep -Fq 'external_receiver_audited:false' loopback-smtp-test-receiver.mjs
+          grep -Fq 'production_authorized:false' loopback-smtp-test-receiver.mjs
+          grep -Fq 'OFFLINE_SYNTHETIC_ONLY_UNSIGNED' derive-offline-unsigned-auth-report.mjs
+          grep -Fq 'production_authorized:false' derive-offline-unsigned-auth-report.mjs
+          grep -Fq 'receiver_issuer_audited:false' derive-offline-unsigned-auth-report.mjs
+          grep -Fq 'independent_receiver_approved:false' verify-signed-smtp-receipt.mjs
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' ../supabase/functions/bl-mail-auth-attest/index.ts
+          test ! -d ../app/build/outputs/apk
+          echo 'PASS: local TCP evidence receiver and unsigned bridge cannot claim live trust or release'
+
+  prior-mail-and-device-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Run preexisting Mail, attestation, device, recovery and hold regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/bharatmail-trust-engine.test.mjs \
+            tests/mail-auth-signed-gate.test.mjs \
+            tests/mail-auth-resend-raw-evidence.test.mjs \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee /tmp/bl-mail-security-regression.log
+          grep -q '# fail 0' /tmp/bl-mail-security-regression.log
+          grep -q '# skipped 0' /tmp/bl-mail-security-regression.log
+      - name: Assert all documented release HOLD constraints
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const r=require('./docs/security-release-readiness.json');
+          if(r.release_decision!=='HOLD' ||
+             r.is_production_authorized!==false ||
+             r.mail_spf_dmarc_offline?.release_authorized!==false ||
+             r.mail_spf_dmarc_offline?.real_user_domain_auth_verified!==false ||
+             r.mail_signed_sender_auth_backend?.real_independent_smtp_dns_verifier_connected!==false ||
+             r.policy?.mail_sender_auth_must_remain_unverified_until_external_verifier!==true ||
+             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
+             r.policy?.mail_real_receiver_provenance_still_unverified!==true ||
+             r.mail_loopback_smtp_receiver_evidence?.real_internet_facing_smtp_receiver_connected!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.real_sender_domain_authenticated!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.production_authorized!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.live_supabase_netlify_resend_modified!==false) {
+              throw Error('Unapproved release/readiness state');
+          }
+          console.log('PASS: sender verification and all related live releases remain HOLD');
+          NODE

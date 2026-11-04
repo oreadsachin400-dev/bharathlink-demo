@@ -115,7 +115,8 @@
     "mail_sender_auth_must_remain_unverified_until_external_verifier": true,
     "no_new_edge_deploy_or_db_migration_for_mail_auth": true,
     "mail_dkim_offline_test_cannot_authorize_release": true,
-    "mail_spf_dmarc_requires_real_signed_receiver_and_independent_dns": true
+    "mail_spf_dmarc_requires_real_signed_receiver_and_independent_dns": true,
+    "mail_real_receiver_provenance_still_unverified": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -304,5 +305,37 @@
     "source": "mail-verifier/derive-offline-unsigned-auth-report.mjs",
     "handover": "docs/BharathMail-Unsigned-Report-Bridge-Offline-2026-11-04.md",
     "external_blocker": "Independently audited real receiving SMTP gateway and DNS evidence, separate production issuer key custody, replay persistence, external security review and explicit release authorization"
+  },
+  "mail_loopback_smtp_receiver_evidence": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-loopback-smtp-receiver-evidence-ci",
+    "status": "ACTUAL_LOCAL_TCP_PROVENANCE_WITH_SYNTHETIC_DKIM_SPF_DMARC_CI_PASS_NOT_DEPLOYED",
+    "latest_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41826760574",
+    "ci_jobs_passed": 2,
+    "local_tcp_smtp_tests_passed": 11,
+    "earlier_mail_verifier_tests_passed": 37,
+    "prior_mail_and_device_security_regressions_passed": 142,
+    "total_tests_passed": 190,
+    "bound_listener": "127.0.0.1:ephemeral_port",
+    "ipv4_tcp_peer_ip_captured_from_socket": true,
+    "smtp_mail_from_helo_recipient_from_tcp_session": true,
+    "mime_data_dot_unstuffed_and_sha256_bound": true,
+    "synthetic_signed_receiver_receipt_verified": true,
+    "loopback_tcp_spf_pass_tested": true,
+    "full_body_dkim_and_dmarc_pass_tested": true,
+    "unsigned_report_bridge_tested": true,
+    "mail_receipt_production_issuer_audited": false,
+    "real_internet_facing_smtp_receiver_connected": false,
+    "externally_received_customer_email_tested": false,
+    "external_dns_trust_verified": false,
+    "real_sender_domain_authenticated": false,
+    "real_person_or_business_verified": false,
+    "real_payment_recipient_verified": false,
+    "production_mta_capable": false,
+    "production_authorized": false,
+    "live_supabase_netlify_resend_modified": false,
+    "android_apk_changed": false,
+    "handover": "docs/BharathMail-Loopback-SMTP-Evidence-2026-11-04.md",
+    "blocker": "Need independently operated secure public receiving SMTP infrastructure, trustworthy DNS, separate signer key custody, durable replay state, RFC handling and external security/release review"
   }
 }
