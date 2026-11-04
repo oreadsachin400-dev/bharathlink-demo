@@ -165,6 +165,31 @@ async function originalRecipientForOwnedMail(row:any,base:string):Promise<string
  }
  return originalTo;
 }
+/**
+ * Bounded, explicit Resend raw-MIME destination classes.
+ * The domain is not proof of sender identity; cryptographic DKIM is separate.
+ *
+ * - CDN distribution: *.cloudfront.net
+ * - Resend-managed signed link: *.resend.com and *.resend.app
+ * - AWS S3-style signed download, not arbitrary *.amazonaws.com services
+ * - Cloudflare R2 S3-compatible endpoint with 32-hex account identifier
+ *
+ * Never log or return the full bearer URL, path or query parameters.
+ */
+function isAllowedRawDownloadHost(host:string):boolean{
+ if(typeof host!=="string"||host.length>253||host.includes("..")||
+    !/^[a-z0-9.-]+$/.test(host))return false;
+ if(/^(?:[a-z0-9-]+\.)+cloudfront\.net$/.test(host))return true;
+ if(/^(?:[a-z0-9-]+\.)+resend\.com$/.test(host))return true;
+ if(/^(?:[a-z0-9-]+\.)+resend\.app$/.test(host))return true;
+ // S3 host only; never *.amazonaws.com generally (EC2, internal services).
+ if(/^(?:[a-z0-9][a-z0-9.-]*\.)?s3(?:[.-][a-z0-9-]+){0,3}\.amazonaws\.com$/.test(host))
+   return true;
+ // R2: optional bucket name + specific Cloudflare account-scoped S3 API host.
+ if(/^(?:[a-z0-9][a-z0-9-]{0,62}\.)?[0-9a-f]{32}\.r2\.cloudflarestorage\.com$/.test(host))
+   return true;
+ return false;
+}
 async function fromResend(row:any,key:string,originalRecipient:string):Promise<Uint8Array>{
  const providerId=row.provider_email_id;
  if(typeof providerId!=="string"||!UUID.test(providerId))reject("invalid_provider_id");
@@ -188,11 +213,15 @@ async function fromResend(row:any,key:string,originalRecipient:string):Promise<U
     expiration>Date.now()+3600000)reject("expired_raw_capability");
  const url:URL=(()=>{try{return new URL(record.download_url)}catch{return reject("invalid_raw_capability")}})();
  const host=url.hostname.toLowerCase();
- // Resend officially documents signed CloudFront raw-email URLs. Never
- // allow arbitrary untrusted host, userinfo, redirect, port or local IP.
+ // Signed original MIME URLs are supplied ONLY by the previously
+ // authenticated Resend Receiving API, AFTER owner + event + route matching.
+ // Resend may serve presigned downloads from CDN, Resend-controlled domains,
+ // or S3-compatible storage; do not weaken this to arbitrary https origins.
+ // Reject localhost/IP, lookalike suffixes, credentials, ports, redirects,
+ // and URLs with empty signature/query.
  if(url.protocol!=="https:"||url.port||url.hash||url.username||url.password||
-    !(host.endsWith(".cloudfront.net")||host.endsWith(".resend.com"))||
-    host.endsWith(".")||url.href.length>8192)reject("unapproved_raw_origin");
+    !isAllowedRawDownloadHost(host)||url.href.length>8192||
+    !url.search)reject("unapproved_raw_origin");
  const raw=await fetch(url.href,{method:"GET",redirect:"manual",
   signal:AbortSignal.timeout(12000),cache:"no-store",
   headers:{accept:"message/rfc822"}});
