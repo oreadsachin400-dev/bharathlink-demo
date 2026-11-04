@@ -9,6 +9,7 @@
 // @ts-ignore mailauth is a CommonJS package whose types are not complete
 import {dkimVerify} from "npm:mailauth@8.0.0/lib/dkim/verify";
 import {qualifiedDomainDkimVerdict} from "./dkim-domain-verdict.mjs";
+import {assessExactDmarcWithVerifiedDkim} from "./dmarc-dkim-only.mjs";
 const TEST_REF="fsdusofbpwdrdvgexxyw";
 const MAX_RAW=5*1024*1024;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,8 +52,11 @@ async function boundedBytes(res:Request|Response,cap:number):Promise<Uint8Array>
  return bytes;
 }
 async function resolveDkimTxt(name:string,type:string):Promise<string[][]>{
+ // An independent TXT resolver is reused for DKIM keys and ONLY exact
+ // _dmarc.author-domain policy lookup (RFC 9989). No arbitrary DNS URLs.
+ const isDmarc=typeof name==="string"&&/^_dmarc\.[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(name);
  if(type!=="TXT"||typeof name!=="string"||name.length>253||
-    !/^[a-z0-9_.-]+$/i.test(name)||!name.includes("._domainkey.")||
+    !/^[a-z0-9_.-]+$/i.test(name)||!(name.includes("._domainkey.")||isDmarc)||
     name.includes(".."))reject("unapproved_dns_name");
  const u="https://cloudflare-dns.com/dns-query?name="+encodeURIComponent(name)+"&type=TXT";
  const r=await fetch(u,{headers:{accept:"application/dns-json"},redirect:"manual",
@@ -60,9 +64,12 @@ async function resolveDkimTxt(name:string,type:string):Promise<string[][]>{
  if(r.status!==200)reject("dns_provider_unavailable");
  const bytes=await boundedBytes(r,16384);
  let data:any;try{data=JSON.parse(new TextDecoder().decode(bytes))}catch{reject("invalid_dns_response")}
- if(!data||data.Status!==0||!Array.isArray(data.Answer)||data.Answer.length>15)
+ if(!data||!(data.Status===0||(isDmarc&&data.Status===3))||
+    (data.Answer!=null&&!Array.isArray(data.Answer))||
+    (Array.isArray(data.Answer)&&data.Answer.length>15))
    reject("dns_record_unavailable");
- const matching=data.Answer.filter((x:any)=>x?.type===16 &&
+ if(isDmarc&&data.Status===3)return [];
+ const matching=(Array.isArray(data.Answer)?data.Answer:[]).filter((x:any)=>x?.type===16 &&
   typeof x.name==="string"&&x.name.toLowerCase().replace(/\.$/,"")===name.toLowerCase());
  const results:string[][]=[];
  for(const answer of matching){
@@ -71,7 +78,7 @@ async function resolveDkimTxt(name:string,type:string):Promise<string[][]>{
   if(!chunks.length||chunks.length>16)reject("invalid_dns_txt");
   results.push(chunks.map((x:string)=>x.slice(1,-1).replace(/\\(["\\])/g,"$1")));
  }
- if(!results.length||results.length>8)reject("dns_record_unavailable");
+ if(results.length>8||(!results.length&&!isDmarc))reject("dns_record_unavailable");
  return results;
 }
 async function lookupOwnMessage(token:string,clientKey:string,url:string,emailId:string):Promise<any>{
@@ -289,9 +296,19 @@ export default {
    raw=await fromResend(row,key,originalRecipient,s=>{stage=s;});
    stage="dkim_crypto";
    const dkim=await cryptographicDkim(raw,row.from_address);
+   // DMARC is an exact-From-domain RFC 9989 policy assessment ONLY.
+   // No SMTP peer IP or signed receiver envelope => SPF stays NOT_CHECKED.
+   // No valid independent DKIM => this helper never queries policy DNS.
+   stage="dmarc_exact_policy";
+   const dmarc=await assessExactDmarcWithVerifiedDkim({
+     from:parseAddress(row.from_address),domainDkim:dkim.dkim,
+     strictlyAligned:dkim.strictly_aligned,resolveTxt:resolveDkimTxt
+   });
    return resp(200,{check:"real_resend_original_mime",domain_dkim:dkim.dkim,
      domain_dkim_strictly_aligned:dkim.strictly_aligned,
-     dkim_reason:dkim.reason,spf:"not_checked",dmarc:"not_checked",
+     dkim_reason:dkim.reason,spf:"not_checked",
+     dmarc:dmarc.dmarc,dmarc_reason:dmarc.dmarc_reason,
+     dmarc_policy:dmarc.dmarc_policy,dmarc_policy_scope:dmarc.dmarc_policy_scope,
      sender_identity:"not_verified",organization_authority:"not_verified",
      payment_beneficiary:"not_verified",
      safe_to_follow_request:false,verified_sender_badge:false,
@@ -343,7 +360,8 @@ export default {
      resend_metadata_read:"provider_metadata_unavailable",
      original_mime_request:"original_mime_unavailable",
      original_mime_stream:"provider_response_unavailable",
-     dkim_crypto:"dns_resolver_unavailable"
+     dkim_crypto:"dns_resolver_unavailable",
+     dmarc_exact_policy:"dns_resolver_unavailable"
    };
    // Fixed allowlisted category only. Never log the exception text or any mail data.
    const diagnostic=Object.hasOwn(classifications,code)
