@@ -60,8 +60,14 @@ jobs:
           ! grep -Fq 'wrangler deploy' .github/workflows/bharatmail-resend-real-dkim-preview-ci.yml
           node - <<'NODE'
           const r=require('./docs/security-release-readiness.json');
-          if(r.release_decision!=='HOLD'||r.is_production_authorized!==false)
-            throw Error('Production release unexpectedly enabled');
+          if(r.release_decision!=='HOLD'||r.is_production_authorized!==false||
+             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
+             r.policy?.mail_resend_dkim_preview_source_only_no_live_deploy!==true ||
+             r.policy?.mail_resend_dkim_domain_signature_not_human_identity!==true ||
+             r.mail_resend_original_mime_dkim_preview?.real_edge_preview_deployed!==false ||
+             r.mail_resend_original_mime_dkim_preview?.live_inbound_original_raw_mime_fetched_for_dkim!==false ||
+             r.mail_resend_original_mime_dkim_preview?.release_authorized!==false)
+            throw Error('Real-mail DKIM preview or production release unexpectedly enabled');
           NODE
 
   edge-deno-compile-only:
