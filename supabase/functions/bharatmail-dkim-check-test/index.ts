@@ -14,7 +14,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const EMAIL=/^[a-z0-9.!#$%&'*+/=?^`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
 const DOMAIN=/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 const reject=(code:string):never=>{throw Error(code)};
-const resp=(status:number,body:unknown)=>new Response(JSON.stringify(body),{
+const resp=(status:number,body:unknown)=>new Response(status===204?null:JSON.stringify(body),{
  status,headers:{"content-type":"application/json","cache-control":"no-store",
  "access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type",
  "access-control-allow-methods":"POST,OPTIONS"}
@@ -30,7 +30,7 @@ function parseAddress(v:unknown):string{
     reject("invalid_address");
  return x.toLowerCase();
 }
-async function boundedBytes(res:Response,cap:number):Promise<Uint8Array>{
+async function boundedBytes(res:Request|Response,cap:number):Promise<Uint8Array>{
  const stream=res.body;
  if(!stream)return reject("raw_response_missing");
  const size=Number(res.headers.get("content-length")||"0");
@@ -175,7 +175,10 @@ export default {
   const len=Number(req.headers.get("content-length")||"0");
   if(!Number.isFinite(len)||len>1024)return resp(413,{error:"request_too_large"});
   let body:any;
-  try{body=await req.json()}catch{return resp(400,{error:"invalid_request"})}
+  try{
+    const bytes=await boundedBytes(req,1024);
+    body=JSON.parse(new TextDecoder().decode(bytes));
+  }catch{return resp(400,{error:"invalid_request"})}
   if(!body||!UUID.test(body.message_id||""))
     return resp(400,{error:"message_id_required"});
   let raw:Uint8Array|undefined;
