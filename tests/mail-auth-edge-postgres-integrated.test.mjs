@@ -9,7 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {mkdtempSync,writeFileSync,readFileSync,copyFileSync,rmSync} from "node:fs";
 import {execFileSync} from "node:child_process";
-import {webcrypto,randomUUID} from "node:crypto";
+import {webcrypto,randomUUID,createHash} from "node:crypto";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {fileURLToPath,pathToFileURL} from "node:url";
@@ -19,6 +19,10 @@ const SRC=fileURLToPath(new URL("../supabase/functions/bl-mail-auth-attest/",imp
 const ORIGINAL=readFileSync(join(SRC,"index.ts"),"utf8");
 const HOST="https://synthetic-only.mail-auth.invalid";
 const SERVICE="local-ci-only-service";
+const RESEND_KEY="re_local_synthetic_only_key";
+const RAW_HOST="raw.synthetic.invalid";
+const rawFor=id=>"From: synthetic@fixture.invalid\r\nMessage-ID: <"+id+"@fixture.invalid>\r\n\r\nRaw MIME bytes "+id+"\r\n";
+const rawHash=id=>createHash("sha256").update(rawFor(id)).digest("hex");
 const KID="synthetic-smtp-verifier";
 const U1="11111111-1111-4111-8111-111111111111";
 const U2="22222222-2222-4222-8222-222222222222";
@@ -28,6 +32,7 @@ function sqlRecord(p) {
   const args=[
     q(p.p_provider_email_id)+"::text",q(p.p_from_address)+"::text",
     q(p.p_recipient_address)+"::text",q(p.p_sender_domain)+"::text",
+    q(p.p_raw_sha256)+"::text",
     q(p.p_spf)+"::text",q(p.p_dkim)+"::text",q(p.p_dmarc)+"::text",
     q(p.p_nonce)+"::uuid",q(p.p_kid)+"::text",
     q(p.p_issued_at)+"::timestamptz",q(p.p_sha256)+"::text"
@@ -51,7 +56,7 @@ function report(overrides={}){
  return {v:1,aud:"bharathlink-mail-auth-v1",kid:KID,
   provider_email_id:"mail-a-01",from_address:"Bank Support <alerts@bank.example>",
   recipient_address:"reply+a0000000-0000-4000-8000-000000000001@bharathlink.com",
-  sender_domain:"bank.example",
+  sender_domain:"bank.example",raw_sha256:rawHash(overrides.provider_email_id||"mail-a-01"),
   spf:"pass",spf_domain:"bank.example",
   dkim:"pass",dkim_domain:"bank.example",dmarc:"pass",
   nonce:randomUUID(),issued_at:ts,expires_at:ts+75,...overrides};
@@ -79,7 +84,8 @@ async function mount(enabled,kid,publicJwk){
  globalThis.Deno={env:{get(x){return {
    SUPABASE_URL:HOST,SUPABASE_SERVICE_ROLE_KEY:SERVICE,
    BL_MAIL_AUTH_VERIFIER_KEY_ID:kid,
-   BL_MAIL_AUTH_VERIFIER_P256_PUBLIC_JWK:JSON.stringify(publicJwk)
+   BL_MAIL_AUTH_VERIFIER_P256_PUBLIC_JWK:JSON.stringify(publicJwk),
+   RESEND_API_KEY:RESEND_KEY,BL_MAIL_RAW_DOWNLOAD_HOSTS:RAW_HOST
  }[x];}},serve(fn){handler=fn;}};
  await import(pathToFileURL(join(dir,"index.mjs")).href);
  return {dir,handler};
@@ -98,6 +104,27 @@ test("actual signed P-256 Edge -> disposable PostgreSQL (all accounts synthetic;
 
   const enabled=await mount(true,KID,key.jwk);dirs.push(enabled.dir);
   globalThis.fetch=async(url,opts)=>{
+   const received={
+    "mail-a-01":{from:"Bank Support <alerts@bank.example>",to:"reply+a0000000-0000-4000-8000-000000000001@bharathlink.com"},
+    "mail-b-02":{from:"Alice <alice@another.example>",to:"reply+b0000000-0000-4000-8000-000000000002@bharathlink.com"},
+    "mail-replay":{from:"Replay Test <r@replay.example>",to:"reply+e0000000-0000-4000-8000-000000000005@bharathlink.com"}
+   };
+   const providerPrefix="https://api.resend.com/emails/receiving/";
+   if(String(url).startsWith(providerPrefix)){
+     assert.equal(opts.headers.Authorization,"Bearer "+RESEND_KEY);
+     const id=String(url).slice(providerPrefix.length),m=received[id];
+     if(!m)return new Response("Unknown provider ID",{status:404});
+     return Response.json({id,from:m.from,to:[m.to],
+       raw:{download_url:"https://"+RAW_HOST+"/original/"+id+"?token=synthetic",
+            expires_at:new Date(Date.now()+600000).toISOString()}});
+   }
+   const rawPrefix="https://"+RAW_HOST+"/original/";
+   if(String(url).startsWith(rawPrefix)){
+     assert.equal(opts.redirect,"manual");
+     assert.equal(opts.headers.Authorization,undefined);
+     const id=String(url).slice(rawPrefix.length).split("?")[0];
+     return new Response(rawFor(id),{status:200});
+   }
    calls++;
    assert.equal(url,HOST+"/rest/v1/rpc/bl_mail_record_auth_attestation_v1","Unexpected network");
    assert.equal(opts.headers.apikey,SERVICE);
