@@ -12,7 +12,9 @@ test("unexpected live DKIM TEST failures remain stage-classified, never sender v
  for(const stage of stages){
   assert.match(source,new RegExp(stage+':"'));
  }
- assert.match(source,/diagnostic_reason:classifications\[code\]\|\|fallbackByStage\[stage\]/);
+ assert.match(source,/diagnostic_reason:diagnostic/);
+ assert.match(source,/Object\.hasOwn\(classifications,code\)/);
+ assert.match(source,/console\.warn\("BLMAIL_DKIM_TEST_FAILURE_CATEGORY:"\+diagnostic\)/);
  assert.match(source,/error:"evidence_or_validation_unavailable"/);
  assert.match(source,/sender_identity:"not_verified"/);
  assert.match(source,/verified_sender_badge:false/);
@@ -20,7 +22,7 @@ test("unexpected live DKIM TEST failures remain stage-classified, never sender v
  assert.match(source,/safe_to_follow_request:false/);
 });
 test("stage logs are strictly static and never disclose original MIME or provider secrets",()=>{
- assert.match(source,/console\.warn\("BLMAIL_DKIM_TEST_UNEXPECTED_PHASE:"\+stage\)/);
+ assert.match(source,/console\.warn\("BLMAIL_DKIM_TEST_FAILURE_CATEGORY:"\+diagnostic\)/);
  assert.doesNotMatch(source,/console\.(?:log|warn|error)\((?:cause|code|row|raw|token|key|originalRecipient)/);
  assert.match(source,/raw\?\.fill\(0\)/);
  assert.match(source,/const row=await lookupOwnMessage/);
