@@ -1,0 +1,46 @@
+name: BharathLink Pages current publishing source audit (READ ONLY)
+on:
+  push:
+    branches:
+      - bharathlink-mail-resend-live-dkim-readonly
+    paths:
+      - '.github/workflows/blmail-pages-config-readonly-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: read
+jobs:
+  inspect-pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Inspect actual GitHub Pages source without mutating or deploying
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          node - <<'NODE'
+          const url='https://api.github.com/repos/'+process.env.REPO+'/pages';
+          const res=await fetch(url,{headers:{
+            Authorization:'Bearer '+process.env.TOKEN,
+            Accept:'application/vnd.github+json',
+            'X-GitHub-Api-Version':'2022-11-28',
+            'User-Agent':'BharathLink-pages-source-readonly-audit'
+          }});
+          if(res.status!==200){
+            console.log('GH_PAGES_READONLY_STATUS',res.status);
+            console.log('GH_PAGES_SOURCE_NOT_AVAILABLE; no publish action is authorized');
+            process.exit(0);
+          }
+          const p=await res.json();
+          console.log('GH_PAGES_READONLY',JSON.stringify({
+            url:p.html_url,
+            source_branch:p.source?.branch||null,
+            source_path:p.source?.path||null,
+            build_type:p.build_type||null,
+            status:p.status||null,
+            https_enforced:p.https_enforced||false,
+            has_cname:!!p.cname
+          }));
+          console.log('GH_PAGES_CONFIG_INSPECTED_NO_WRITES');
+          NODE
