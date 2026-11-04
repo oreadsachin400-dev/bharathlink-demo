@@ -104,7 +104,7 @@ begin
 
  r=public.bl_mail_record_auth_attestation_v1(
    'unknown','X <x@example.com>','x@bharathlink.com',
-   'example.com','pass','pass','pass',
+   'example.com',repeat('a',64),'pass','pass','pass',
    'eddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
    'synthetic-independent-issuer',now(),'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
  if r<>'unknown_inbound_id' then raise exception 'unknown provider ID allowed: %',r; end if;
