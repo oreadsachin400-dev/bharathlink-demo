@@ -111,7 +111,7 @@ begin
 end $$;
 
 -- A second otherwise-valid inbound email must never reuse a prior signed nonce.
-do $
+do $$
 declare replay_blocked boolean := false;
 begin
   begin
@@ -123,7 +123,7 @@ begin
       'synthetic-independent-issuer',now(),'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
   exception when unique_violation then replay_blocked:=true; end;
   if not replay_blocked then raise exception 'cross-message nonce replay was accepted'; end if;
-end $;
+end $$;
 
 -- Append-only receipt: even service_role cannot rewrite auth evidence.
 do $$
