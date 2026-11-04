@@ -19,7 +19,7 @@ The earlier trust-engine code did not inspect that HTML anchor's true `href`. Th
 - Warns `HTML_LINK_DESTINATION_MISMATCH` when a displayed full web URL has a different actual link hostname.
 - Warns on URL shorteners, insecure HTTP, encoded URL punctuation, URL userinfo, raw IP destinations, punycode and unsafe/non-web link schemes in HTML anchors.
 - Applies the local credential / urgency / payment request heuristics to text from the HTML alternative as well as the plain-text body; hidden scam language in an HTML-only email is not silently omitted.
-- Samples the head and tail of oversized plain text / HTML; explicitly displays `INCOMPLETE_TEXT_SCAN` or `INCOMPLETE_HTML_SCAN` if it could not assess all content. HTML parsing is intentionally limited; complex markup is treated as unreviewed instead of complete.
+- Samples the head and tail of oversized plain text / HTML, and checks the first/last 12 URLs when a message has over 24 links; explicitly displays `INCOMPLETE_TEXT_SCAN` or `INCOMPLETE_HTML_SCAN` / `INCOMPLETE_LINK_SCAN` if it could not assess all content. HTML parsing is intentionally limited; complex markup is treated as unreviewed instead of complete.
 - Does not falsely warn on normal `mailto:`, `tel:` or fragment (`#`) anchors.
 - Sorts local reason labels by severity before the eight-item UI cap so that high-priority disguised-link warnings cannot be buried behind medium/info labels.
 - Preserves `isVerified:false`, `isFakeProven:false`, `domainAuthentication:not_checked` for external mail and independent human/authority/payment verification as not verified.
@@ -28,11 +28,11 @@ The current `index.html` already passes `html_body` in external message objects 
 
 ## Tests
 
-`tests/bharatmail-trust-engine.test.mjs` adds 12 browser-independent Node tests that exercise spoofed anchor display vs destination, HTML-only shortened and masked URLs, encoded protocols, dangerous schemes, HTML alternative OTP/payment instructions, oversized body and HTML tail, malformed anchors, ordinary mailto/tel/fragment links, spoofed authentication headers, and warning priority.
+`tests/bharatmail-trust-engine.test.mjs` adds 13 browser-independent Node tests that exercise spoofed anchor display vs destination, HTML-only shortened and masked URLs, encoded protocols, dangerous schemes, HTML alternative OTP/payment instructions, oversized body and HTML tail, malformed anchors, ordinary mailto/tel/fragment links, spoofed authentication headers, warning priority, and detection of suspicious URLs buried after 30 benign links.
 
 The existing Mail Trust/security suite, signed SMTP evidence simulator, replay/rotation ledger and disposable PostgreSQL integration remain tested as part of the branch's GitHub workflow.
 
-**Current CI verification:** [GitHub Actions — HTML Link Spoofing Caution CI](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/workflows/bharatmail-html-link-spoofing-caution-ci.yml). Final run link and passed counts are recorded in `docs/security-release-readiness.json` after completion.
+**Verified CI:** [GitHub Actions run #41834633429](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41834633429): **214/214 Node tests PASS**, **2/2 GitHub jobs PASS**, no failures/skips. Breakdown: 58 prior offline mail cryptography and replay-policy tests, 155 existing and upgraded trust/security regressions, and 1 real loopback SMTP-to-disposable PostgreSQL integrated test. The PostgreSQL job additionally re-runs **24 concurrent psql** replay/conflict checks and append-only key/revocation policy assertions, all passing. No real email or customer data was used.
 
 ## Important limitations
 
