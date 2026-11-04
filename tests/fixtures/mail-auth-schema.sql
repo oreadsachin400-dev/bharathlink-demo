@@ -31,7 +31,8 @@ insert into public.bharatmail_inbound_events(
  ('mail-a-01','Bank Support <alerts@bank.example>',array['reply+a0000000-0000-4000-8000-000000000001@bharathlink.com'],'processed','unverified'),
  ('mail-b-02','Alice <alice@another.example>',array['reply+b0000000-0000-4000-8000-000000000002@bharathlink.com'],'processed','unverified'),
  ('mail-pending','Unprocessed <u@pending.example>',array['reply+c0000000-0000-4000-8000-000000000003@bharathlink.com'],'pending_routing','unverified'),
- ('mail-failed','Failed <f@bad.example>',array['reply+d0000000-0000-4000-8000-000000000004@bharathlink.com'],'processed','fail');
+ ('mail-failed','Failed <f@bad.example>',array['reply+d0000000-0000-4000-8000-000000000004@bharathlink.com'],'processed','fail'),
+ ('mail-replay','Replay Test <r@replay.example>',array['reply+e0000000-0000-4000-8000-000000000005@bharathlink.com'],'processed','unverified');
 insert into public.bharatmail_external_messages(
  id,recipient_user_id,provider_email_id,from_address,to_address,direction
 )values
@@ -42,4 +43,6 @@ insert into public.bharatmail_external_messages(
  ('c0000000-0000-4000-8000-000000000003','11111111-1111-4111-8111-111111111111',
   'mail-pending','Unprocessed <u@pending.example>','owner@bharathlink.com','inbound'),
  ('d0000000-0000-4000-8000-000000000004','11111111-1111-4111-8111-111111111111',
-  'mail-failed','Failed <f@bad.example>','owner@bharathlink.com','inbound');
+  'mail-failed','Failed <f@bad.example>','owner@bharathlink.com','inbound'),
+ ('e0000000-0000-4000-8000-000000000005','11111111-1111-4111-8111-111111111111',
+  'mail-replay','Replay Test <r@replay.example>','owner@bharathlink.com','inbound');
