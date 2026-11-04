@@ -20,7 +20,12 @@ class ProtectedSigningWorkflowTests(unittest.TestCase):
         self.assertIn("name: keyprep-signing",self.workflow)
         self.assertIn("contents: read",self.workflow)
         self.assertIn("persist-credentials: false",self.workflow)
-        self.assertIn("github.ref == 'refs/heads/bharathlink-safe-signing-recovery-v1-test'",self.workflow)
+        self.assertIn("if: false",self.workflow)
+        self.assertIn("Release HOLD: Google Play Protect harmful-app finding is unresolved",self.workflow)
+
+    def test_no_protected_signing_or_apk_upload_can_run_before_clearance(self):
+        self.assertIn("    if: false",self.workflow)
+        self.assertIn("Play Protect",self.workflow)
 
     def test_requires_all_four_secrets(self):
         for secret in (
