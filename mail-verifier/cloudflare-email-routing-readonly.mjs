@@ -90,7 +90,8 @@ async function inspectCloudflareEmailRoutingFixture(message,{
   if(scope!==testGuard)bad("offline_worker_test_guard_required");
   if(typeof allowedTestRecipientDomain!=="string"||
      !DOMAIN.test(allowedTestRecipientDomain) ||
-     !allowedTestRecipientDomain.includes(".test."))
+     allowedTestRecipientDomain.split(".").length<3 ||
+     !allowedTestRecipientDomain.split(".").includes("test"))
     bad("separate_test_subdomain_required");
   if(!message||typeof message!=="object"||
      !message.headers||typeof message.headers.get!=="function")
