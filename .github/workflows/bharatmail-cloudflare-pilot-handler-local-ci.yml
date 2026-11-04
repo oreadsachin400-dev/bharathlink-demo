@@ -42,6 +42,7 @@ jobs:
           node --check verify-and-consume-receiver-test.mjs
           node --check cloudflare-email-routing-readonly.mjs
           node --check cloudflare-pilot-worker.mjs
+          node --check cloudflare-pilot-helpers.mjs
           node --check tests/cloudflare-pilot-worker.test.mjs
           node --check tests/cloudflare-email-routing-readonly.test.mjs
           node --check tests/smtp-receiver-replay-policy.test.mjs
@@ -211,8 +212,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.46.0 --version
-          npx --yes wrangler@4.46.0 dev --config wrangler.local.jsonc --local --ip 127.0.0.1 --port 8787 > /tmp/blmail-wrangler-local.log 2>&1 &
+          npx --yes wrangler@4.157.0 --version
+          npx --yes wrangler@4.157.0 dev --config wrangler.local.jsonc --local --ip 127.0.0.1 --port 8787 > /tmp/blmail-wrangler-local.log 2>&1 &
           worker=$!
           trap 'kill "$worker" 2>/dev/null || true' EXIT
           ready=0
