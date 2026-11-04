@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {webcrypto,randomUUID} from "node:crypto";
+import {webcrypto,randomUUID,createHash} from "node:crypto";
 import {readFileSync,mkdtempSync,writeFileSync,copyFileSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -11,6 +11,10 @@ const here=fileURLToPath(new URL("../supabase/functions/bl-mail-auth-attest/",im
 const source=readFileSync(join(here,"index.ts"),"utf8");
 const REPORT_URL="https://mail-auth.synthetic.invalid";
 const SERVICE="only-disposable-synthetic-service-token";
+const RESEND_KEY="re_synthetic_ci_only_abcdef123456";
+const RAW="From: Bank Support <alerts@bank.example>\r\nTo: user@bharathlink.com\r\nSubject: Test\r\n\r\nSynthetic raw MIME body\r\n";
+const RAW_SHA=createHash("sha256").update(RAW).digest("hex");
+const RAW_HOST="raw.synthetic.invalid";
 const KID="independent-smtp-audit-key-v1";
 const NOW=Math.floor(Date.now()/1000);
 // Node 22 provides read-only globalThis.crypto; do not overwrite it.
@@ -21,7 +25,7 @@ function report(overrides={}){
    provider_email_id:"mail-a-01",
    from_address:"Bank Support <alerts@bank.example>",
    recipient_address:"reply+a0000000-0000-4000-8000-000000000001@bharathlink.com",
-   sender_domain:"bank.example",
+   sender_domain:"bank.example",raw_sha256:RAW_SHA,
    spf:"pass",spf_domain:"bank.example",
    dkim:"pass",dkim_domain:"bank.example",
    dmarc:"pass",nonce:randomUUID(),
@@ -148,9 +152,24 @@ test("synthetic enabled copy only: signed report is bound to service-only RPC, s
    globalThis.Deno={env:{get(n){return {
      SUPABASE_URL:REPORT_URL,SUPABASE_SERVICE_ROLE_KEY:SERVICE,
      BL_MAIL_AUTH_VERIFIER_KEY_ID:KID,
-     BL_MAIL_AUTH_VERIFIER_P256_PUBLIC_JWK:JSON.stringify(key.publicJwk)
+     BL_MAIL_AUTH_VERIFIER_P256_PUBLIC_JWK:JSON.stringify(key.publicJwk),
+     RESEND_API_KEY:RESEND_KEY,BL_MAIL_RAW_DOWNLOAD_HOSTS:RAW_HOST
    }[n];}},serve(fn){handler=fn;}};
    globalThis.fetch=async(url,opts)=>{
+     if(url==="https://api.resend.com/emails/receiving/mail-a-01"){
+       assert.equal(opts.headers.Authorization,"Bearer "+RESEND_KEY);
+       return Response.json({
+         id:"mail-a-01",from:"Bank Support <alerts@bank.example>",
+         to:["reply+a0000000-0000-4000-8000-000000000001@bharathlink.com"],
+         raw:{download_url:"https://"+RAW_HOST+"/raw/mail-a-01?sig=synthetic",
+              expires_at:new Date(Date.now()+600000).toISOString()}
+       });
+     }
+     if(url==="https://"+RAW_HOST+"/raw/mail-a-01?sig=synthetic"){
+       assert.equal(opts.redirect,"manual");
+       assert.equal(opts.headers.Authorization,undefined);
+       return new Response(RAW,{status:200});
+     }
      invocations++;
      assert.equal(url,REPORT_URL+"/rest/v1/rpc/bl_mail_record_auth_attestation_v1");
      assert.equal(opts.headers.apikey,SERVICE);
@@ -158,6 +177,7 @@ test("synthetic enabled copy only: signed report is bound to service-only RPC, s
      assert.equal(b.p_provider_email_id,"mail-a-01");
      assert.equal(b.p_recipient_address,"reply+a0000000-0000-4000-8000-000000000001@bharathlink.com");
      assert.equal(b.p_dmarc,"pass");
+     assert.equal(b.p_raw_sha256,RAW_SHA);
      assert.match(b.p_sha256,/^[0-9a-f]{64}$/);
      return Response.json("recorded");
    };
@@ -183,4 +203,11 @@ test("staged SQL and UI never convert local heuristics to verified identity",()=
  assert.match(sql,/conflicting_attestation/);
  assert.match(ui,/SPF\/DKIM\/DMARC: not checked/);
  assert.match(ui,/Not independently verified/);
+});
+
+test("original raw SHA256 is mandatory and signed, cannot substitute different MIME digest",async()=>{
+  const key=await pair();
+  assert.throws(()=>validateReport(report({raw_sha256:""}),NOW),/missing_or_bad_raw_sha256/);
+  const r=report(),e=await envelope(r,key);
+  await assert.rejects(verifySignedReport({...e,report:{...r,raw_sha256:"f".repeat(64)}},key.publicJwk,KID,NOW),/invalid_signature/);
 });
