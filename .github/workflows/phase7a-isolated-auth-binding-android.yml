@@ -1,4 +1,4 @@
-name: BharathLink Phase 7A — Isolated TEST Account / Key Binding APK
+name: BharathLink Phase 7A — Account / Key Binding COMPILE ONLY (PLAY PROTECT HOLD)
 
 on:
   push:
@@ -64,34 +64,31 @@ jobs:
           ! grep -riE 'SUPABASE_SERVICE_ROLE_KEY|bl20_commit_device_approval|register_e2ee_v2_device|deleteEntry\(|addJavascriptInterface' "$SRC"
           grep -q 'LOCAL_ACCOUNT_KEY_MATCH_ONLY_NOT_TRUSTED' "$SRC/com/bharathlink/app/phase7/Phase7AuthBindActivity.kt"
           echo "PASS: no server approval or existing KeyPrep operations"
-      - name: Compile native Android and run account mismatch security tests
+      - name: Compile native Android and run account mismatch security tests (NO APK)
         working-directory: v36hf-kotlin-build
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
-      - name: Verify APK identity, permissions and signature
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Require executed Android JUnit tests and preserve release HOLD
         shell: bash
         run: |
           set -euo pipefail
-          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
-          test -s "$APK"
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/phase7a-apksigner.txt
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" > v36hf-kotlin-build/phase7a-badging.txt
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump permissions "$APK" > v36hf-kotlin-build/phase7a-permissions.txt
-          grep -q "^package: name='com.bharathlink.app.test.phase7bind' versionCode='1'" v36hf-kotlin-build/phase7a-badging.txt
-          grep -q "^launchable-activity: name='com.bharathlink.app.phase7.Phase7AuthBindActivity'" v36hf-kotlin-build/phase7a-badging.txt
-          grep -q "uses-permission: name='android.permission.INTERNET'" v36hf-kotlin-build/phase7a-permissions.txt
-          test "$(grep -c '^uses-permission:' v36hf-kotlin-build/phase7a-permissions.txt)" -eq 1
-          sha256sum "$APK" > v36hf-kotlin-build/phase7a.sha256
-          echo "PASS: unique test package, one INTERNET permission, debug-signed APK"
-      - name: Upload isolated Phase7A TEST APK (never install over KeyPrep)
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: BharathLink-Phase7A-Account-Key-Binding-TEST-APK
-          path: |
-            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
-            v36hf-kotlin-build/phase7a.sha256
-            v36hf-kotlin-build/phase7a-apksigner.txt
-            v36hf-kotlin-build/phase7a-badging.txt
-            v36hf-kotlin-build/phase7a-permissions.txt
-          if-no-files-found: error
-          retention-days: 14
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          output=Path("v36hf-kotlin-build/app/build/test-results/testDebugUnitTest")
+          reports=list(output.glob("TEST-*.xml"))
+          assert reports, "BLOCKED: no executed Android JUnit reports"
+          total=0
+          for report in reports:
+              node=ET.parse(report).getroot()
+              cases=int(node.get("tests","0"))
+              assert int(node.get("failures","0"))==0,report.name
+              assert int(node.get("errors","0"))==0,report.name
+              assert int(node.get("skipped","0"))==0,report.name
+              total+=cases
+          assert total>=3, "BLOCKED: no meaningful Android account-binding tests"
+          print(f"PASS: {total} executed JUnit tests; zero failures/skips")
+          PY
+          grep -Fq 'applicationIdSuffix = ".test.phase7bind"' v36hf-kotlin-build/app/build.gradle.kts
+          ! grep -riE 'SUPABASE_SERVICE_ROLE_KEY|bl20_commit_device_approval|register_e2ee_v2_device|deleteEntry\(|addJavascriptInterface' v36hf-kotlin-build/app/src/main/java
+          test ! -d v36hf-kotlin-build/app/build/outputs/apk
+          echo 'HOLD: Play Protect harmful-app classification unresolved. No APK assembled or uploaded.'
