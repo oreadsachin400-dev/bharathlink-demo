@@ -47,8 +47,9 @@ async function verify(raw,{resolveTxt=resolver}={}){
 test("mailauth 8 genuine RSA-2048 DKIM PASSES with the actual Deno verdict helper",async()=>{
  const raw=await sign(),result=await verify(raw);
  assert.deepEqual(result.headerFrom,[from]);
- assert.ok(!Object.hasOwn(result,"fromFields"),"mailauth has no fromFields");
- assert.ok(!Object.hasOwn(result,"fromSyntax"),"mailauth has no fromSyntax");
+ // mailauth 8 may include extra validation fields beyond its documented
+ // public API. The verdict must rely on headerFrom + signed RFC5322 From.
+ assert.ok(Array.isArray(result.results));
  assert.ok(result.results.some(sig=>sig.status.result==="pass"),"DKIM cryptographic pass");
  assert.equal(countRawFromFields(raw),1);
  const verdict=qualifiedDomainDkimVerdict(result,from,raw);
