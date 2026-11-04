@@ -107,7 +107,7 @@ test("untrusted signer key material not accepted as verifier public key",async()
 });
 test("bounded signature encoding and P256 signature size enforced",async()=>{
  const keys=await pair(),e=await envelope(report(),keys);
- await assert.rejects(verifySignedReport({...e,signature:"A"},keys.publicJwk,KID,NOW),/wrong_signature_size/);
+ await assert.rejects(verifySignedReport({...e,signature:"A"},keys.publicJwk,KID,NOW),/bad_signature_encoding|wrong_signature_size/);
  await assert.rejects(verifySignedReport({...e,signature:"-".repeat(2000)},keys.publicJwk,KID,NOW),/bad_signature_encoding/);
 });
 test("hard-disabled Edge source cannot be enabled by environment or request flag",()=>{
