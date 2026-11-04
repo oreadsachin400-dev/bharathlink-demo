@@ -61,3 +61,28 @@ Run: [#41778877831](https://github.com/oreadsachin400-dev/bharathlink-demo/actio
 - Verified test result: https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41778877831
 
 **Next meaningful milestone should be a resolved, independently verified external blocker—not another source-only security phase number.**
+
+## Follow-up: live-blocker remediation checkpoint (4 Nov 2026)
+
+**Concrete code change: prevent repeat distribution of a debug APK classified by Play Protect**
+- The old branch `bharathlink-phase7a-isolated-auth-keybinding-test` and this consolidated branch now have the same **compile-only** `.github/workflows/phase7a-isolated-auth-binding-android.yml`. It runs Gradle `:app:testDebugUnitTest`, checks actual JUnit XML and proves there is **no APK output**, `assembleDebug`, or `actions/upload-artifact` in the Phase 7A workflow.
+- The previously uploaded Phase 7A archive was not deleted so it can be retained as an appeal/research reference, but **not installed**. No Play Protect bypass or security exception was requested.
+- [Actual rerun of modified Phase 7A workflow #41782459007](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41782459007): **SUCCESS; zero artifacts uploaded**.
+- `tests/consolidated-readiness-contract.test.mjs` now asserts that accidental future restore of Phase 7A APK assemble/upload fails CI.
+
+**Consolidated regression after this hardening**
+- [Master CI #41782627232](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41782627232) — **SUCCESS, 5/5 jobs**. Offline crypto, release HOLD, Android JUnit, disposable Edge/PostgreSQL, second-device proof and issuer revocation checks remain green. No APK upload, Supabase migration or live approval.
+
+**Supabase TEST Auth delivery configuration — concrete newly confirmed dependency**
+- Connected project `fsdusofbpwdrdvgexxyw` (BharathLink-20-TEST) reports `ACTIVE_HEALTHY`, created 14 Oct 2026; its organization is on **Free**.
+- Supabase's 3 June 2026 policy restricts **new Free projects using Supabase's default SMTP** from customizing auth email templates. New project + Free tier are confirmed. **Whether this TEST project has custom Auth SMTP is NOT verified**; do not infer it from the presence of Resend or a separate BharathMail integration.
+- Native `NativeAuthClient` correctly supplies `create_user=false` on `/auth/v1/otp`, verifies `type=email` on `/auth/v1/verify`, compares the authenticated account ID via `/auth/v1/user`, and does not retain a refresh token.
+- The correct way to send a numeric code is configuring the hosted Magic Link/OTP email template with `{{ .Token }}`. **Hosted template text and Auth SMTP settings cannot be read via the available Supabase connector.** Therefore actual email-code delivery remains unverified.
+- Official documentation: [Auth email OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless), [Free-tier template policy](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier), [SMTP limitations](https://supabase.com/docs/guides/auth/auth-smtp).
+- **Owner action when safe to proceed:** Auth > SMTP / Email Templates > Magic Link, inspect template and delivery provider. If default SMTP on Free, first configure audited custom Auth SMTP or an eligible paid tier, then use the code-bearing template. Do not trigger signup/OTP to arbitrary email addresses during configuration.
+
+**Other read-only security advisory observations**
+- Supabase security advisors reported **5** `anon`-executable `SECURITY DEFINER` media/attachment predicates, **63** authenticated-executable definer RPC findings, **73** RLS-without-policy INFO findings, and **1** leaked-password-protection WARN. These are **review candidates**, not established exploits. The five anon-executable functions inspected each contain `auth.uid()` null/owner gating, so automated revocation without checking Storage policies might break current application behavior. No live SQL/permission change was performed. Independent function-by-function RLS/data-exposure review remains on the security launch checklist.
+- Official advisor reference: https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
+
+**Still BLOCKED:** Google Play Protect classification has no confirmed reversal; original KeyPrep signing private-key continuity remains unknown; real physical Android OTP and first-device independently verified identity have not been demonstrated. Green CI means only the documented synthetic/source tests passed.
