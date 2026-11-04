@@ -50,13 +50,17 @@ async function verifyOriginalMimeDkim(raw,{
    check(typeof name==="string"&&name.length<=253&&/^[a-z0-9_.-]+$/i.test(name),"invalid_dns_name");
    // DKIM public keys only; do not permit SPF lookups or user-supplied hosts.
    check(type==="TXT"&&name.toLowerCase().includes("._domainkey."),"unexpected_dns_record_type");
-   const responses=await Promise.race([
-     Promise.resolve().then(()=>resolveTxt(name,"TXT")),
-     new Promise((_,reject)=>{
-       const timer=setTimeout(()=>reject(Error("dns_timeout")),VERIFY_TIMEOUT_MS);
-       timer.unref?.();
-     })
-   ]);
+   let timer;
+   let responses;
+   try{
+     responses=await Promise.race([
+       Promise.resolve().then(()=>resolveTxt(name,"TXT")),
+       new Promise((_,reject)=>{
+         timer=setTimeout(()=>reject(Error("dns_timeout")),VERIFY_TIMEOUT_MS);
+         timer.unref?.();
+       })
+     ]);
+   }finally{if(timer)clearTimeout(timer);}
    check(Array.isArray(responses)&&responses.length<=8,"invalid_dns_response");
    let total=0;
    for(const group of responses){
