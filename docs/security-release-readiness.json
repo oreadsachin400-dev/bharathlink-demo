@@ -9,63 +9,95 @@
   "may_enable_live_e2ee": false,
   "last_verified_security_branch": "bharathlink-phase7i-first-device-hard-stop-ci",
   "checkpoints": [
-    {"name":"Phase 7B P-256 challenge and replay", "state":"CI_PASS", "type":"synthetic"},
-    {"name":"Phase 7C Android signer source/JUnit", "state":"CI_PASS", "type":"compile_only"},
-    {"name":"Phase 7D isolated Edge HTTP", "state":"CI_PASS", "type":"synthetic"},
-    {"name":"Phase 7E Edge plus PostgreSQL", "state":"CI_PASS", "type":"disposable_postgres"},
-    {"name":"Phase 7F second-device candidate-gated approval", "state":"CI_PASS", "type":"staged_only"},
-    {"name":"Phase 7G independent first-device governance intent", "state":"CI_PASS", "type":"review_only"},
-    {"name":"Phase 7H issuer key snapshot and revocation", "state":"CI_PASS", "type":"staged_only"},
-    {"name":"Phase 7I first-device hard HOLD", "state":"CI_PASS", "type":"staged_only"}
+    {
+      "name": "Phase 7B P-256 challenge and replay",
+      "state": "CI_PASS",
+      "type": "synthetic"
+    },
+    {
+      "name": "Phase 7C Android signer source/JUnit",
+      "state": "CI_PASS",
+      "type": "compile_only"
+    },
+    {
+      "name": "Phase 7D isolated Edge HTTP",
+      "state": "CI_PASS",
+      "type": "synthetic"
+    },
+    {
+      "name": "Phase 7E Edge plus PostgreSQL",
+      "state": "CI_PASS",
+      "type": "disposable_postgres"
+    },
+    {
+      "name": "Phase 7F second-device candidate-gated approval",
+      "state": "CI_PASS",
+      "type": "staged_only"
+    },
+    {
+      "name": "Phase 7G independent first-device governance intent",
+      "state": "CI_PASS",
+      "type": "review_only"
+    },
+    {
+      "name": "Phase 7H issuer key snapshot and revocation",
+      "state": "CI_PASS",
+      "type": "staged_only"
+    },
+    {
+      "name": "Phase 7I first-device hard HOLD",
+      "state": "CI_PASS",
+      "type": "staged_only"
+    }
   ],
   "release_blockers": [
     {
-      "id":"PLAY_PROTECT",
-      "status":"BLOCKED",
-      "evidence":"Phase 7A APK was blocked as harmful; appeal submitted but no favorable determination confirmed.",
-      "next_action":"Obtain an official classification outcome and safe distribution/security review; do not turn off protection or force install."
+      "id": "PLAY_PROTECT",
+      "status": "BLOCKED",
+      "evidence": "Phase 7A APK was blocked as harmful; appeal submitted but no favorable determination confirmed. Existing Phase7A debug APK is preserved as archived appeal evidence. Its workflow now compiles/tests only and no longer uploads an APK on future runs.",
+      "next_action": "Obtain an official classification outcome and safe distribution/security review; do not turn off protection or force install."
     },
     {
-      "id":"SIGNING_CONTINUITY",
-      "status":"BLOCKED",
-      "evidence":"Historical KeyPrep TEST CI debug signer differs across builds; original installed APK signer/private signing key continuity unverified.",
-      "next_action":"Verify installed signer and authorized signing-key custody. Preserve original KeyPrep; do not uninstall, clear or overwrite."
+      "id": "SIGNING_CONTINUITY",
+      "status": "BLOCKED",
+      "evidence": "Historical KeyPrep TEST CI debug signer differs across builds; original installed APK signer/private signing key continuity unverified.",
+      "next_action": "Verify installed signer and authorized signing-key custody. Preserve original KeyPrep; do not uninstall, clear or overwrite."
     },
     {
-      "id":"OTP_TEMPLATE_AND_DELIVERY",
-      "status":"NOT_VERIFIED",
-      "evidence":"Supabase hosted Magic Link email template and current provider settings not readable via prior connector audit.",
-      "next_action":"Read-only inspect TEST Magic Link template for {{ .Token }}, provider and OTP rate limits; never share an OTP."
+      "id": "OTP_TEMPLATE_AND_DELIVERY",
+      "status": "NOT_VERIFIED",
+      "evidence": "Supabase hosted Magic Link email template and current provider settings not readable via prior connector audit. TEST project is ACTIVE_HEALTHY on a Free organization plan and created 2026-10-14. Supabase restricted new Free projects with default SMTP from customizing Auth email templates starting 2026-06-03; actual Auth custom SMTP/template state remains unverified.",
+      "next_action": "Read-only inspect TEST Authentication > SMTP and Email Templates > Magic Link. If using default SMTP on Free, configure a verified custom SMTP provider or paid tier before changing the template to {{ .Token }}. Verify delivery and rate limits with authorized TEST accounts only; never expose OTP."
     },
     {
-      "id":"ANDROID_LIVE_CHALLENGE",
-      "status":"NOT_TESTED",
-      "evidence":"Real signed AndroidKeyStore challenge using live TEST user JWT not executed; Edge feature gate is hard-disabled.",
-      "next_action":"After Play Protect clearance and signing continuity, independently review a scoped TEST verification plan; keep trust promotion OFF."
+      "id": "ANDROID_LIVE_CHALLENGE",
+      "status": "NOT_TESTED",
+      "evidence": "Real signed AndroidKeyStore challenge using live TEST user JWT not executed; Edge feature gate is hard-disabled.",
+      "next_action": "After Play Protect clearance and signing continuity, independently review a scoped TEST verification plan; keep trust promotion OFF."
     },
     {
-      "id":"REAL_IDENTITY_ISSUER",
-      "status":"UNAVAILABLE",
-      "evidence":"No verified real external issuer/reviewer authority established; Phase 5/7G/7H use synthetic identities.",
-      "next_action":"Select and audit accountable real identity provider, key custody, independent human reviewers, consent, disputes, revocation and privacy."
+      "id": "REAL_IDENTITY_ISSUER",
+      "status": "UNAVAILABLE",
+      "evidence": "No verified real external issuer/reviewer authority established; Phase 5/7G/7H use synthetic identities.",
+      "next_action": "Select and audit accountable real identity provider, key custody, independent human reviewers, consent, disputes, revocation and privacy."
     },
     {
-      "id":"FIRST_DEVICE_AUTHORIZATION",
-      "status":"BLOCKED",
-      "evidence":"Phase 7G/H are review-only, Phase 7I is hard HOLD; no independently approved live first-device transaction.",
-      "next_action":"Design separately reviewed trust authorization and audit, then perform safety evaluation before any scoped TEST rollout."
+      "id": "FIRST_DEVICE_AUTHORIZATION",
+      "status": "BLOCKED",
+      "evidence": "Phase 7G/H are review-only, Phase 7I is hard HOLD; no independently approved live first-device transaction.",
+      "next_action": "Design separately reviewed trust authorization and audit, then perform safety evaluation before any scoped TEST rollout."
     },
     {
-      "id":"TWO_PHONE_E2EE_AND_FEATURES",
-      "status":"NOT_TESTED",
-      "evidence":"No verified end-to-end two-physical-phone flows for identity continuity, E2EE, calling, messaging, email and UPI trust chain.",
-      "next_action":"After approved first-device flow, test two physical phones and each feature with fail-closed negative cases."
+      "id": "TWO_PHONE_E2EE_AND_FEATURES",
+      "status": "NOT_TESTED",
+      "evidence": "No verified end-to-end two-physical-phone flows for identity continuity, E2EE, calling, messaging, email and UPI trust chain.",
+      "next_action": "After approved first-device flow, test two physical phones and each feature with fail-closed negative cases."
     },
     {
-      "id":"INDEPENDENT_SECURITY_REVIEW",
-      "status":"NOT_DONE",
-      "evidence":"CI and internal code review do not constitute third-party penetration testing or legal/regulatory clearance.",
-      "next_action":"Obtain independent security review, threat model, external audit logs, incident response, privacy and compliance review."
+      "id": "INDEPENDENT_SECURITY_REVIEW",
+      "status": "NOT_DONE",
+      "evidence": "CI and internal code review do not constitute third-party penetration testing or legal/regulatory clearance.",
+      "next_action": "Obtain independent security review, threat model, external audit logs, incident response, privacy and compliance review."
     }
   ],
   "policy": {
@@ -73,6 +105,8 @@
     "no_apk_artifact_or_install": true,
     "no_service_role_secret_in_client": true,
     "no_trust_flag_activation": true,
-    "no_release_until_all_external_gates_independently_verified": true
+    "no_release_until_all_external_gates_independently_verified": true,
+    "phase7a_future_apk_upload_blocked": true,
+    "original_keyprep_uninstall_forbidden": true
   }
 }
