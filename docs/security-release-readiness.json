@@ -110,7 +110,8 @@
     "original_keyprep_uninstall_forbidden": true,
     "auth_probe_future_apk_upload_blocked": true,
     "do_not_repeat_previously_completed_otp_setup_without_failure": true,
-    "protected_keyprep_signing_workflow_disabled_while_clearance_pending": true
+    "protected_keyprep_signing_workflow_disabled_while_clearance_pending": true,
+    "known_legacy_apk_build_upload_jobs_job_level_disabled": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -146,5 +147,21 @@
     "protected_github_signing_workflow_status": "JOB_LEVEL_HARD_HOLD_IF_FALSE",
     "play_protect_disposition": "NO_CLEARANCE_CONFIRMED",
     "otp_historical_phone_pass_unaffected": true
+  },
+  "historical_apk_distribution_hold": {
+    "date": "2026-11-04",
+    "status": "ALL_SEVEN_KNOWN_APK_PRODUCERS_HELD_ON_REVIEWED_BRANCH",
+    "held_workflow_jobs": 7,
+    "legacy_apk_workflow_files": 6,
+    "historic_feature_branch_file_patches": 7,
+    "default_main_workflow_files_at_audit": 0,
+    "archived_apk_evidence_deleted": false,
+    "new_apk_built_or_uploaded": false,
+    "ci_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41785468405",
+    "tests": "tests/test_historical_apk_workflow_hold.py",
+    "doc": "docs/Historical-APK-Workflow-Release-HOLD-Audit-2026-11-04.md",
+    "limit": "Only inspected exact known branches/workflows; cannot guarantee unrelated forks or future changes",
+    "original_keyprep_installed_signer_verified": false,
+    "play_protect_clearance_verified": false
   }
 }
