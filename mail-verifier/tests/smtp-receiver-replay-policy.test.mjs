@@ -131,9 +131,9 @@ test("wrong expected recipient or provider email id fails before consumption",as
  assert.equal(l.received.length,0);
 });
 test("stale signed receipt is not used even with a correct pinned key",async()=>{
- const f=await fixture({received_at:NOW-130,expires_at:NOW-30}),l=syntheticLedger();
+ const f=await fixture(),l=syntheticLedger();
  await assert.rejects(verifyAndConsumeOfflineReceiverReceipt(
-  RAW,options(f,l.consume)
+  RAW,{...options(f,l.consume),now:NOW+131}
  ),/receipt_stale/);
  assert.equal(l.received.length,0);
 });
