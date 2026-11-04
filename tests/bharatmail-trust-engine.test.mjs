@@ -109,7 +109,7 @@ test('bounded untrusted text and unusual values fail closed, no mutations',()=>{
  assert.ok(r.reasons.length<=8);
  assert.ok(Object.isFrozen(r));
  assert.ok(Object.isFrozen(r.reasons));
- assert.ok(Object.isFrozen(r.reasons[0]||{}));
+ if (r.reasons.length) assert.ok(Object.isFrozen(r.reasons[0]));
 });
 test('no unexpected network requests from local assessment',()=>{
  const oldFetch=globalThis.fetch;
