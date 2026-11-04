@@ -8,6 +8,7 @@
 /// <reference lib="deno.ns" />
 // @ts-ignore mailauth is a CommonJS package whose types are not complete
 import {dkimVerify} from "npm:mailauth@8.0.0/lib/dkim/verify";
+import {qualifiedDomainDkimVerdict} from "./dkim-domain-verdict.mjs";
 const TEST_REF="fsdusofbpwdrdvgexxyw";
 const MAX_RAW=5*1024*1024;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -245,19 +246,11 @@ async function cryptographicDkim(raw:Uint8Array,expectedFrom:string){
    curTime:new Date()
   });
  }catch{return {dkim:"not_checked",strictly_aligned:false,reason:"verification_unavailable"}}
- const matched=result?.fromFields===1&&result?.fromSyntax==="valid"&&
-   Array.isArray(result.headerFrom)&&result.headerFrom.length===1&&
-   String(result.headerFrom[0]).toLowerCase()===name;
- const domain=name.split("@")[1];
- const valid=matched&&Array.isArray(result.results)&&result.results.some((sig:any)=>
-  sig?.status?.result==="pass"&&
-  sig.signingDomain?.toLowerCase()===domain&&
-  sig.status?.testing!==true&&!sig.canonBodyLengthLimited&&
-  !sig.status?.underSized&&sig.signatureTimeValid!==false&&
-  !sig.status?.warnings?.length&&
-  ["rsa-sha256","ed25519-sha256"].includes(String(sig.algo||"").toLowerCase()));
- return {dkim:valid?"pass":"not_verified",strictly_aligned:Boolean(valid),
-  reason:valid?"strict_domain_signature_valid":"no_qualified_aligned_dkim"};
+ // mailauth@8 result schema: headerFrom[], results[], signingHeaders.
+ // Never use undocumented fromFields/fromSyntax (always undefined).
+ const verdict=qualifiedDomainDkimVerdict(result,name,raw);
+ return {dkim:verdict.dkim,strictly_aligned:verdict.strictly_aligned,
+  reason:verdict.reason};
 }
 export default {
  async fetch(req:Request):Promise<Response>{
