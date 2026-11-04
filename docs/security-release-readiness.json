@@ -130,7 +130,8 @@
     "mail_github_pages_published_test_ui_must_not_claim_person_or_payment_verified": true,
     "mail_cryptographic_domain_dkim_cannot_promote_human_identity_or_payment_safety": true,
     "mail_resend_raw_download_host_outside_restricted_families_must_fail_closed": true,
-    "mail_raw_signed_download_url_must_never_be_logged_or_returned": true
+    "mail_raw_signed_download_url_must_never_be_logged_or_returned": true,
+    "mail_dkim_v6_crypto_pass_cannot_be_human_authority_payment_verified": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -510,12 +511,12 @@
     "original_mime_bytes_not_returned_to_client": true,
     "test_edge_function_name": "bharatmail-dkim-check-test",
     "test_project_id": "fsdusofbpwdrdvgexxyw",
-    "test_edge_function_version": 5,
+    "test_edge_function_version": 6,
     "test_edge_function_status": "ACTIVE",
     "test_edge_function_verify_jwt": true,
     "test_edge_function_deployed": true,
     "original_main_project_function_deployed": false,
-    "real_signed_in_inbound_email_dkim_check_invoked": false,
+    "real_signed_in_inbound_email_dkim_check_invoked": true,
     "original_email_dkim_pass_confirmed": false,
     "resend_api_key_present_and_valid_confirmed": false,
     "real_spf_independently_checked": false,
@@ -530,7 +531,7 @@
     "source": "supabase/functions/bharatmail-dkim-check-test/index.ts",
     "dkim_cli": "mail-verifier/check-resend-live-email.mjs",
     "handover": "docs/BharathMail-Resend-Live-DKIM-ReadOnly-TEST-Deployment-2026-11-04.md",
-    "real_next_gate": "Owner presses Check DKIM domain signature for the same test email using existing signed-in Pages session; do not share credentials, raw MIME or signed URLs. Only original MIME DKIM can determine cryptographic domain signature.",
+    "real_next_gate": "Test-account owner presses DKIM domain signature on previously received email with v6. Capture only safe result screenshot; never reveal secrets. Domain DKIM pass cannot verify human identity or payment safety.",
     "test_web_ui_name": "bharatmail-dkim-test-ui",
     "test_web_ui_url": "https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/bharatmail-dkim-test-ui",
     "test_web_ui_status": "RETIRED_NOTICE_HTTP_410_SUPABASE_HTML_UNSUPPORTED",
@@ -561,7 +562,7 @@
     "static_mail_dkim_test_site_backend_unauthorized_401_confirmed": true,
     "github_pages_main_original_root_app_files_unchanged": true,
     "github_pages_new_test_page_path": "bharatmail-dkim-test/index.html",
-    "test_edge_function_sha256": "ab006ddce7a52af702f4ba03c8dcde1cfe4ada1480c4f16e8e560c9683108a4d",
+    "test_edge_function_sha256": "4f8b33623cfe27540d12007b8a313347ec883616a9d85c119bf9c75646c07030",
     "recipient_binding_original_webhook_event_fix_deployed": true,
     "original_webhook_and_mailbox_addresses_found_different": 6,
     "legacy_direct_inbound_rows": 4,
@@ -586,6 +587,15 @@
     "live_test_v5_ci_jobs_passed": 4,
     "smtp_peer_identity_verified": false,
     "spf_independently_checked": false,
-    "dmarc_independently_checked": false
+    "dmarc_independently_checked": false,
+    "mailauth_v8_dkim_result_parsing_corrected": true,
+    "mailauth_signingHeaders_keys_colon_delimited_string_supported": true,
+    "raw_from_duplicate_header_rejected": true,
+    "old_genuine_dkim_proof_not_verified_result_reinterpreted_as_parser_bug_possible": true,
+    "real_authenticated_email_dkim_v6_retested": false,
+    "current_ci_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41871030040",
+    "current_ci_jobs_passed": 4,
+    "last_known_real_inbox_domain_dkim_status": "not_verified_before_v6",
+    "last_known_original_mime_download": "SUCCEEDED_IN_V5_POST_LOGIC"
   }
 }
