@@ -183,6 +183,6 @@ test('release readiness records signed webhook != independently authenticated em
  assert.equal(metadata.mail_trust_engine.no_live_migration,true);
  const audit=readFileSync(new URL('../docs/BharathMail-Inbound-Auth-Boundary-Audit-2026-11-04.md',import.meta.url),'utf8');
  assert.match(audit,/webhook signature/i);
- assert.match(audit,/does not prove/i);
+ assert.match(audit,/do not prove|does not prove/i);
  assert.match(audit,/sender domain/i);
 });
