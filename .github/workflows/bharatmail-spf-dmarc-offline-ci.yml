@@ -1,0 +1,96 @@
+name: BharathLink Mail — Signed SMTP SPF/DMARC Offline Verification (HOLD)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-smtp-spf-dmarc-offline-ci
+    paths:
+      - 'mail-verifier/**'
+      - '.github/workflows/bharatmail-spf-dmarc-offline-ci.yml'
+      - 'docs/BharathMail-SPF-DMARC-Offline-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-smtp-real-spf-dmarc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mail-verifier
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned standalone mailauth dependency, no package scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save --package-lock=false
+          npm ls mailauth --depth=0
+      - name: Real RFC SPF DKIM DMARC with synthetic signed SMTP receipt and DNS, adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check verify-signed-smtp-receipt.mjs
+          node --check verify-smtp-spf-dmarc.mjs
+          node --test tests/*.test.mjs | tee /tmp/bl-smtp-spf-dmarc.log
+          grep -q '# fail 0' /tmp/bl-smtp-spf-dmarc.log
+          grep -q '# skipped 0' /tmp/bl-smtp-spf-dmarc.log
+      - name: No live IP inference, sender identity elevation or service deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'trustReceived:false' verify-smtp-spf-dmarc.mjs
+          grep -Fq 'independent_receiver_approved:false' verify-signed-smtp-receipt.mjs
+          grep -Fq 'safe_sender:false,release_approved:false' verify-smtp-spf-dmarc.mjs
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' ../supabase/functions/bl-mail-auth-attest/index.ts
+          test ! -d ../app/build/outputs/apk
+          echo "PASS: signed synthetic receiver results cannot be promoted to trusted production sender or identity"
+
+  original-mail-and-native-security-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Validate prior Mail Trust, signature gates and device authorization holds
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/bharatmail-trust-engine.test.mjs \
+            tests/mail-auth-signed-gate.test.mjs \
+            tests/mail-auth-resend-raw-evidence.test.mjs \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee /tmp/bl-mail-security-regression.log
+          grep -q '# fail 0' /tmp/bl-mail-security-regression.log
+          grep -q '# skipped 0' /tmp/bl-mail-security-regression.log
+      - name: Preserve all release HOLD gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const r=require('./docs/security-release-readiness.json');
+          if(r.release_decision!=='HOLD'||r.is_production_authorized!==false||
+             r.mail_dkim_offline?.deployed_to_supabase_or_netlify!==false||
+             r.mail_raw_mime_binding?.independent_real_verifier_connected!==false)
+            throw Error('BLOCK: unapproved release or external verifier state');
+          console.log('PASS: original app and mail verification still source-only / HOLD');
+          NODE
