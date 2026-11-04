@@ -128,7 +128,9 @@
     "mail_dkim_test_ui_cannot_be_production_sender_badge": true,
     "mail_dkim_ui_must_not_be_served_as_html_from_default_supabase_edge_domain": true,
     "mail_github_pages_published_test_ui_must_not_claim_person_or_payment_verified": true,
-    "mail_cryptographic_domain_dkim_cannot_promote_human_identity_or_payment_safety": true
+    "mail_cryptographic_domain_dkim_cannot_promote_human_identity_or_payment_safety": true,
+    "mail_resend_raw_download_host_outside_restricted_families_must_fail_closed": true,
+    "mail_raw_signed_download_url_must_never_be_logged_or_returned": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -508,7 +510,7 @@
     "original_mime_bytes_not_returned_to_client": true,
     "test_edge_function_name": "bharatmail-dkim-check-test",
     "test_project_id": "fsdusofbpwdrdvgexxyw",
-    "test_edge_function_version": 3,
+    "test_edge_function_version": 5,
     "test_edge_function_status": "ACTIVE",
     "test_edge_function_verify_jwt": true,
     "test_edge_function_deployed": true,
@@ -528,7 +530,7 @@
     "source": "supabase/functions/bharatmail-dkim-check-test/index.ts",
     "dkim_cli": "mail-verifier/check-resend-live-email.mjs",
     "handover": "docs/BharathMail-Resend-Live-DKIM-ReadOnly-TEST-Deployment-2026-11-04.md",
-    "real_next_gate": "Owner rechecks one previously received TEST email in existing GitHub Pages UI; v3 reads original signed webhook delivery recipient, not mapped BharatLink mailbox. No credentials shared.",
+    "real_next_gate": "Owner presses Check DKIM domain signature for the same test email using existing signed-in Pages session; do not share credentials, raw MIME or signed URLs. Only original MIME DKIM can determine cryptographic domain signature.",
     "test_web_ui_name": "bharatmail-dkim-test-ui",
     "test_web_ui_url": "https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/bharatmail-dkim-test-ui",
     "test_web_ui_status": "RETIRED_NOTICE_HTTP_410_SUPABASE_HTML_UNSUPPORTED",
@@ -559,7 +561,7 @@
     "static_mail_dkim_test_site_backend_unauthorized_401_confirmed": true,
     "github_pages_main_original_root_app_files_unchanged": true,
     "github_pages_new_test_page_path": "bharatmail-dkim-test/index.html",
-    "test_edge_function_sha256": "a0c186aa029f9d7b24bf54eb2a0e072abb4b0ded5f236f85f04ae9e24c6ca16d",
+    "test_edge_function_sha256": "ab006ddce7a52af702f4ba03c8dcde1cfe4ada1480c4f16e8e560c9683108a4d",
     "recipient_binding_original_webhook_event_fix_deployed": true,
     "original_webhook_and_mailbox_addresses_found_different": 6,
     "legacy_direct_inbound_rows": 4,
@@ -569,6 +571,21 @@
     "real_authenticated_email_dkim_v3_retested": false,
     "proven_bug_cause": "test v1/v2 compared Resend metadata.to against external_messages.to_address which is the mapped virtual mailbox, not the original webhook to_addresses",
     "test_ci_current_status": "QUEUED_NOT_PASS",
-    "test_ci_current_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41865108458"
+    "test_ci_current_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41865108458",
+    "resend_raw_signed_download_host_categories_bounded": true,
+    "resend_raw_signed_download_hosts": [
+      "resend.com-subdomains",
+      "resend.app-subdomains",
+      "cloudfront.net-subdomains",
+      "AWS-S3-hosts-only",
+      "Cloudflare-R2-account-scoped"
+    ],
+    "real_host_class_for_previous_failed_inbound_email_confirmed": false,
+    "real_authenticated_email_dkim_v5_retested": false,
+    "live_test_v5_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41869267969",
+    "live_test_v5_ci_jobs_passed": 4,
+    "smtp_peer_identity_verified": false,
+    "spf_independently_checked": false,
+    "dmarc_independently_checked": false
   }
 }
