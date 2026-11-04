@@ -18,8 +18,7 @@ public final class ExternalNavigationPolicy {
         try {
             URI uri=new URI(raw);
             if(!"https".equals(uri.getScheme()) || uri.getHost() == null ||
-               uri.getRawUserInfo() != null || uri.getPort() != -1 ||
-               uri.getRawFragment() != null) return null;
+               uri.getRawUserInfo() != null || uri.getPort() != -1) return null;
             return uri;
         } catch(Exception e){ return null; }
     }
@@ -34,6 +33,7 @@ public final class ExternalNavigationPolicy {
     public static boolean mayOpenExternal(String url, boolean mainFrame, boolean hasGesture){
         if(!mainFrame || !hasGesture) return false;
         URI uri=parsed(url);
-        return uri != null && !APP_HOST.equals(uri.getHost());
+        return uri != null && uri.getRawFragment() == null &&
+               !APP_HOST.equals(uri.getHost());
     }
 }
