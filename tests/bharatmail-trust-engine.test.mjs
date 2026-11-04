@@ -260,7 +260,8 @@ test('oversized HTML with hidden destination triggers incomplete scan and tail w
 });
 test('complex unreviewable HTML anchors are caution rather than safe or verified',()=>{
  const r=engine.inspect(external('x@example.com','Info','Thanks',{
-  html_body:'<a href="https://example.com">link without closing anchor'
+  html_body:'<a href="https://example.com">Safe link</a>'+
+   '<a href="https://bad.example">link without closing anchor'
  }));
  assert.ok(r.reasons.some(x=>x.code==='INCOMPLETE_HTML_SCAN'));
  assert.equal(r.isVerified,false);
@@ -288,4 +289,15 @@ test('dangerous link warnings are prioritized over incidental low priority signa
  const levels=r.reasons.map(x=>({high:0,medium:1,info:2}[x.severity]));
  assert.deepEqual(levels,[...levels].sort((a,b)=>a-b));
  assert.ok(r.reasons.length<=8);
+});
+
+test('normal mailto, tel and fragment links do not produce misleading unusual-link flags',()=>{
+ const r=engine.inspect(external('person@example.org','Hello','Welcome',{
+  html_body:'<a href="mailto:support@example.org">Email us</a>'+
+   '<a href="tel:+18005550000">Phone</a>'+
+   '<a href="#faq">FAQ</a>'
+ }));
+ assert.ok(!r.reasons.some(x=>x.code==='UNUSUAL_LINK'));
+ assert.equal(r.status,'unverified');
+ assert.equal(r.isVerified,false);
 });
