@@ -31,3 +31,13 @@
 
 ## Release decision
 **HOLD.** Neither this source change nor tests authorize a live receiver, sender-verified claim, Android APK, attachment download, automatic message safety judgment, bank/authority approval or production launch. The existing TEST site and DKIM/DMARC backend are preserved.
+
+## 4. Native WebView external URL policy hardening — source/compile verified
+- The earlier source-only URL handoff itself passed 4 source tests but had not compiled the full Android Activity. That gap has now been closed.
+- Added `ExternalNavigationPolicy.java` and wired it into `MainActivity.java`: only HTTPS external navigation from a **foreground main-frame user gesture** can open a browsable Android external intent. Blocked schemes include `intent:`, `file:`, `javascript:`, `content:`, `data:`, `http:`, `mailto:` and `tel:`. No external URL userinfo, custom ports, credentials fragments, or implicit iframe-driven launches are allowed.
+- Same-origin `https://bharathlink-20-test.netlify.app/` remains in WebView, including normal internal query/hash routes. Host-suffix spoofing cannot become internal trust.
+- This intentionally restricts generic external navigation (including mailto/tel) in the **staged source**. Compatibility of non-HTTPS external actions must be reviewed separately before any actual APK; do not loosen the gate casually.
+- Updated GitHub Actions to `actions/setup-java@v5` and `actions/setup-node@v5`; added Java 17 compile against real Android SDK API 35 `android.jar` for `MainActivity.java`, `MailSecurityLinkPolicy.java` and `ExternalNavigationPolicy.java`. No Gradle assemble/sign/packaging or APK artifact was executed.
+- **Final GitHub CI [run 41894318598](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41894318598): SUCCESS.** Java adversarial URL tests, Android SDK stub-source compilation, and all five static release HOLD tests passed.
+- Remaining nonfatal toolchain notes (e.g. Java deprecated Activity API and transitive Node punycode) do not authorize a release or constitute a physical device test.
+- All original Play Protect/signing-key clearance, first-device trust, independent external issuer, SPF receiver, E2EE and production gate requirements remain **HOLD**.
