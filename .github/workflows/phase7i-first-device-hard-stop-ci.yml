@@ -1,0 +1,118 @@
+name: BharathLink Phase 7I — First-Device Authorization HARD HOLD CI (STAGED ONLY)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7i-first-device-hard-stop-ci
+    paths:
+      - 'sql/staged/TEST-first-device-hard-stop-v1.sql'
+      - 'tests/phase7i-*'
+      - 'tests/fixtures/phase7i-*'
+      - '.github/workflows/phase7i-first-device-hard-stop-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-threat-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify private trust guards, revoke and no production activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Assert existing backend hard-disabled and no deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' supabase/functions/bl20-candidate-possession/index.ts
+          grep -Fqx 'const APPROVAL_FEATURE_RELEASED = false;' supabase/functions/bl20-device-approval/index.ts
+          grep -Fqx 'const V2_RELEASED=false; // deliberately not overridable via environment' supabase/functions/bl20-device-approval-v2/index.ts
+          grep -Fq 'const RECOVERY_RELEASED = false;' supabase/functions/bl20-recovery-v1/index.ts
+          ! grep -Eq 'supabase (functions deploy|db push)|gradle.*assemble|upload-artifact.*apk' .github/workflows/phase7i-first-device-hard-stop-ci.yml
+          echo 'PASS: all live endpoints disabled; NO first-device launch or new APK'
+
+  disposable-postgres-hard-stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7i_disposable_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7i_disposable_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install local PostgreSQL client if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Seed historical unverified device and independently verified old signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7i-historical-unverified-device.sql
+      - name: Install existing isolated candidate and additional-device v2 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v2-candidate-possession-gate.sql
+      - name: Stage additional first-device HARD HOLD triggers in disposable DB only
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-first-device-hard-stop-v1.sql
+      - name: Prove first device, first signer and revoked/key rebinding bypass all denied
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7i-hard-stop-denials.sql
+      - name: Parallel privileged first-device race must reject BOTH attempts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7i-racing-first-device.mjs
+      - name: Existing candidate-proof-gated additional-device v2 must still work once
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7f-parallel-approval.mjs
+      - name: Confirm only existing eligible account gained authorized synthetic second device
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_devices where user_id='99999999-9999-4999-8999-999999999999'" | grep -qx '1'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_device_signing_keys where user_id='99999999-9999-4999-8999-999999999999' and verified_at is not null" | grep -qx '0'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_devices where user_id='11111111-1111-4111-8111-111111111111'" | grep -qx '2'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from bl20_candidate_v1_private.trusted_approval_links" | grep -qx '1'
+          echo 'PASS: historical unverified account still has zero trusted signers; existing trusted account second-device v2 regression PASS'
