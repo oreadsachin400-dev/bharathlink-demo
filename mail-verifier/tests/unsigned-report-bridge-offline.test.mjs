@@ -47,7 +47,8 @@ function dns({outage=false,missingDmarc=false}={}){
  };
  return {resolveDns,calls};
 }
-async function prepare(raw=await signedMime(),receiptChanges={}){
+async function prepare(raw,receiptChanges={}){
+ if(raw===undefined)raw=await signedMime();
  const receiver=await webcrypto.subtle.generateKey({
   name:"ECDSA",namedCurve:"P-256"
  },true,["sign","verify"]);
