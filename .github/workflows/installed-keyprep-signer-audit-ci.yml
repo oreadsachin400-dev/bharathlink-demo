@@ -1,0 +1,58 @@
+name: BharathLink — Installed KeyPrep Signer Read-only Audit Tool CI (NO PHONE)
+
+on:
+  push:
+    branches:
+      - bharathlink-keyprep-installed-signer-audit-ci
+    paths:
+      - 'scripts/audit_installed_keyprep_signer.py'
+      - 'tests/test_installed_keyprep_signer_audit.py'
+      - '.github/workflows/installed-keyprep-signer-audit-ci.yml'
+      - 'docs/KeyPrep-Installed-Signer-Local-Audit-2026-11-04.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-phone-certificate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run synthetic adb/apksigner/aapt positive and negative checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_installed_keyprep_signer_audit.py' -v
+      - name: Verify the tool cannot change a phone or access secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from ast import parse,walk,Constant,Call
+          source=Path("scripts/audit_installed_keyprep_signer.py").read_text()
+          tree=parse(source)
+          assert "TemporaryDirectory(" in source
+          assert '"pm", "path", PKG' in source
+          assert '"pull", p, str(apk)' in source
+          assert '"safe_update_authorized": False' in source
+          assert '"play_protect_clearance_verified": False' in source
+          assert '"original_private_signing_key_verified_available": False' in source
+          assert "shell=True" not in source
+          for bad in ('"install"', '"uninstall"', '"push"', '"root"', '"run-as"',
+                      '"clear"', '"disable-verity"', '"reboot"', '"setprop"'):
+              assert bad not in source, bad
+          assert not any(isinstance(n,Call) and hasattr(n.func,"attr")
+             and n.func.attr in ("system","popen","remove","unlink","rmtree")
+             for n in walk(tree)), "Prohibited mutable subprocess/file operation"
+          print("PASS: read-only ADB pm path + public base APK certificate; no update or destructive operations")
+          PY
+      - name: No APK and no publish action in installer attestation CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'assembleDebug|assembleRelease|actions/upload-artifact@|adb install|adb uninstall' .github/workflows/installed-keyprep-signer-audit-ci.yml
+          test ! -d app/build/outputs/apk
+          echo "PASS: CI tests a future opt-in local tool; it cannot access any physical Android phone"
