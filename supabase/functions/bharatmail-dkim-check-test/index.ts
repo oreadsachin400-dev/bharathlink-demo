@@ -79,7 +79,7 @@ async function lookupOwnMessage(token:string,clientKey:string,url:string,emailId
  let info:any;try{info=await user.json()}catch{reject("invalid_user_session")}
  if(!info?.id||!UUID.test(info.id))reject("invalid_user_session");
  const qs=new URLSearchParams({
-  select:"id,provider_email_id,from_address,to_address,direction",
+  select:"id,recipient_user_id,provider_email_id,from_address,to_address,direction",
   id:"eq."+emailId,recipient_user_id:"eq."+info.id,
   direction:"eq.inbound",limit:"1"
  });
@@ -89,11 +89,81 @@ async function lookupOwnMessage(token:string,clientKey:string,url:string,emailId
    cache:"no-store"});
  if(rows.status!==200)reject("mail_not_available_to_user");
  let data:any;try{data=await rows.json()}catch{reject("mail_not_available_to_user")}
- if(!Array.isArray(data)||data.length!==1||data[0].id!==emailId)
+ if(!Array.isArray(data)||data.length!==1||data[0].id!==emailId||
+    data[0].recipient_user_id!==info.id||data[0].direction!=="inbound")
    reject("mail_not_available_to_user");
  return data[0];
 }
-async function fromResend(row:any,key:string):Promise<Uint8Array>{
+/**
+ * Important recipient distinction:
+ * - Signed Resend event.to = ORIGINAL SMTP delivery recipient.
+ * - External inbox row.to_address = virtual BharathLink profile mailbox.
+ * They differ on all six real October 18 TEST messages; comparing them
+ * wrongly rejects authentic, already-owned incoming records.
+ *
+ * User ownership is checked with the caller's JWT + existing RLS FIRST.
+ * Only then a server-side service key reads the exact signed and processed
+ * inbound event, plus the owner's profile mailbox and (if applicable)
+ * secure reply-token ownership. No private row is returned to the browser.
+ * This does not establish human sender identity or message safety.
+ */
+async function originalRecipientForOwnedMail(row:any,base:string):Promise<string>{
+ const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
+ if(!key||key.length<24)reject("trusted_route_credential_missing");
+ const fetchTrusted=async(table:string,params:Record<string,string>,failure:string)=>{
+  const u=new URL(base+"/rest/v1/"+table);
+  for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
+  const res=await fetch(u.toString(),{
+   method:"GET",headers:{apikey:key,authorization:"Bearer "+key,
+    accept:"application/json"},
+   redirect:"manual",signal:AbortSignal.timeout(8000),cache:"no-store"
+  });
+  if(res.status!==200)reject(failure);
+  const bytes=await boundedBytes(res,16384);
+  let data:any;try{data=JSON.parse(new TextDecoder().decode(bytes))}
+  catch{reject(failure)}finally{bytes.fill(0)}
+  if(!Array.isArray(data)||data.length!==1)reject(failure);
+  return data[0];
+ };
+ const id=String(row.provider_email_id||"");
+ const owner=String(row.recipient_user_id||"");
+ if(!UUID.test(id)||!UUID.test(owner))reject("trusted_route_invalid");
+ const event=await fetchTrusted("bharatmail_inbound_events",{
+  select:"provider_email_id,status,from_address,to_addresses,authentication_status",
+  provider_email_id:"eq."+id,limit:"1"
+ },"trusted_inbound_event_unavailable");
+ if(event.provider_email_id!==id||event.status!=="processed"||
+  event.authentication_status==="fail"||
+  !Array.isArray(event.to_addresses)||event.to_addresses.length!==1||
+  parseAddress(event.from_address)!==parseAddress(row.from_address))
+   reject("trusted_inbound_event_mismatch");
+ const originalTo=parseAddress(event.to_addresses[0]);
+ // The user's existing virtual mailbox destination is an additional
+ // authenticated ownership link; it is NOT the original SMTP recipient.
+ const profile=await fetchTrusted("profiles",{
+  select:"user_id,bharatmail_address",user_id:"eq."+owner,limit:"1"
+ },"trusted_profile_unavailable");
+ if(profile.user_id!==owner||
+   parseAddress(profile.bharatmail_address)!==parseAddress(row.to_address))
+   reject("trusted_profile_mismatch");
+ // For modern reply+UUID@bharathlink.com routes, independently enforce
+ // the reply-token owner and authorized reply sender. Older direct inbound
+ // routes have no token and remain subject to event + profile + RLS checks.
+ const match=originalTo.match(/^reply\+([0-9a-f-]{36})@bharathlink\.com$/i);
+ if(match){
+  if(!UUID.test(match[1]))reject("trusted_reply_route_invalid");
+  const route=await fetchTrusted("bharatmail_reply_routes",{
+   select:"token,owner_user_id,external_address",
+   token:"eq."+match[1],limit:"1"
+  },"trusted_reply_route_unavailable");
+  if(String(route.token).toLowerCase()!==match[1].toLowerCase()||
+     route.owner_user_id!==owner||
+     parseAddress(route.external_address)!==parseAddress(row.from_address))
+    reject("trusted_reply_route_mismatch");
+ }
+ return originalTo;
+}
+async function fromResend(row:any,key:string,originalRecipient:string):Promise<Uint8Array>{
  const providerId=row.provider_email_id;
  if(typeof providerId!=="string"||!UUID.test(providerId))reject("invalid_provider_id");
  if(!key.startsWith("re_")||key.length<10)reject("resend_not_configured");
@@ -108,7 +178,7 @@ async function fromResend(row:any,key:string):Promise<Uint8Array>{
    parseAddress(metadata?.from)!==parseAddress(row.from_address)||
    !Array.isArray(metadata?.to)||
    !metadata.to.some((x:unknown)=>{
-    try{return parseAddress(x)===parseAddress(row.to_address)}catch{return false}
+    try{return parseAddress(x)===parseAddress(originalRecipient)}catch{return false}
    }))reject("provider_binding_failed");
  const record=metadata.raw;if(!record||typeof record.download_url!=="string")reject("raw_unavailable");
  const expiration=Date.parse(record.expires_at);
@@ -184,7 +254,8 @@ export default {
   let raw:Uint8Array|undefined;
   try{
    const row=await lookupOwnMessage(auth.slice(7),clientKey,base,body.message_id);
-   raw=await fromResend(row,key);
+   const originalRecipient=await originalRecipientForOwnedMail(row,base);
+   raw=await fromResend(row,key,originalRecipient);
    const dkim=await cryptographicDkim(raw,row.from_address);
    return resp(200,{check:"real_resend_original_mime",domain_dkim:dkim.dkim,
      domain_dkim_strictly_aligned:dkim.strictly_aligned,
@@ -209,6 +280,15 @@ export default {
      raw_response_oversized:"provider_response_oversized",
      invalid_bytes:"provider_response_invalid",
      provider_binding_failed:"provider_metadata_binding_failed",
+     trusted_route_credential_missing:"trusted_event_access_unavailable",
+     trusted_route_invalid:"trusted_event_reference_invalid",
+     trusted_inbound_event_unavailable:"trusted_inbound_event_unavailable",
+     trusted_inbound_event_mismatch:"trusted_inbound_event_mismatch",
+     trusted_profile_unavailable:"trusted_profile_unavailable",
+     trusted_profile_mismatch:"trusted_profile_mismatch",
+     trusted_reply_route_invalid:"trusted_reply_route_invalid",
+     trusted_reply_route_unavailable:"trusted_reply_route_unavailable",
+     trusted_reply_route_mismatch:"trusted_reply_route_mismatch",
      raw_unavailable:"original_mime_unavailable",
      expired_raw_capability:"original_mime_link_unavailable",
      invalid_raw_capability:"original_mime_link_unavailable",
