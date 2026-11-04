@@ -117,7 +117,7 @@ async function verifySmtpDomainAuthentication(rawMime,{
  const effectiveDmarc=dns.failed()?"not_checked":qualifiedDmarc?"pass":
    libraryDmarc==="pass"?"unverified":libraryDmarc;
  return Object.freeze({
-  status:qualifiedDmarc?"domain_authenticated":"unverified",
+  status:qualifiedDmarc?"synthetic_domain_authenticated_only":"unverified",
   spf:effectiveSpf,dkim:effectiveDkim,dmarc:effectiveDmarc,
   dmarc_policy:actual?.dmarc?.policy||null,
   spf_strict_aligned:!!spfPass,dkim_strict_aligned:!!signedPass,
