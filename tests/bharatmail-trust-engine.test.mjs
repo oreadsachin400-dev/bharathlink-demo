@@ -160,3 +160,9 @@ test('injected CRLF and multiple From addresses are not trusted',()=>{
  assert.ok(ambiguity.reasons.some(x=>x.code==='MALFORMED_FROM'));
  assert.equal(injection.isVerified,false);
 });
+
+test('subject can trigger organization claim when inbound DB stores only the bare sender address',()=>{
+ const r=engine.inspect(external('alerts@gmail.com','Cyber Crime Department — urgent notice','Contact our office'));
+ assert.ok(r.reasons.some(x=>x.code==='AUTHORITY_CLAIM_PUBLIC_MAIL'));
+ assert.equal(r.isFakeProven,false);
+});
