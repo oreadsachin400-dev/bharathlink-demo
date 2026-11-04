@@ -1,0 +1,316 @@
+name: BharathLink — Consolidated Security Regression & Release HOLD
+
+on:
+  push:
+    branches:
+      - bharathlink-consolidated-security-readiness-ci
+    paths:
+      - '.github/workflows/consolidated-security-readiness-ci.yml'
+      - 'docs/security-release-readiness.json'
+      - 'tests/consolidated-readiness-contract.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Offline synthetic tests only. Never deploy, build/upload an installable APK,
+# enable feature gates or create verified production device trust.
+
+jobs:
+  offline-contract-and-release-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: All consolidated cryptography, Edge HTTP, issuer and release HOLD contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee consolidated-node-tests.txt
+          grep -q '# fail 0' consolidated-node-tests.txt
+          grep -q '# skipped 0' consolidated-node-tests.txt
+      - name: Historical signing-continuity negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_signing_preflight.py' -v
+          python3 -m unittest discover -s tests -p 'test_keyprep_release.py' -v
+          python3 -m unittest discover -s tests -p 'test_protected_signing_workflow.py' -v
+      - name: No private signing keystore file committed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*.p12' -o -iname '*.pfx' \) | grep -q .; then
+             echo "BLOCK: private signing key present in tracked source" >&2
+             exit 1
+          fi
+      - name: Confirm green CI never converts HOLD into release approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"release_decision": "HOLD"' docs/security-release-readiness.json
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' supabase/functions/bl20-candidate-possession/index.ts
+          grep -Fqx 'const APPROVAL_FEATURE_RELEASED = false;' supabase/functions/bl20-device-approval/index.ts
+          grep -Fqx 'const V2_RELEASED=false; // deliberately not overridable via environment' supabase/functions/bl20-device-approval-v2/index.ts
+          grep -Fq 'const RECOVERY_RELEASED = false;' supabase/functions/bl20-recovery-v1/index.ts
+          echo "PASS: offline contracts green does NOT mean production approval"
+
+  native-source-compilation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned original TEST source ZIP SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '77bed5a87934d3a674f4f59b00cb652d16f7afcda27225a1280ec20d1502db3c  BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip' | sha256sum -c
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - name: Install sandbox Android SDK dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"; fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Prepare isolated test code only with Phase 7A, 7B and 7C sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v36hf-kotlin-build
+          unzip -q BharathLink-V36HF-SecurityPatch-TEST-SOURCE-READY.zip -d v36hf-kotlin-build
+          python3 .github/scripts/v36hf_startup_rescue.py
+          python3 .github/scripts/v36hf_webview_diag.py
+          python3 .github/scripts/v36hf_phase7a_isolated.py
+          python3 .github/scripts/v36hf_phase7b_compileonly.py
+          python3 .github/scripts/v36hf_phase7c_compileonly.py
+      - name: Compile and execute Kotlin unit tests, NOT assemble an APK
+        working-directory: v36hf-kotlin-build
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Require non-skipped actual Phase 7C JUnit security cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          root=Path("v36hf-kotlin-build/app/build/test-results/testDebugUnitTest")
+          found=list(root.glob("TEST-*.xml"))
+          assert found,"No Gradle JUnit reports"
+          total=0
+          phase7c=0
+          for file in found:
+              x=ET.parse(file).getroot()
+              count=int(x.get("tests","0"))
+              assert int(x.get("failures","0"))==0,file
+              assert int(x.get("errors","0"))==0,file
+              assert int(x.get("skipped","0"))==0,file
+              total+=count
+              if "Phase7cProofCoordinatorTest" in file.name: phase7c+=count
+          assert phase7c>=13,(total,phase7c)
+          print(f"PASS: {total} executed Android JUnit cases, {phase7c} Phase 7C, 0 failed/skipped")
+          PY
+          test ! -d v36hf-kotlin-build/app/build/outputs/apk
+          echo "PASS: no APK assembled or distributed"
+
+  postgres-edge-challenge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: consolidated_only_ephemeral
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: consolidated_only_ephemeral
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Fresh disposable SQL candidate fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-ci-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-postgres-smoke.sql
+      - name: Edge handler with actual PostgreSQL and synthetic P-256 user
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/phase7e-edge-postgres-integrated.test.mjs | tee consolidated-edge-postgres.txt
+          grep -q '# fail 0' consolidated-edge-postgres.txt
+          grep -q '# skipped 0' consolidated-edge-postgres.txt
+      - name: No trust creation by proof-of-possession flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -XAt -v ON_ERROR_STOP=1 -c 'select count(*) from public.messaging_devices' | grep -qx '0'
+
+  postgres-existing-device-and-first-device-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: consolidated_only_ephemeral
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: consolidated_only_ephemeral
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install local PostgreSQL client if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Seed synthetic account and historical unverified signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7i-historical-unverified-device.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-device-approval-v2-candidate-possession-gate.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-first-device-hard-stop-v1.sql
+      - name: Actual first-device HOLD and revoked/key-swapping rejections
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7i-hard-stop-denials.sql
+          node tests/phase7i-racing-first-device.mjs
+      - name: Preserve legitimate independently preverified account additional-device flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7f-parallel-approval.mjs
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from bl20_candidate_v1_private.trusted_approval_links" | grep -qx '1'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_device_signing_keys where user_id='99999999-9999-4999-8999-999999999999' and verified_at is not null" | grep -qx '0'
+
+  postgres-issuer-revocation-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: consolidated_only_ephemeral
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: consolidated_only_ephemeral
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Initialize disposable original review/issuer schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-sessions.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-issuer-pin-v2.sql
+      - name: Verify genuine synthetic P-256 signed issuer case
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase5-real-signed-recovery-ci.mjs
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-first-device-governance-intent-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-immutable-issuer-pin-v3.sql
+      - name: Immutable issuer pin, atomic receipt, key change and revoke/consent audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7h-concurrent-issuer-pin.mjs
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7h-pre-governance-denials.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7h-governance-preflight.sql
+          node tests/phase7g-concurrent-intent.mjs
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7h-rotation-revocation-audit.sql
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_devices where user_id='99999999-9999-4999-8999-999999999999'" | grep -qx '0'
+          echo "PASS: review only; issuer-key change vetoes without granting device trust"
