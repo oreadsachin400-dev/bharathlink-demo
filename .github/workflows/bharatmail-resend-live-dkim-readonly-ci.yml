@@ -1,0 +1,322 @@
+name: BharathMail — Real Resend Raw MIME DKIM Check + Existing Security CI (HOLD)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-resend-live-dkim-readonly
+    paths:
+      - 'mail-verifier/**'
+      - 'supabase/functions/bl-mail-auth-attest/resend-raw-evidence.mjs'
+      - 'supabase/functions/bharatmail-dkim-check-test/**'
+      - 'supabase/functions/bharatmail-dkim-test-ui/**'
+      - 'bharatmail-trust-engine.js'
+      - 'tests/bharatmail-trust-engine.test.mjs'
+      - 'sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql'
+      - 'tests/fixtures/mail-receiver-replay-*'
+      - '.github/workflows/bharatmail-resend-live-dkim-readonly-ci.yml'
+      - 'docs/BharathMail-Resend-Live-DKIM-ReadOnly-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-mail-cloudflare-pilot-handler-and-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned RFC mail verifier (no package scripts)
+        shell: bash
+        working-directory: mail-verifier
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save --package-lock=false
+          npm ls mailauth --depth=0
+      - name: Signed SMTP MIME and replay adapter offline tests
+        shell: bash
+        working-directory: mail-verifier
+        run: |
+          set -euo pipefail
+          node --check verify-and-consume-receiver-test.mjs
+          node --check cloudflare-email-routing-readonly.mjs
+          node --check cloudflare-pilot-worker.mjs
+          node --check cloudflare-pilot-helpers.mjs
+          node --check check-resend-live-email.mjs
+          node --check tests/resend-live-checker.test.mjs
+          node --check ../supabase/functions/bl-mail-auth-attest/resend-raw-evidence.mjs
+          node --check tests/cloudflare-pilot-worker.test.mjs
+          node --check tests/cloudflare-email-routing-readonly.test.mjs
+          node --check tests/smtp-receiver-replay-policy.test.mjs
+          node --test tests/*.test.mjs | tee /tmp/bl-mail-replay-node.log
+          grep -q '# fail 0' /tmp/bl-mail-replay-node.log
+          grep -q '# skipped 0' /tmp/bl-mail-replay-node.log
+      - name: Existing sender auth, device and security regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/bharatmail-trust-engine.test.mjs \
+            tests/mail-auth-signed-gate.test.mjs \
+            tests/mail-auth-resend-raw-evidence.test.mjs \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee /tmp/bl-mail-replay-regressions.log
+          grep -q '# fail 0' /tmp/bl-mail-replay-regressions.log
+          grep -q '# skipped 0' /tmp/bl-mail-replay-regressions.log
+          node - <<'NODE'
+          const e=require('./bharatmail-trust-engine.js');
+          const r=e.inspect({source:'external',from:'support@example.com',subject:'account',
+            body:'Hello',html_body:'<a href="https://scam.example">https://bank.example/login</a>'});
+          if(r.isVerified!==false || r.isFakeProven!==false ||
+             r.identityVerification!=='not_verified' ||
+             r.domainAuthentication!=='not_checked' ||
+             !r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'))
+            throw Error('HTML impersonation warning or identity HOLD disappeared');
+          NODE
+
+  disposable-postgres-receiver-key-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic_receiver_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: synthetic_receiver_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Create isolated synthetic roles and append-only receiver tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/mail-auth-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql
+      - name: Key pin immutability, revocation, replay, role privileges and time windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/mail-receiver-replay-key-assertions.sql
+      - name: 24 concurrent independent Postgres consumers and post-revocation denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/fixtures/mail-receiver-replay-concurrency.sh
+          bash tests/fixtures/mail-receiver-replay-concurrency.sh
+      - name: End-to-end real localhost SMTP to pinned-key Postgres replay and revocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tests/mail-receiver-crypto-postgres-integration.test.mjs
+          node --test tests/mail-receiver-crypto-postgres-integration.test.mjs | tee /tmp/bl-mail-smtp-pg-e2e.log
+          grep -q '# fail 0' /tmp/bl-mail-smtp-pg-e2e.log
+          grep -q '# skipped 0' /tmp/bl-mail-smtp-pg-e2e.log
+      - name: Keep all production receiver, key and device release holds
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' supabase/functions/bl-mail-auth-attest/index.ts
+          grep -Fq 'BHARATHLINK_OFFLINE_SMTP_REPLAY_TEST' mail-verifier/verify-and-consume-receiver-test.mjs
+          grep -Fq 'OFFLINE_WORKER_EVENT_FIXTURE_ONLY' mail-verifier/cloudflare-email-routing-readonly.mjs
+          grep -Fq 'production_authorized:false' mail-verifier/cloudflare-email-routing-readonly.mjs
+          node - <<'NODE'
+          const fs=require('fs');
+          const worker=fs.readFileSync('mail-verifier/cloudflare-pilot-worker.mjs','utf8');
+          const c=JSON.parse(fs.readFileSync('mail-verifier/wrangler.local.jsonc','utf8'));
+          if(!worker.includes('export default handler;') ||
+             /export\\s*\\{/.test(worker) ||
+             c.vars?.BLMAIL_PILOT_MODE!=='DISABLED' ||
+             c.workers_dev!==false || c.preview_urls!==false ||
+             Object.hasOwn(c,'routes') || Object.hasOwn(c,'route'))
+             throw Error('Unapproved Cloudflare worker deploy shape or runtime config');
+          NODE
+          grep -Fq 'DISPOSABLE TEST ONLY' sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql
+          node - <<'NODE'
+          const r=require('./docs/security-release-readiness.json');
+          if(r.release_decision!=='HOLD' ||
+             r.is_production_authorized!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.real_internet_facing_smtp_receiver_connected!==false ||
+             r.mail_spf_dmarc_offline?.release_authorized!==false ||
+             r.policy?.mail_sender_auth_must_remain_unverified_until_external_verifier!==true ||
+             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
+             r.policy?.mail_html_heuristic_must_not_mark_sender_verified!==true ||
+             r.policy?.mail_cloudflare_worker_candidate_must_remain_offline!==true ||
+             r.policy?.mail_resend_live_dkim_test_must_not_promote_person_or_organization_verified!==true ||
+             r.policy?.mail_real_dkim_test_deployment_does_not_authorize_production!==true ||
+             r.mail_resend_received_dkim_owner_scoped_test?.test_edge_function_deployed!==true ||
+             r.mail_resend_received_dkim_owner_scoped_test?.test_edge_function_verify_jwt!==true ||
+             r.mail_resend_received_dkim_owner_scoped_test?.original_main_project_function_deployed!==false ||
+             r.mail_resend_received_dkim_owner_scoped_test?.real_signed_in_inbound_email_dkim_check_invoked!==true ||
+             r.mail_resend_received_dkim_owner_scoped_test?.original_email_dkim_pass_confirmed!==false ||
+             r.mail_resend_received_dkim_owner_scoped_test?.production_authorized!==false ||
+             r.policy?.mail_cloudflare_local_handler_no_deployment_until_isolated_zone_review!==true ||
+             r.mail_cloudflare_local_email_pilot?.worker_local_route_config_has_no_external_routes!==true ||
+             r.mail_cloudflare_local_email_pilot?.test_worker_handler_default_disabled!==true ||
+             r.mail_cloudflare_local_email_pilot?.real_cloudflare_remote_worker_deployed!==false ||
+             r.mail_cloudflare_local_email_pilot?.real_sender_domain_authenticated!==false ||
+             r.mail_cloudflare_local_email_pilot?.existing_resend_mx_or_dns_modified!==false ||
+             r.mail_cloudflare_local_email_pilot?.production_authorized!==false ||
+             r.policy?.mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review!==true ||
+             r.mail_cloudflare_email_routing_candidate_offline?.cloudflare_email_worker_currently_deployed!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.real_mx_or_dns_modified!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.cloudflare_internal_worker_origin_proven!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.external_spf_dkim_dmarc_independently_verified_in_live_bharathmail!==false ||
+             r.mail_cloudflare_email_routing_candidate_offline?.production_authorized!==false ||
+             r.mail_html_link_phishing_caution_offline?.release_authorized!==false ||
+             r.mail_html_link_phishing_caution_offline?.deployed_to_live_netlify_supabase_resend!==false ||
+             r.mail_html_link_phishing_caution_offline?.external_spf_dkim_dmarc_verified!==false ||
+             r.mail_html_link_phishing_caution_offline?.real_sender_identity_or_authority_verified!==false ||
+             r.policy?.mail_receiver_replay_still_test_only!==true ||
+             r.mail_receiver_replay_key_lifecycle_offline?.applied_to_live_database!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.real_live_receiver_or_dns_connected!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.production_authorized!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.changed_android_apk!==false) {
+            throw Error('unsafe mail receiver release configuration');
+          }
+          console.log('PASS: no live receiver authorization and mail identity trust remains HOLD');
+          NODE
+
+  real-cloudflare-wrangler-local-email-handler-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Check Wrangler is local-only and default disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const c=JSON.parse(fs.readFileSync('mail-verifier/wrangler.local.jsonc','utf8'));
+          if(c.vars?.BLMAIL_PILOT_MODE!=='DISABLED' ||
+             c.workers_dev!==false ||
+             c.preview_urls!==false ||
+             c.main!=='./cloudflare-pilot-worker.mjs' ||
+             Object.hasOwn(c,'routes') ||
+             Object.hasOwn(c,'route') ||
+             Object.hasOwn(c,'send_email') ||
+             Object.hasOwn(c,'d1_databases') ||
+             Object.hasOwn(c,'kv_namespaces'))
+            throw Error('Cloudflare default config could mutate production');
+          NODE
+      - name: Simulate an incoming RFC5322 email via real local Cloudflare Wrangler runtime
+        working-directory: mail-verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.157.0 --version
+          npx --yes wrangler@4.157.0 dev --config wrangler.local.jsonc --local --ip 127.0.0.1 --port 8787 > /tmp/blmail-wrangler-local.log 2>&1 &
+          worker=$!
+          trap 'kill "$worker" 2>/dev/null || true' EXIT
+          ready=0
+          for i in $(seq 1 60); do
+            if ! kill -0 "$worker" 2>/dev/null; then
+              cat /tmp/blmail-wrangler-local.log
+              echo 'ERROR: Wrangler local runtime exited'
+              exit 1
+            fi
+            status=$(curl -sS --connect-timeout 1 --max-time 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/ 2>/dev/null || true)
+            if [[ "$status" != "000" && -n "$status" ]]; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            cat /tmp/blmail-wrangler-local.log
+            echo 'ERROR: Wrangler was not reachable'
+            exit 1
+          fi
+          curl -sS --connect-timeout 3 --max-time 15 \
+            --request POST \
+            'http://127.0.0.1:8787/cdn-cgi/local/email?from=bounce%40bank.example&to=test-evidence%40mail.test.bharathlink.example' \
+            --header 'Content-Type: message/rfc822' \
+            --data-binary @fixtures/cloudflare-email-worker-smoke.eml \
+            --output /tmp/blmail-local-email-response.txt \
+            --write-out 'Local Wrangler Email simulation HTTP %{http_code}\\n'
+          found=0
+          for i in $(seq 1 15); do
+            if grep -Fq 'BLMAIL_TEST_REJECT:gated' /tmp/blmail-wrangler-local.log; then
+              found=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$found" != 1 ]]; then
+            cat /tmp/blmail-wrangler-local.log
+            echo 'ERROR: Email handler did not execute'
+            exit 1
+          fi
+          grep -Fq 'BLMAIL_TEST_REJECT:gated' /tmp/blmail-wrangler-local.log
+          ! grep -Fq 'BLMAIL_TEST_FORWARD_OK_NO_SENDER_VERIFICATION' /tmp/blmail-wrangler-local.log
+          echo 'PASS: actual local Cloudflare email() event hit disabled handler; no forwarding or production route'
+
+  deno-check-rfc5322-resend-edge-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Static check isolated RLS-scoped TEST Edge Function only — no deployment
+        working-directory: supabase/functions/bharatmail-dkim-check-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno --version
+          deno check index.ts
+          grep -Fq 'const TEST_REF="fsdusofbpwdrdvgexxyw";' index.ts
+          grep -Fq 'sender_identity:"not_verified"' index.ts
+          grep -Fq 'verified_sender_badge:false' index.ts
+          ! grep -E 'resend\.emails\.send|supabase\.functions\.deploy' index.ts
+
+      - name: Verify non-renderable Supabase Edge HTML URL has been explicitly retired
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno check supabase/functions/bharatmail-dkim-test-ui/index.ts
+          grep -Fq 'html_not_supported_on_default_edge_domain' supabase/functions/bharatmail-dkim-test-ui/index.ts
+          grep -Fq 'status:410' supabase/functions/bharatmail-dkim-test-ui/index.ts
+          ! grep -Fq '<form' supabase/functions/bharatmail-dkim-test-ui/index.ts
+          echo 'PASS: broken Edge HTML host is retired; real UI requires normal static HTTPS hosting'

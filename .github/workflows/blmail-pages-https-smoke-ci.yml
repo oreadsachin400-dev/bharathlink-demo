@@ -1,0 +1,97 @@
+name: BharathLink Mail Pages real HTTPS DKIM TEST UI smoke (NO USER CREDENTIALS)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-resend-live-dkim-readonly
+    paths:
+      - '.github/workflows/blmail-pages-https-smoke-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pages-https-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Validate real GitHub Pages HTML, CSP, and unauthenticated DKIM hold
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error,re,hashlib,base64,time
+          site="https://oreadsachin400-dev.github.io/bharathlink-demo/bharatmail-dkim-test/"
+          last=""
+          for attempt in range(30):
+            try:
+              req=urllib.request.Request(site,headers={
+                "User-Agent":"BharathLink-Test-Pages-HTTPS-Security-Check",
+                "Cache-Control":"no-cache"})
+              with urllib.request.urlopen(req,timeout=12) as res:
+                status=res.status
+                content_type=res.headers.get("Content-Type","")
+                html=res.read(256000).decode("utf-8")
+              if status==200 and "text/html" in content_type.lower() and "Check DKIM domain signature" in html:
+                break
+              last="site not yet published"
+            except Exception as e:
+              last=type(e).__name__
+            time.sleep(3)
+          else:
+            raise AssertionError("TEST site not publicly confirmed: "+last)
+          assert "BharathLink-20-TEST" in html,"Wrong project"
+          assert "sb_secret_" not in html and "service_role" not in html
+          assert "localStorage" not in html and "sessionStorage" not in html
+          assert "https://fsdusofbpwdrdvgexxyw.supabase.co" in html
+          assert "https://lhaiwfdzynssgxmtlytl.supabase.co" not in html
+          assert "/functions/v1/bharatmail-dkim-check-test" in html
+          assert "frame-src &#x27;none&#x27;" in html or "frame-src 'none'" in html
+          for label in ("style","script"):
+            match=re.search(r"<"+label+r"(?: [^>]*)?>([\s\S]*?)</"+label+r">",html)
+            assert match, "missing "+label
+            digest=base64.b64encode(hashlib.sha256(match.group(1).encode("utf-8")).digest()).decode()
+            assert "sha256-"+digest in html,"CSP "+label+" fingerprint mismatch"
+          print("PASS: publicly served GitHub Pages TEST-only HTML and matching strict CSP hashes")
+          url="https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/bharatmail-dkim-check-test"
+          req=urllib.request.Request(url,method="POST",data=b'{"message_id":"00000000-0000-4000-8000-000000000000"}',
+            headers={"Content-Type":"application/json"})
+          try:
+            with urllib.request.urlopen(req,timeout=15) as res:
+              code=res.status;body=res.read(10000)
+          except urllib.error.HTTPError as e:
+            code=e.code;body=e.read(10000)
+          assert code in (401,403),f"Missing-JWT request must be denied: HTTP {code}"
+          assert b"domain_dkim_strictly_aligned" not in body
+          print("PASS: real Supabase DKIM endpoint rejects missing user session (HTTP "+str(code)+")")
+          pages_origin="https://oreadsachin400-dev.github.io"
+          base="https://fsdusofbpwdrdvgexxyw.supabase.co"
+          checks=[
+            ("/auth/v1/token?grant_type=password","POST","apikey,content-type"),
+            ("/auth/v1/otp","POST","apikey,content-type"),
+            ("/auth/v1/verify","POST","apikey,content-type"),
+            ("/rest/v1/bharatmail_external_messages?select=id","GET","apikey,authorization"),
+            ("/functions/v1/bharatmail-dkim-check-test","POST","apikey,authorization,content-type")
+          ]
+          for path,method,headerlist in checks:
+            req=urllib.request.Request(base+path,method="OPTIONS",headers={
+              "Origin":pages_origin,
+              "Access-Control-Request-Method":method,
+              "Access-Control-Request-Headers":headerlist,
+              "User-Agent":"BharathLink-Test-CORS-Preflight-Without-Credentials"})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as res:
+                code=res.status;heads=res.headers
+            except urllib.error.HTTPError as e:
+              code=e.code;heads=e.headers
+            assert code in (200,204),f"Preflight not accepted for {path.split('?')[0]}: HTTP {code}"
+            cors=(heads.get("Access-Control-Allow-Origin") or "").strip()
+            assert cors in ("*",pages_origin),f"Supabase preflight disallows Pages origin at {path.split('?')[0]}"
+            permitted=(heads.get("Access-Control-Allow-Headers") or "").lower()
+            allowed={x.strip() for x in permitted.split(",")}
+            requested={x.strip() for x in headerlist.lower().split(",")}
+            assert "*" in allowed or requested.issubset(allowed),f"Missing CORS request headers at {path.split('?')[0]}"
+          print("PASS: real cross-origin Supabase Auth, owned-mail REST and DKIM endpoint CORS preflights")
+          print("HOLD: no authorized user email has been cryptographically checked in this smoke")
+          PY

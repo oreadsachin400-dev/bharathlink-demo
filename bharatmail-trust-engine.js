@@ -11,7 +11,7 @@
   if (root) root.BharatMailTrustEngine = api;
 })(typeof window !== 'undefined' ? window : null, function () {
   'use strict';
-  const VERSION = 'bharathmail-trust-local-v1-2026-11-04';
+  const VERSION = 'bharathmail-trust-local-v2-2026-11-05';
   const MAX_SUBJECT = 300;
   const MAX_BODY = 12000;
   const PUBLIC_INBOX = new Set([
@@ -145,6 +145,21 @@
       add(reasons, 'SHORTENED_LINK', 'medium', 'A shortened link hides the destination until opened.');
     }
   }
+  function bilingualSignals(text,header){
+    // Only bounded local caution. No email is verified or deemed safe.
+    const content=text.normalize('NFKC').replace(/[\u200b-\u200d\u2060\ufeff]/g,'');
+    const official=/(?:\b(?:sarkari|sarkar|cyber[ -]?crime|police|bank)\b|पुलिस|बैंक|साइबर\s*क्राइम|सरकार|सरकारी|आयकर\s*विभाग)/iu.test(header.normalize('NFKC'));
+    const secret=/(?:\b(?:otp|cvv|pin|password|passcode)\b|ओटीपी|पासवर्ड|सीवीवी|वेरिफिकेशन\s*कोड)/iu;
+    const action=/(?:\b(?:bhejo|bhejna|bhej\s*do|batao|bata\s*do|dena|de\s*do|send\s*karo|share\s*karo)\b|भेजो|भेजें|भेजिए|भेजना|बताओ|बताएं|बताना|दीजिए|दे\s*दो|देना)/iu;
+    const noSecret=/(?:\b(?:mat|nahi|nahin|never|don't|do\s*not)\b|मत|नहीं|ना)\s+(?:(?:[\p{L}\p{N}]+\s+){0,2})(?:bhejo|bhejna|batao|dena|भेजो|भेजें|भेजिए|भेजना|बताओ|देना)/iu;
+    const payment=/(?:\b(?:paisa|paise|rupaye|rupiya|rupiye|money|payment)\s+(?:bhejo|bhejna|bhej\s*do|transfer|karo)\b|₹\s*\d+|पैसे|पैसा|रुपये|रुपया|रुपए|भुगतान)/iu;
+    const noPayment=/(?:\b(?:mat|nahi|nahin|don't|do\s*not|never)\b|मत|नहीं)\s+(?:(?:[\p{L}\p{N}]+\s+){0,3})(?:bhejo|bhejna|pay|send|transfer|भेजो|भेजें|भेजना|ट्रांसफर\s*करो)/iu;
+    const urgent=/(?:\b(?:turant|jaldi|abhi|fauran|aaj\s*hi|khata\s*band)\b|तुरंत|फ़ौरन|जल्दी|अभी|आज\s*ही|अंतिम\s*चेतावनी|डिजिटल\s*अरेस्ट|खाता\s*बंद)/iu.test(content);
+    const parts=content.split(/[.!?;,\n।]+/);
+    return {official,urgent,
+      secret:parts.some(p=>secret.test(p)&&action.test(p)&&!noSecret.test(p)),
+      pay:parts.some(p=>payment.test(p)&&!noPayment.test(p))};
+  }
   function inspect(mail) {
     const m = (mail && typeof mail === 'object') ? mail : {};
     const external = String(m.source || '').toLowerCase() === 'external';
@@ -154,6 +169,15 @@
     const html = external ? htmlSignals(m.html_body) : {text:'',links:[],partial:false,unparsed:false};
     const content = (subject + '\n' + body + '\n' + html.text).toLowerCase();
     const reasons = [];
+    const local = bilingualSignals(content,visibleSender.displayName+' '+subject);
+    if(external && local.official && visibleSender.valid && PUBLIC_INBOX.has(visibleSender.domain))
+      add(reasons,'AUTHORITY_CLAIM_PUBLIC_MAIL','high','Public mailbox claims government, police or bank authority; verify independently.');
+    if(external && local.secret)
+      add(reasons,'SECRET_REQUEST','high','Email appears to request an OTP or password. Do not share secrets.');
+    if(external && local.pay && local.urgent)
+      add(reasons,'URGENT_PAYMENT','high','Urgency with a payment request: verify the beneficiary independently.');
+    else if(external && local.pay)
+      add(reasons,'PAYMENT_REQUEST','info','Money mentioned: verify the beneficiary independently.');
     if (external && (
       (typeof m.body === 'string' && m.body.length > MAX_BODY) ||
       (typeof m.subject === 'string' && m.subject.length > MAX_SUBJECT)

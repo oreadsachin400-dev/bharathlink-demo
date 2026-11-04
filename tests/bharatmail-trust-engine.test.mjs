@@ -10,7 +10,7 @@ const codes=m=>engine.inspect(m).reasons.map(x=>x.code);
 const external=(from,subject='Hello',body='Thank you',extra={})=>({source:'external',folder:'inbox',from,subject,body,...extra});
 
 test('exposes a stable local API and all four independent trust dimensions fail closed',()=>{
- assert.match(engine.VERSION,/bharathmail-trust-local-v1/);
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v2-2026-11-05');
  const r=engine.inspect(external('Alice <alice@example.org>'));
  assert.equal(r.status,'unverified');
  assert.equal(r.domainAuthentication,'not_checked');
@@ -309,4 +309,23 @@ test('large batches of benign URLs cannot conceal a dangerous tail URL without a
  assert.ok(r.reasons.some(x=>x.code==='INCOMPLETE_LINK_SCAN'));
  assert.ok(r.reasons.some(x=>x.code==='DISGUISED_LINK'));
  assert.equal(r.status,'suspicious');
+});
+
+test('Hindi/Hinglish scam warnings retain identity HOLD and do not flag anti-scam advice as OTP solicitation',()=>{
+ const cases=[
+  ['agent@example.com','KYC','Apna OTP bhejo','SECRET_REQUEST'],
+  ['agent@example.com','केवाईसी','अपना ओटीपी भेजो','SECRET_REQUEST'],
+  ['agent@example.com','Notice','Turant 500 rupaye bhejo','URGENT_PAYMENT'],
+  ['help@gmail.com','पुलिस विभाग सूचना','नमस्कार','AUTHORITY_CLAIM_PUBLIC_MAIL']
+ ];
+ for(const [from,subject,body,expected] of cases){
+  const r=engine.inspect(external(from,subject,body));
+  assert.ok(r.reasons.some(x=>x.code===expected),body);
+  assert.equal(r.isVerified,false);
+  assert.equal(r.identityVerification,'not_verified');
+  assert.equal(r.organizationAuthority,'not_verified');
+ }
+ for(const body of ['Kisi ko OTP mat bhejna','किसी को ओटीपी मत भेजो','Never share your OTP.']){
+  assert.ok(!codes(external('user@example.com','Security tips',body)).includes('SECRET_REQUEST'),body);
+ }
 });
