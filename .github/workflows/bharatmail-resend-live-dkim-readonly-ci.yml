@@ -280,3 +280,23 @@ jobs:
           grep -Fq 'BLMAIL_TEST_REJECT:gated' /tmp/blmail-wrangler-local.log
           ! grep -Fq 'BLMAIL_TEST_FORWARD_OK_NO_SENDER_VERIFICATION' /tmp/blmail-wrangler-local.log
           echo 'PASS: actual local Cloudflare email() event hit disabled handler; no forwarding or production route'
+
+  deno-check-rfc5322-resend-edge-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Static check isolated RLS-scoped TEST Edge Function only — no deployment
+        working-directory: supabase/functions/bharatmail-dkim-check-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno --version
+          deno check index.ts
+          grep -Fq 'const TEST_REF="fsdusofbpwdrdvgexxyw";' index.ts
+          grep -Fq 'sender_identity:"not_verified"' index.ts
+          grep -Fq 'verified_sender_badge:false' index.ts
+          ! grep -E 'resend\.emails\.send|supabase\.functions\.deploy' index.ts
