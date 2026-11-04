@@ -301,3 +301,12 @@ test('normal mailto, tel and fragment links do not produce misleading unusual-li
  assert.equal(r.status,'unverified');
  assert.equal(r.isVerified,false);
 });
+
+
+test('large batches of benign URLs cannot conceal a dangerous tail URL without a warning',()=>{
+ const many=Array.from({length:30},(_,i)=>'https://example.org/info'+i).join(' ');
+ const r=engine.inspect(external('hello@example.org','Links',many+' https://192.0.2.1/scam'));
+ assert.ok(r.reasons.some(x=>x.code==='INCOMPLETE_LINK_SCAN'));
+ assert.ok(r.reasons.some(x=>x.code==='DISGUISED_LINK'));
+ assert.equal(r.status,'suspicious');
+});
