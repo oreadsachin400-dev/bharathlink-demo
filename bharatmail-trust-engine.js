@@ -47,8 +47,13 @@
     return {address, domain, displayName, valid: true};
   }
   function extractUrls(value) {
-    const urls = safeText(value, MAX_BODY).match(/https?:\/\/[^\s<>"']+/gi) || [];
-    return urls.slice(0, 12).map(s => s.replace(/[),.;!?]+$/g, '')).filter(Boolean);
+    // Both the plain and HTML alternatives are already bounded. Examine
+    // their combined text, not only the first 12 KB of the plain version.
+    const urls = safeText(value, MAX_BODY + MAX_HTML + MAX_SUBJECT + 32)
+      .match(/https?:\/\/[^\s<>"']+/gi) || [];
+    const sample = urls.length > 24
+      ? [...urls.slice(0, 12), ...urls.slice(-12)] : urls;
+    return sample.map(s => s.replace(/[),.;!?]+$/g, '')).filter(Boolean);
   }
   // Risk analysis is deliberately bounded. A sender may hide malicious text
   // beyond the first 12 KB; sampling both ends is a mitigation, not a claim
@@ -196,6 +201,9 @@
       add(reasons, 'URGENT_PAYMENT', 'high', 'Urgency is combined with money-transfer or payment instructions.');
     } else if (pay) {
       add(reasons, 'PAYMENT_REQUEST', 'info', 'The email mentions a payment or destination; verify the beneficiary independently.');
+    }
+    if ((content.match(/https?:\/\/[^\s<>"']+/gi) || []).length > 24) {
+      add(reasons, 'INCOMPLETE_LINK_SCAN', 'medium', 'This email contains more links than can be individually checked in the local preview.');
     }
     const urls = extractUrls(content);
     for (const value of urls) inspectUrl(value, reasons);
