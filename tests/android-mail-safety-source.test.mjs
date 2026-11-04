@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const webview=readFileSync(new URL('../BharathLink-Android/app/src/main/java/in/bharathlink/demo/MainActivity.java',import.meta.url),'utf8');
 const policy=readFileSync(new URL('../BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java',import.meta.url),'utf8');
+const externalPolicy=readFileSync(new URL('../BharathLink-Android/app/src/main/java/in/bharathlink/demo/ExternalNavigationPolicy.java',import.meta.url),'utf8');
 const workflow=readFileSync(new URL('../.github/workflows/build-android-test.yml',import.meta.url),'utf8');
 const readiness=JSON.parse(readFileSync(new URL('../docs/security-release-readiness.json',import.meta.url),'utf8'));
 test('user-initiated explicit external browser only, no implicit token forwarding',()=>{
@@ -30,6 +31,17 @@ test('current WebView HTTPS boundary and no file/content access remain unchanged
  assert.match(webview,/https:\/\/bharathlink-20-test\.netlify\.app/);
  assert.match(webview,/web\.loadUrl\(HOME\)/);
  assert.match(webview,/web\.restoreState\(state\)/);
+});
+test('external navigation is main-frame gesture-gated and HTTPS-only, with no unsafe scheme launch',()=>{
+ assert.match(webview,/ExternalNavigationPolicy\.isInternalAppUrl\(target\)/);
+ assert.match(webview,/ExternalNavigationPolicy\.mayOpenExternal\(target,request\.isForMainFrame\(\),request\.hasGesture\(\)\)/);
+ assert.match(externalPolicy,/if\(!mainFrame \|\| !hasGesture\) return false;/);
+ assert.match(externalPolicy,/"https"\.equals\(uri\.getScheme\(\)\)/);
+ assert.match(externalPolicy,/uri\.getRawUserInfo\(\) != null/);
+ assert.match(externalPolicy,/uri\.getRawFragment\(\) == null/);
+ assert.match(externalPolicy,/APP_HOST\.equals\(uri\.getHost\(\)\)/);
+ assert.match(webview,/external\.addCategory\(Intent\.CATEGORY_BROWSABLE\)/);
+ assert.doesNotMatch(webview,/startActivity\(new Intent\(Intent\.ACTION_VIEW,u\)\)/);
 });
 test('APK release remains disabled pending independent clearance',()=>{
  assert.match(workflow,/if: false/);
