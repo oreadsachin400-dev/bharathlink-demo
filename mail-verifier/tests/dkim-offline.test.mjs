@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {generateKeyPairSync} from "node:crypto";
 import {dkimSign} from "mailauth/lib/dkim/sign";
-import {dkimVerify} from "mailauth/lib/dkim/verify";
 import {verifyOriginalMimeDkim} from "../verify-original-dkim.mjs";
 
 const DOMAIN="bank.example";
@@ -50,11 +49,6 @@ const now=new Date("2026-11-04T08:02:00Z");
 
 test("genuine RSA-2048 DKIM signature checks original MIME and injected DNS TXT record",async()=>{
  const signed=await sign();const dns=resolver();
- const shape=await dkimVerify(signed,{resolver:dns.resolveTxt,strict:true,rejectRsaSha1:true,minBitLength:2048,curTime:now});
- console.log("SYNTHETIC_DKIM_SHAPE",JSON.stringify({fromFields:shape.fromFields,headerFrom:shape.headerFrom,fromSyntax:shape.fromSyntax,
-   results:shape.results.map(v=>({status:v.status?.result,signingDomain:v.signingDomain,selector:v.selector,
-   testing:v.status?.testing,underSized:v.status?.underSized,canonBodyLengthLimited:v.canonBodyLengthLimited,
-   signatureTimeValid:v.signatureTimeValid,algo:v.algo,warnings:v.status?.warnings}))}));
  const r=await verifyOriginalMimeDkim(signed,{expectedFrom:from,resolveTxt:dns.resolveTxt,now});
  assert.equal(r.dkim,"pass",JSON.stringify(r));
  assert.equal(r.alignedStrict,true);
