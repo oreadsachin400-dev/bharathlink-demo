@@ -10,6 +10,8 @@ on:
       - 'tests/bharatmail-trust-engine.test.mjs'
       - '.github/workflows/bharatmail-trust-engine-ci.yml'
       - 'docs/BharathMail-Trust-Engine-2026-11-04.md'
+      - 'docs/BharathMail-Inbound-Auth-Boundary-Audit-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
   workflow_dispatch:
 
 permissions:
