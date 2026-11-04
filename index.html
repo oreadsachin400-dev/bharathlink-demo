@@ -11706,7 +11706,9 @@ const Views = {
       h('p',{class:'bl-mail-trust-advice'},senderTrust?.advice||'Verify the sender and any payment request independently.'),
       h('small',{},'Local warning signals only · no identity claim, AI verdict or automatic spam action')
     ) : null;
-    if(m.folder!=='sent'&&Supabase.accessToken)setTimeout(async()=>{
+    // External From headers can be spoofed. An endpoint-directory match is NOT
+    // proof that this received Internet email was sent by the verified entity.
+    if(m.folder!=='sent'&&m.source!=='external'&&Supabase.accessToken)setTimeout(async()=>{
       try{const ent=await EntityDirectory.byEndpoint(m.source==='external'?'email':'bharatmail',sender);if(ent&&mailEntityHost.isConnected)mailEntityHost.replaceChildren(EntityDirectory.verifiedInline(ent,`Verified ${m.source==='external'?'email':'BharathMail'} endpoint`));}catch(_){}
     },0);
 
