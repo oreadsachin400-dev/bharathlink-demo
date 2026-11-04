@@ -1,0 +1,81 @@
+name: BharathMail — Original Resend MIME Real DKIM Domain Preview CI (SOURCE ONLY HOLD)
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-resend-real-dkim-on-demand-preview
+    paths:
+      - 'mail-verifier/**'
+      - 'supabase/functions/bl-mail-dkim-preview/**'
+      - 'supabase/functions/bl-mail-auth-attest/resend-raw-evidence.mjs'
+      - 'index.html'
+      - 'tests/bharatmail*'
+      - 'docs/security-release-readiness.json'
+      - '.github/workflows/bharatmail-resend-real-dkim-preview-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actual-rsa-dkim-original-mime-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned DKIM engine for the same server-side code used by preview
+        working-directory: mail-verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save --package-lock=false
+          npm ls mailauth --depth=0
+      - name: Verify original signed MIME and independent DNS keys, not header claims
+        working-directory: mail-verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check verify-resend-received-dkim.mjs
+          node --test tests/*.test.mjs | tee /tmp/bl-mail-resend-dkim-core.log
+          grep -q '# fail 0' /tmp/bl-mail-resend-dkim-core.log
+          grep -q '# skipped 0' /tmp/bl-mail-resend-dkim-core.log
+      - name: Existing real-MIME binding, original PWA and safe UI regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/mail-auth-resend-raw-evidence.test.mjs \
+            tests/bharatmail-trust-engine.test.mjs \
+            tests/bharatmail-resend-dkim-preview-ui.test.mjs | tee /tmp/bl-mail-ui-safe.log
+          grep -q '# fail 0' /tmp/bl-mail-ui-safe.log
+          grep -q '# skipped 0' /tmp/bl-mail-ui-safe.log
+      - name: Keep user identity and all production trust evidence unverified
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' supabase/functions/bl-mail-auth-attest/index.ts
+          ! grep -Fq 'SUPABASE_SERVICE_ROLE_KEY' supabase/functions/bl-mail-dkim-preview/index.ts
+          ! grep -Fq 'wrangler deploy' .github/workflows/bharatmail-resend-real-dkim-preview-ci.yml
+          node - <<'NODE'
+          const r=require('./docs/security-release-readiness.json');
+          if(r.release_decision!=='HOLD'||r.is_production_authorized!==false)
+            throw Error('Production release unexpectedly enabled');
+          NODE
+
+  edge-deno-compile-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Compile isolated user-JWT/RLS DKIM preview without deploying it
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno --version
+          deno check --config supabase/functions/bl-mail-dkim-preview/deno.json \
+            supabase/functions/bl-mail-dkim-preview/index.ts
