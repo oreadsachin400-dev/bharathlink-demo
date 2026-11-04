@@ -104,7 +104,7 @@ async function verifySmtpDomainAuthentication(rawMime,{
  const signedPass=singleFrom?dkimEntries.find(x=>
    x?.status?.result==="pass"&&x.signingDomain?.toLowerCase()===from&&
    ["rsa-sha256","ed25519-sha256"].includes(x.algo?.toLowerCase())&&
-   x.status.testing!==true&&x.status?.warnings?.length===undefined&&
+   x.status?.testing!==true&&!(x.status?.warnings?.length)&&
    !x.canonBodyLengthLimited&&!x.status?.underSized&&x.signatureTimeValid!==false
  ):undefined;
  const libraryDmarc=status(actual?.dmarc?.status?.result);
