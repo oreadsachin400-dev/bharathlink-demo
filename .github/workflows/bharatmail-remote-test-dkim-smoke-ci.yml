@@ -1,4 +1,4 @@
-name: BharathMail Real HTTPS TEST UI + Unauthenticated DKIM Gate (NO CREDENTIALS)
+name: BharathMail Retired Edge HTML URL + Authenticated DKIM Gate (NO CREDENTIALS)
 
 on:
   push:
@@ -37,15 +37,13 @@ jobs:
               except urllib.error.HTTPError as err:
                   return err.code,dict(err.headers),err.read(256*1024)
           status,headers,body=get("bharatmail-dkim-test-ui")
-          assert status==200, f"TEST page HTTP {status}; expected 200"
-          assert "text/html" in headers.get("Content-Type","").lower(), "TEST page not HTML"
-          assert b"Check DKIM domain signature" in body, "Missing DKIM button"
-          assert b"BharathLink-20-TEST" in body, "Wrong Supabase project UI"
-          assert b"sb_secret_" not in body and b"service_role" not in body, "secret marker in UI"
-          csp=headers.get("Content-Security-Policy","")
-          assert "frame-ancestors 'none'" in csp and "script-src 'nonce-" in csp, "Missing strict CSP"
-          assert "connect-src https://fsdusofbpwdrdvgexxyw.supabase.co" in csp, "Unexpected network origins"
-          print("PASS: real public HTTPS TEST page, correct UI button and strict CSP; no private email content requested")
+          assert status==410, f"Retired Edge HTML endpoint expected HTTP 410, got {status}"
+          assert "application/json" in headers.get("Content-Type","").lower(), "Retired UI must return JSON"
+          answer=json.loads(body.decode())
+          assert answer.get("status")=="html_not_supported_on_default_edge_domain"
+          assert answer.get("production_authorized") is False
+          assert answer.get("dkim_sender_verified") is False
+          print("PASS: real HTTPS browser login URL explicitly retired; no misleading rendered HTML claim")
           # Deliberately NO apikey, NO user's JWT, NO Resend token, NO actual
           # message UUID and NO cross-account data read.
           code,headers,body=get("bharatmail-dkim-check-test",method="POST",
