@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
+import {createRequire} from "node:module";
+const require=createRequire(import.meta.url);
+const trustEngine=require("../../bharatmail-trust-engine.js");
 import {inspectCloudflareEmailRoutingFixture,authResults,MAX_RAW_BYTES} from
   "../cloudflare-email-routing-readonly.mjs";
 const SCOPE="isolated-cloudflare-email-routing-fixture-only";
@@ -149,4 +152,30 @@ test("no network access or outbound email delivery occurs during inspection",asy
   assert.equal(v.production_authorized,false);
   assert.equal(called,0);
  }finally{globalThis.fetch=oldFetch;}
+});
+
+test("verified MIME header shape produces only Reply-To CAUTION in current Trust Engine",async()=>{
+ const upstream=await evaluate(mock());
+ const caution=trustEngine.inspect({
+  source:"external",
+  from:FROM,
+  reply_to:upstream.reply_to_address,
+  subject:"Account update",
+  body:"Please review your statement"
+ });
+ assert.equal(caution.status,"caution");
+ assert.ok(caution.reasons.some(r=>r.code==="REPLY_TO_DIFFERS"));
+ assert.equal(caution.domainAuthentication,"not_checked");
+ assert.equal(caution.identityVerification,"not_verified");
+ assert.equal(caution.isVerified,false);
+ assert.equal(caution.isFakeProven,false);
+});
+test("a duplicate sender-controlled Authentication-Results value does not become provider proof",async()=>{
+ const event=mock();
+ event.headers.append("Authentication-Results",
+  "mx.attacker.example; spf=pass; dkim=pass; dmarc=pass");
+ const observation=await evaluate(event);
+ assert.equal(observation.upstream_authentication_results_syntax_valid,false);
+ assert.equal(observation.upstream_dmarc_observed,"not_checked");
+ assert.equal(observation.live_sender_domain_verified,false);
 });
