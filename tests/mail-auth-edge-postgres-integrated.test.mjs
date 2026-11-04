@@ -74,6 +74,7 @@ async function invoke(handler,e){const r=await handler(request(e));return {statu
 async function mount(enabled,kid,publicJwk){
  const dir=mkdtempSync(join(tmpdir(),"mail-auth-integrated-"));
  copyFileSync(join(SRC,"signed-report.mjs"),join(dir,"signed-report.mjs"));
+ copyFileSync(join(SRC,"resend-raw-evidence.mjs"),join(dir,"resend-raw-evidence.mjs"));
  let s=ORIGINAL;
  assert.match(s,/const MAIL_AUTH_RELEASED=false;/);
  if(enabled)s=s.replace("const MAIL_AUTH_RELEASED=false;","const MAIL_AUTH_RELEASED=true;");
