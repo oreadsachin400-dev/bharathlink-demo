@@ -52,7 +52,8 @@ function dns({spf=TXT_SPF,dmarc=TXT_DMARC,dkim=DNS_KEY,fail=false}={}){
  };
  return {resolver,calls};
 }
-async function fixture(raw=await mime(),changes={}){
+async function fixture(raw,changes={}){
+ if(raw===undefined)raw=await mime();
  const generated=await webcrypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign","verify"]);
  const jwk=await webcrypto.subtle.exportKey("jwk",generated.publicKey);
  const pub={kty:"EC",crv:"P-256",x:jwk.x,y:jwk.y};
