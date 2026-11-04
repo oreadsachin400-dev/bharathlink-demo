@@ -150,6 +150,18 @@ jobs:
           grep -Fq 'BHARATHLINK_OFFLINE_SMTP_REPLAY_TEST' mail-verifier/verify-and-consume-receiver-test.mjs
           grep -Fq 'OFFLINE_WORKER_EVENT_FIXTURE_ONLY' mail-verifier/cloudflare-email-routing-readonly.mjs
           grep -Fq 'production_authorized:false' mail-verifier/cloudflare-email-routing-readonly.mjs
+          node - <<'NODE'
+          const fs=require('fs');
+          const worker=fs.readFileSync('mail-verifier/cloudflare-pilot-worker.mjs','utf8');
+          const c=JSON.parse(fs.readFileSync('mail-verifier/wrangler.local.jsonc','utf8'));
+          if(!worker.includes('export default handler;') ||
+             /export\\s*\\{/.test(worker) ||
+             c.vars?.BLMAIL_PILOT_MODE!=='DISABLED' ||
+             c.workers_dev!==false || c.preview_urls!==false ||
+             Object.hasOwn(c,'routes') || Object.hasOwn(c,'route'))
+             throw Error('Unapproved Cloudflare worker deploy shape or runtime config');
+          NODE
+          ! grep -E 'wrangler deploy|supabase (db push|functions deploy)|actions/upload-artifact@' .github/workflows/bharatmail-cloudflare-pilot-handler-local-ci.yml
           grep -Fq 'DISPOSABLE TEST ONLY' sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql
           node - <<'NODE'
           const r=require('./docs/security-release-readiness.json');
@@ -161,6 +173,13 @@ jobs:
              r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
              r.policy?.mail_html_heuristic_must_not_mark_sender_verified!==true ||
              r.policy?.mail_cloudflare_worker_candidate_must_remain_offline!==true ||
+             r.policy?.mail_cloudflare_local_handler_no_deployment_until_isolated_zone_review!==true ||
+             r.mail_cloudflare_local_email_pilot?.worker_local_route_config_has_no_external_routes!==true ||
+             r.mail_cloudflare_local_email_pilot?.test_worker_handler_default_disabled!==true ||
+             r.mail_cloudflare_local_email_pilot?.real_cloudflare_remote_worker_deployed!==false ||
+             r.mail_cloudflare_local_email_pilot?.real_sender_domain_authenticated!==false ||
+             r.mail_cloudflare_local_email_pilot?.existing_resend_mx_or_dns_modified!==false ||
+             r.mail_cloudflare_local_email_pilot?.production_authorized!==false ||
              r.policy?.mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review!==true ||
              r.mail_cloudflare_email_routing_candidate_offline?.cloudflare_email_worker_currently_deployed!==false ||
              r.mail_cloudflare_email_routing_candidate_offline?.real_mx_or_dns_modified!==false ||
