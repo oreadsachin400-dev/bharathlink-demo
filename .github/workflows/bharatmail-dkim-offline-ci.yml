@@ -1,0 +1,52 @@
+name: BharathLink Mail — Real DKIM Cryptographic Test / Production HOLD
+
+on:
+  push:
+    branches:
+      - bharathlink-mail-dkim-cryptographic-offline-ci
+    paths:
+      - 'mail-verifier/**'
+      - '.github/workflows/bharatmail-dkim-offline-ci.yml'
+      - 'docs/BharathMail-DKIM-Offline-Verification-2026-11-04.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dkim-crypto-and-dns-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mail-verifier
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install exactly selected mailauth library (source-only CI, no postinstall scripts)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --no-save
+          npm ls mailauth --depth=0
+      - name: Real RSA-2048 DKIM verification with synthetic DNS records, zero public email access
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/dkim-offline.test.mjs | tee /tmp/bl-dkim-test.log
+          grep -q '# fail 0' /tmp/bl-dkim-test.log
+          grep -q '# skipped 0' /tmp/bl-dkim-test.log
+      - name: Guard: no live SPF, DMARC, identity, verifier signing or network deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'sender_identity:"not_verified"' verify-original-dkim.mjs
+          grep -Fq 'spf:"not_checked",dmarc:"not_checked"' verify-original-dkim.mjs
+          grep -Fq 'verified_sender:false' verify-original-dkim.mjs
+          grep -Fq 'independent_dns_resolver_required' verify-original-dkim.mjs
+          grep -Fq 'raw_mime_size_out_of_range' verify-original-dkim.mjs
+          test ! -e ../app/build/outputs/apk
+          echo "PASS: DKIM test is an isolated domain-signature proof, not sender identity or live SPF/DMARC clearance"
