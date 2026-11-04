@@ -32,10 +32,20 @@ function authorFrom(raw){
   const sep=raw.indexOf(Buffer.from("\r\n\r\n"));
   if(sep<0||sep>65536)throw Error("bad_headers");
   const fields=raw.subarray(0,sep).toString("utf8").split("\r\n");
-  if(fields.some(s=>/^\s/.test(s)))throw Error("unsupported_folded_header");
-  const found=fields.filter(s=>/^From\s*:/i.test(s));
-  if(found.length!==1||!/^From:/i.test(found[0]))throw Error("ambiguous_from");
-  const from=found[0].slice(5).trim();
+  const found=[];
+  let previous="";
+  for(const field of fields){
+    if(/^\s/.test(field)){
+      if(!previous||previous==="from")throw Error("unsupported_folded_from");
+      continue; // DKIM-Signature may be folded; we do not trust its values
+    }
+    const i=field.indexOf(":");
+    if(i<=0)throw Error("bad_headers");
+    previous=field.slice(0,i).toLowerCase();
+    if(previous==="from")found.push(field.slice(i+1).trim());
+  }
+  if(found.length!==1)throw Error("ambiguous_from");
+  const from=found[0];
   addressPart(from);
   return from;
 }
