@@ -78,7 +78,7 @@ test("real SPF and DKIM verify with signed actual IP/envelope + DMARC strict ali
  assert.equal(v.spf,"pass",JSON.stringify(v));
  assert.equal(v.dkim,"pass",JSON.stringify(v));
  assert.equal(v.dmarc,"pass",JSON.stringify(v));
- assert.equal(v.status,"domain_authenticated");
+ assert.equal(v.status,"synthetic_domain_authenticated_only");
  assert.equal(v.spf_strict_aligned,true);assert.equal(v.dkim_strict_aligned,true);
  assert.ok(x.calls.some(c=>c[0]==="bank.example"&&c[1]==="TXT"));
  assert.ok(x.calls.some(c=>c[0]==="_dmarc.bank.example"&&c[1]==="TXT"));
