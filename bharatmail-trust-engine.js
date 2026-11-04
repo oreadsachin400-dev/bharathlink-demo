@@ -65,7 +65,10 @@
       if (visibleSender.domain.includes('xn--')) {
         add(reasons, 'IDN_SENDER', 'medium', 'The sender domain uses internationalized/punycode notation. Check the exact spelling.');
       }
-      const claim = /\b(bank|banking|fraud|police|cybercrime|government|govt|tax department|security team|helpdesk|customer care|upi|payment support)\b/i.test(visibleSender.displayName);
+      // External storage currently keeps from_address without a reliable
+      // original display name, so also inspect the untrusted subject claim.
+      const claimText = visibleSender.displayName + ' ' + subject;
+      const claim = /\b(bank|banking|police|cyber[ -]?crime|government|govt|income[ -]?tax|tax department|security team|helpdesk|customer care|upi|payment support)\b/i.test(claimText);
       if (external && claim && PUBLIC_INBOX.has(visibleSender.domain)) {
         add(reasons, 'AUTHORITY_CLAIM_PUBLIC_MAIL', 'high', 'The display name claims an organization or authority, but uses a public mailbox provider.');
       }
