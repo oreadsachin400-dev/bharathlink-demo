@@ -20,11 +20,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - name: Run Java allowlist policy adversarial cases (no Android SDK or APK)
@@ -36,6 +36,31 @@ jobs:
             BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java \
             tests/android-mail-safety/MailSecurityLinkPolicyTest.java
           java -cp /tmp/bl-mail-android-handoff in.bharathlink.demo.MailSecurityLinkPolicyTest
+      - name: Compile Android MainActivity using SDK stubs only — NO APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk" || { echo "Android SDK path missing"; exit 1; }
+          androidjar="$sdk/platforms/android-35/android.jar"
+          if [ ! -f "$androidjar" ]; then
+            if command -v sdkmanager >/dev/null 2>&1; then
+              sdkmanager --sdk_root="$sdk" "platforms;android-35"
+            elif [ -x "$sdk/cmdline-tools/latest/bin/sdkmanager" ]; then
+              "$sdk/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$sdk" "platforms;android-35"
+            else
+              echo "Android SDK manager unavailable; cannot compile Android API 35"
+              exit 1
+            fi
+          fi
+          test -f "$androidjar"
+          javac --release 17 -cp "$androidjar" \
+            -d /tmp/bl-mail-android-handoff \
+            BharathLink-Android/app/src/main/java/in/bharathlink/demo/MainActivity.java \
+            BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java
+          test -f /tmp/bl-mail-android-handoff/in/bharathlink/demo/MainActivity.class
+          test -f /tmp/bl-mail-android-handoff/in/bharathlink/demo/MailSecurityLinkPolicy.class
+          echo "PASS: Android API 35 Java source compile, no APK generated"
       - name: Source and release HOLD assertions
         shell: bash
         run: |
