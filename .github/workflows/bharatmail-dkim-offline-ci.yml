@@ -39,7 +39,7 @@ jobs:
           node --test tests/dkim-offline.test.mjs | tee /tmp/bl-dkim-test.log
           grep -q '# fail 0' /tmp/bl-dkim-test.log
           grep -q '# skipped 0' /tmp/bl-dkim-test.log
-      - name: Guard: no live SPF, DMARC, identity, verifier signing or network deploy
+      - name: 'Guard: no live SPF, DMARC, identity, verifier signing or network deploy'
         shell: bash
         run: |
           set -euo pipefail
