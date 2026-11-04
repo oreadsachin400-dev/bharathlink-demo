@@ -53,7 +53,7 @@ function rawUrl(signedUrl,hosts,now){
   // Redact signed query: never include capability URL in exceptions or logs.
   return url.toString();
 }
-async function getBoundRawSha256({
+async function fetchBoundRawEvidence({
   provider_email_id, from_address, recipient_address, apiKey,
   allowedRawHosts, fetchFn=fetch, nowMs=Date.now()
 }){
@@ -115,11 +115,22 @@ async function getBoundRawSha256({
   // Bytes are hashed exactly as delivered. Do not normalize CRLF, MIME or
   // reinterpret untrusted Authentication-Results as provider-authenticated.
   const digest=hex(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)));
-  bytes.fill(0);
-  return Object.freeze({
+  const evidence=Object.freeze({
     provider_email_id,from_address,recipient_address,
     raw_sha256:digest,provenance:"resend-receiving-api-raw-content",
     spf:"not_checked",dkim:"not_checked",dmarc:"not_checked"
   });
+  // Raw MIME is NEVER persisted. The caller explicitly owns zeroization.
+  return {evidence,rawMime:bytes};
 }
-export {getBoundRawSha256,MAX_RAW_BYTES};
+// Backward-compatible audit API: cryptographic digest only. Never expose MIME.
+async function getBoundRawSha256(options){
+  const result=await fetchBoundRawEvidence(options);
+  try{return result.evidence;}finally{result.rawMime.fill(0);}
+}
+// Strictly server-only: original MIME is required by the real DKIM verifier.
+// Do not invoke from user browsers or return rawMime in HTTP responses.
+async function getBoundRawMime(options){
+  return fetchBoundRawEvidence(options);
+}
+export {getBoundRawSha256,getBoundRawMime,MAX_RAW_BYTES};
