@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
-import worker,{config,preflight,inspectAfterForward} from "../cloudflare-pilot-worker.mjs";
+import worker from "../cloudflare-pilot-worker.mjs";
+import {config,preflight,inspectAfterForward} from "../cloudflare-pilot-helpers.mjs";
 
 const R="test-evidence@mail.test.bharathlink.example";
 const S="reviewed-sink@receiver.example";
