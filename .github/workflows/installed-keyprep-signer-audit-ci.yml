@@ -9,6 +9,9 @@ on:
       - 'tests/test_installed_keyprep_signer_audit.py'
       - '.github/workflows/installed-keyprep-signer-audit-ci.yml'
       - 'docs/KeyPrep-Installed-Signer-Local-Audit-2026-11-04.md'
+      - 'docs/security-release-readiness.json'
+      - 'tests/test_protected_signing_workflow.py'
+      - '.github/workflows/keyprep-protected-signing.yml'
   workflow_dispatch:
 
 permissions:
@@ -25,6 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_installed_keyprep_signer_audit.py' -v
+          python3 -m unittest discover -s tests -p 'test_protected_signing_workflow.py' -v
       - name: Verify the tool cannot change a phone or access secrets
         shell: bash
         run: |
@@ -34,6 +38,14 @@ jobs:
           from ast import parse,walk,Constant,Call
           source=Path("scripts/audit_installed_keyprep_signer.py").read_text()
           tree=parse(source)
+          protected=Path(".github/workflows/keyprep-protected-signing.yml").read_text()
+          assert "    if: false" in protected, "BLOCK: protected APK signing job not held"
+          assert "Play Protect harmful-app finding is unresolved" in protected
+          import json
+          decision=json.loads(Path("docs/security-release-readiness.json").read_text())
+          assert decision["release_decision"]=="HOLD"
+          assert decision["signing_provenance"]["real_installed_certificate_status"]=="NOT_YET_READ_FROM_PHONE"
+          assert decision["signing_provenance"]["protected_github_signing_workflow_status"]=="JOB_LEVEL_HARD_HOLD_IF_FALSE"
           assert "TemporaryDirectory(" in source
           assert '"pm", "path", PKG' in source
           assert '"pull", p, str(apk)' in source
