@@ -186,3 +186,106 @@ test('release readiness records signed webhook != independently authenticated em
  assert.match(audit,/do not prove|does not prove/i);
  assert.match(audit,/sender domain/i);
 });
+
+
+test('HTML anchor visible bank URL cannot hide an attacker href',()=>{
+ const r=engine.inspect(external('alerts@bank.example','Statement','Please review',{
+  html_body:'<p><a href="https://fraud.example/collect">https://bank.example/login</a></p>'
+ }));
+ assert.equal(r.status,'suspicious');
+ assert.ok(r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'));
+ assert.equal(r.domainAuthentication,'not_checked');
+ assert.equal(r.identityVerification,'not_verified');
+ assert.equal(r.isFakeProven,false);
+});
+test('HTML-only link uses its href for warnings even when plain body contains no URL',()=>{
+ const r=engine.inspect(external('mailer@example.org','Your bill','Hello',{
+  html_body:'<html><body>Open <a href="https://bit.ly/payout">View invoice</a></body></html>'
+ }));
+ assert.ok(r.reasons.some(x=>x.code==='SHORTENED_LINK'));
+ assert.equal(r.isVerified,false);
+});
+test('HTML entity-escaped or protocol-relative links cannot hide the real host',()=>{
+ const r=engine.inspect(external('info@example.com','Update','Hello',{
+  html_body:'<a href="https&#58;//evil.example/login">https://bank.example/login</a>'+
+   '<a href="//evil.example/check">Go</a>'
+ }));
+ assert.equal(r.status,'suspicious');
+ assert.ok(r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'));
+});
+test('unsafe non-web href is surfaced as a warning without executing it',()=>{
+ let attempts=0;
+ const original=globalThis.fetch;
+ globalThis.fetch=()=>{attempts++;throw Error('network attempt');};
+ try{
+  const r=engine.inspect(external('info@example.com','News','Hello',{
+   html_body:'<a href="javascript&#58;alert(1)">View statement</a>'
+  }));
+  assert.equal(r.status,'suspicious');
+  assert.ok(r.reasons.some(x=>x.code==='UNSAFE_HTML_LINK'));
+  assert.equal(attempts,0);
+ }finally{globalThis.fetch=original;}
+});
+test('HTML alternative credential request detected despite harmless plain-text body',()=>{
+ const r=engine.inspect(external('support@example.com','Reminder','Thank you',{
+  html_body:'<p>To confirm account, share your OTP with us now.</p>'
+ }));
+ assert.equal(r.status,'suspicious');
+ assert.ok(r.reasons.some(x=>x.code==='SECRET_REQUEST'));
+ assert.equal(r.isFakeProven,false);
+});
+test('full safe-looking URL and destination sharing same host are not falsely mismatched',()=>{
+ const r=engine.inspect(external('hello@example.com','Hello','Hi',{
+  html_body:'<a href="https://example.com/next">https://example.com/start</a>'
+ }));
+ assert.ok(!r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'));
+ assert.equal(r.status,'unverified');
+});
+test('oversized body warns of incomplete scan and catches suspicious content in tail',()=>{
+ const r=engine.inspect(external('alerts@example.com','Notice',
+  'Read this '.repeat(2600)+'\nURGENT transfer money immediately. Share your OTP now.'));
+ assert.ok(r.reasons.some(x=>x.code==='INCOMPLETE_TEXT_SCAN'));
+ assert.ok(r.reasons.some(x=>x.code==='SECRET_REQUEST'));
+ assert.equal(r.status,'suspicious');
+ assert.equal(r.scanCoverage,'bounded_heuristics_only');
+});
+test('oversized HTML with hidden destination triggers incomplete scan and tail warning',()=>{
+ const r=engine.inspect(external('help@example.com','Notice','Read message',{
+  html_body:'<p>'+('normal text '.repeat(7000))+'</p>'+
+   '<a href="https://evil.example">https://bank.example/login</a>'
+ }));
+ assert.ok(r.reasons.some(x=>x.code==='INCOMPLETE_HTML_SCAN'));
+ assert.ok(r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'));
+ assert.equal(r.status,'suspicious');
+});
+test('complex unreviewable HTML anchors are caution rather than safe or verified',()=>{
+ const r=engine.inspect(external('x@example.com','Info','Thanks',{
+  html_body:'<a href="https://example.com">link without closing anchor'
+ }));
+ assert.ok(r.reasons.some(x=>x.code==='INCOMPLETE_HTML_SCAN'));
+ assert.equal(r.isVerified,false);
+ assert.equal(r.status,'caution');
+});
+test('external HTML fraud text is analyzed locally without trusting untrusted headers',()=>{
+ const r=engine.inspect(external('support@company.example','Note','Normal body',{
+  html_body:'<p>URGENT: pay now ₹2000 and enter your OTP.</p>',
+  headers:{'Authentication-Results':'evil.example; spf=pass; dmarc=pass'},
+  dmarc:'pass',verified:true,identity_verified:true
+ }));
+ assert.ok(r.reasons.some(x=>x.code==='URGENT_PAYMENT'));
+ assert.equal(r.domainAuthentication,'not_checked');
+ assert.equal(r.identityVerification,'not_verified');
+ assert.equal(r.isVerified,false);
+});
+test('dangerous link warnings are prioritized over incidental low priority signals',()=>{
+ const r=engine.inspect(external('Bank Helpdesk <help@bank-secure-login.gmail.com>',
+  'Urgent - transfer money', 'Go to http://192.0.2.1. Share your OTP and use https://bit.ly/x',{
+  reply_to:'reply@other.example',
+  html_body:'<a href="https://evil.example">https://bank.example/login</a>'
+ }));
+ assert.equal(r.status,'suspicious');
+ assert.ok(r.reasons.some(x=>x.code==='HTML_LINK_DESTINATION_MISMATCH'));
+ const levels=r.reasons.map(x=>({high:0,medium:1,info:2}[x.severity]));
+ assert.deepEqual(levels,[...levels].sort((a,b)=>a-b));
+ assert.ok(r.reasons.length<=8);
+});
