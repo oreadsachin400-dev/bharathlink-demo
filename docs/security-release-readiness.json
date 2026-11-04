@@ -111,7 +111,9 @@
     "auth_probe_future_apk_upload_blocked": true,
     "do_not_repeat_previously_completed_otp_setup_without_failure": true,
     "protected_keyprep_signing_workflow_disabled_while_clearance_pending": true,
-    "known_legacy_apk_build_upload_jobs_job_level_disabled": true
+    "known_legacy_apk_build_upload_jobs_job_level_disabled": true,
+    "mail_sender_auth_must_remain_unverified_until_external_verifier": true,
+    "no_new_edge_deploy_or_db_migration_for_mail_auth": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -186,5 +188,35 @@
     "auth_boundary_doc": "docs/BharathMail-Inbound-Auth-Boundary-Audit-2026-11-04.md",
     "existing_external_from_verified_badge_disabled_in_staged_ui": true,
     "no_live_migration": true
+  },
+  "mail_signed_sender_auth_backend": {
+    "date": "2026-11-04",
+    "status": "STAGED_CI_PASS_NOT_DEPLOYED",
+    "source_branch": "bharathlink-mail-signed-auth-backend-hold-ci",
+    "entrypoint": "supabase/functions/bl-mail-auth-attest/index.ts",
+    "source_release_gate": "MAIL_AUTH_RELEASED=false",
+    "signed_report_verification": "ECDSA_P256_SHA256_TESTED_WITH_SYNTHETIC_KEYS",
+    "real_independent_smtp_dns_verifier_connected": false,
+    "real_verifier_legal_authority_or_private_key_custody_verified": false,
+    "authenticated_spf_dkim_dmarc_in_live_inbox": false,
+    "browser_can_claim_sender_verified": false,
+    "real_inbound_message_authenticated_end_to_end": false,
+    "signed_attestation_binding": "REAL_DISPOSABLE_POSTGRES_TEST_PASS",
+    "rls_owner_read_and_anon_denial": "REAL_DISPOSABLE_POSTGRES_TEST_PASS",
+    "replay_and_conflict_denial": "REAL_DISPOSABLE_POSTGRES_TEST_PASS",
+    "staged_sql": "sql/staged/TEST-bharatmail-signed-sender-auth-v1.sql",
+    "tests": {
+      "signed_unit": 15,
+      "mail_trust": 24,
+      "earlier_security": 91,
+      "edge_postgres_integrated": 9
+    },
+    "ci_jobs_passed": 3,
+    "ci_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41817413735",
+    "handover": "docs/BharathMail-Signed-Authentication-Backend-HOLD-2026-11-04.md",
+    "source_only": true,
+    "applied_to_live_supabase": false,
+    "deploy_authorized": false,
+    "next_real_blocker": "Independent real SMTP/DNS receiver verification authority and signed evidence with independently protected P-256 private key"
   }
 }
