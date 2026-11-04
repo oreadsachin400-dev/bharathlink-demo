@@ -4,13 +4,13 @@
 do $$
 begin
  if has_function_privilege('anon',
- 'public.bl_mail_record_auth_attestation_v1(text,text,text,text,text,text,text,uuid,text,timestamptz,text)',
+ 'public.bl_mail_record_auth_attestation_v1(text,text,text,text,text,text,text,text,uuid,text,timestamptz,text)',
  'EXECUTE') then raise exception 'anon must never invoke verifier commit'; end if;
  if has_function_privilege('authenticated',
- 'public.bl_mail_record_auth_attestation_v1(text,text,text,text,text,text,text,uuid,text,timestamptz,text)',
+ 'public.bl_mail_record_auth_attestation_v1(text,text,text,text,text,text,text,text,uuid,text,timestamptz,text)',
  'EXECUTE') then raise exception 'authenticated must never invoke verifier commit'; end if;
  if not has_function_privilege('service_role',
- 'public.bl_mail_record_auth_attestation_v1(text,text,text,text,text,text,text,uuid,text,timestamptz,text)',
+ 'public.bl_mail_record_auth_attestation_v1(text,text,text,text,text,text,text,text,uuid,text,timestamptz,text)',
  'EXECUTE') then raise exception 'service role not allowed'; end if;
  if has_table_privilege('anon','public.bharatmail_sender_auth_v1','SELECT') then
    raise exception 'anon may not read mail-auth receipts'; end if;
@@ -25,7 +25,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-a-01','Bank Support <alerts@bank.example>',
    'reply+a0000000-0000-4000-8000-000000000001@bharathlink.com',
-   'bank.example','pass','pass','pass',
+   'bank.example',repeat('a',64),'pass','pass','pass',
    'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
    'synthetic-independent-issuer',now(),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
  if r<>'recorded' then raise exception 'correct report unexpectedly rejected: %',r; end if;
@@ -33,7 +33,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-a-01','Bank Support <alerts@bank.example>',
    'reply+a0000000-0000-4000-8000-000000000001@bharathlink.com',
-   'bank.example','pass','pass','pass',
+   'bank.example',repeat('a',64),'pass','pass','pass',
    'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
    'synthetic-independent-issuer',now(),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
  if r<>'duplicate' then raise exception 'same report should be idempotent: %',r; end if;
@@ -41,7 +41,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-a-01','Bank Support <alerts@bank.example>',
    'reply+a0000000-0000-4000-8000-000000000001@bharathlink.com',
-   'bank.example','pass','pass','pass',
+   'bank.example',repeat('a',64),'pass','pass','pass',
    'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
    'synthetic-independent-issuer',now(),'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
  if r<>'conflicting_attestation' then raise exception 'digest change allowed: %',r; end if;
@@ -49,7 +49,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-b-02','Alice <alice@another.example>',
    'reply+a0000000-0000-4000-8000-000000000001@bharathlink.com',
-   'another.example','pass','pass','pass',
+   'another.example',repeat('a',64),'pass','pass','pass',
    'edbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
    'synthetic-independent-issuer',now(),'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc');
  if r<>'sender_or_recipient_mismatch' then raise exception 'cross-account recipient accepted: %',r; end if;
@@ -57,7 +57,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-b-02','Bank Support <alerts@bank.example>',
    'reply+b0000000-0000-4000-8000-000000000002@bharathlink.com',
-   'bank.example','pass','pass','pass',
+   'bank.example',repeat('a',64),'pass','pass','pass',
    'edbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
    'synthetic-independent-issuer',now(),'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc');
  if r<>'sender_or_recipient_mismatch' then raise exception 'sender impersonation accepted: %',r; end if;
@@ -65,7 +65,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-b-02','Alice <alice@another.example>',
    'reply+b0000000-0000-4000-8000-000000000002@bharathlink.com',
-   'another.example','none','none','none',
+   'another.example',repeat('a',64),'none','none','none',
    'edeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,
    'synthetic-independent-issuer',now(),'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd');
  if r<>'recorded' then raise exception 'legitimate distinct mail denied: %',r; end if;
@@ -77,7 +77,7 @@ begin
  perform public.bl_mail_record_auth_attestation_v1(
    'mail-pending','Unprocessed <u@pending.example>',
    'reply+c0000000-0000-4000-8000-000000000003@bharathlink.com',
-   'pending.example','none','none','none',
+   'pending.example',repeat('a',64),'none','none','none',
    'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
    'synthetic-independent-issuer',now(),'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
  if false then raise exception 'impossible'; end if;
@@ -89,7 +89,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-pending','Unprocessed <u@pending.example>',
    'reply+c0000000-0000-4000-8000-000000000003@bharathlink.com',
-   'pending.example','none','none','none',
+   'pending.example',repeat('a',64),'none','none','none',
    'edcccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
    'synthetic-independent-issuer',now(),'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
  if r<>'not_routed_or_failed' then raise exception 'unprocessed mail accepted: %',r; end if;
@@ -97,7 +97,7 @@ begin
  r=public.bl_mail_record_auth_attestation_v1(
    'mail-failed','Failed <f@bad.example>',
    'reply+d0000000-0000-4000-8000-000000000004@bharathlink.com',
-   'bad.example','pass','pass','pass',
+   'bad.example',repeat('a',64),'pass','pass','pass',
    'eddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
    'synthetic-independent-issuer',now(),'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
  if r<>'not_routed_or_failed' then raise exception 'prior fail overwritten: %',r; end if;
@@ -118,7 +118,7 @@ begin
     perform public.bl_mail_record_auth_attestation_v1(
       'mail-replay','Replay Test <r@replay.example>',
       'reply+e0000000-0000-4000-8000-000000000005@bharathlink.com',
-      'replay.example','pass','pass','pass',
+      'replay.example',repeat('a',64),'pass','pass','pass',
       'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
       'synthetic-independent-issuer',now(),'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
   exception when unique_violation then replay_blocked:=true; end;
