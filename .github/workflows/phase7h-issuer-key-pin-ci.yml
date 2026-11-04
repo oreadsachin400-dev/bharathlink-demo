@@ -110,7 +110,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7g-governance-denials.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7h-governance-preflight.sql
           node tests/phase7g-concurrent-intent.mjs
       - name: Rotate issuer key, auto-veto pending intent, revoke issuer, prohibit reactivation
         shell: bash
