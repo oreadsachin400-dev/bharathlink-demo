@@ -9,11 +9,36 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.net.Uri;
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
+import android.app.AlertDialog;
+import android.widget.Button;
+import android.widget.LinearLayout;
 public class MainActivity extends Activity {
  private WebView web;
  private static final String HOME="https://bharathlink-20-test.netlify.app/";
  @Override public void onCreate(Bundle state) {
-  super.onCreate(state); web=new WebView(this); setContentView(web);
+  super.onCreate(state);
+  LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.VERTICAL);
+  Button mailSecurity=new Button(this);mailSecurity.setAllCaps(false);
+  mailSecurity.setText("Mail Security TEST (external browser)");
+  mailSecurity.setContentDescription("Open separate Mail Security TEST in external browser. No device verification.");
+  shell.addView(mailSecurity,new LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT));
+  web=new WebView(this);
+  shell.addView(web,new LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,0,1.0f));
+  setContentView(shell);
+  mailSecurity.setOnClickListener(v->new AlertDialog.Builder(this)
+      .setTitle("Mail Security TEST only")
+      .setMessage("Opens a separate website. Sign in there separately. No account, device, sender, organization or payment is verified by opening it.")
+      .setNegativeButton("Cancel",(dialog,which)->dialog.dismiss())
+      .setPositiveButton("Open TEST",(dialog,which)->{
+        // Exact, pinned HTTPS endpoint. No token, key, identity or email data.
+        if(!MailSecurityLinkPolicy.isExactAllowedTestUrl(MailSecurityLinkPolicy.TEST_URL))return;
+        Intent go=new Intent(Intent.ACTION_VIEW,Uri.parse(MailSecurityLinkPolicy.TEST_URL));
+        go.addCategory(Intent.CATEGORY_BROWSABLE);
+        try{startActivity(go);}catch(ActivityNotFoundException ignored){}
+      }).show());
   WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
   s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
   web.setWebViewClient(new WebViewClient(){
