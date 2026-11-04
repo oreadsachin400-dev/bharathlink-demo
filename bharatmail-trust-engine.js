@@ -94,7 +94,9 @@
       const label = decodeHtmlEntities(match[2].replace(/<[^>]*>/g, ' ').trim());
       links.push({target, label});
     }
-    if (/<a\b/i.test(limited) && anchors === 0) unparsed = true;
+    // Some malformed anchors may coexist with parseable ones. Never imply
+    // we inspected all HTML links when not every <a> was recognized.
+    if ((limited.match(/<a\b/gi) || []).length > anchors) unparsed = true;
     const stripped = limited
       .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
       .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
@@ -201,7 +203,10 @@
     // Analyze them as untrusted text without following links or rendering HTML.
     if (external) {
       for (const link of html.links) {
-        inspectUrl(link.target, reasons);
+        // Mailto/phone links and same-document fragment anchors are common
+        // in legitimate newsletters. They are not web page destinations.
+        if (!/^(?:mailto:|tel:|#)/i.test(link.target.trim()))
+          inspectUrl(link.target, reasons);
         const visible = extractUrls(link.label)[0];
         const shown = visible ? parsedWebUrl(visible) : null;
         const target = parsedWebUrl(decodeHtmlEntities(link.target.trim()));
