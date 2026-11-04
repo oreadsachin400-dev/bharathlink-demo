@@ -1876,12 +1876,31 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 .bl-contact-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.bl-contact-stat{display:grid;gap:2px;padding:10px;border:1px solid var(--line,#283247);border-radius:12px;text-align:center;background:rgba(255,255,255,.025)}.bl-contact-stat strong{font-size:17px}.bl-contact-stat span{font-size:10px;color:var(--muted,#9aa6bb)}
 .bl-contact-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:12px 0}.bl-contact-list{display:grid;gap:10px}.bl-contact-card{border:1px solid var(--line,#283247);border-radius:16px;padding:12px;background:rgba(255,255,255,.025)}.bl-contact-card__head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}.bl-contact-card__role{font-size:15px}.bl-contact-card__meta{font-size:11px;color:var(--muted,#9aa6bb);margin-top:2px}.bl-contact-card__actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.bl-contact-card__actions .btn{width:auto;min-height:38px;padding:8px 12px}.bl-contact-channel{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}.bl-contact-channel input[type=checkbox]{width:18px;height:18px}.bl-contact-channel__copy{display:grid;gap:2px;min-width:0}.bl-contact-channel__copy strong{font-size:12px;overflow-wrap:anywhere}.bl-contact-channel__copy span{font-size:10px;color:var(--muted,#9aa6bb)}.bl-contact-channel.is-revoked{opacity:.55}.bl-contact-pager{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;margin:12px 0}.bl-contact-pager .hint{text-align:center}.bl-contact-sheet{max-height:min(86vh,760px);overflow:auto}.bl-contact-sheet__channels{display:grid;gap:8px}.bl-manage-channel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-top:1px solid rgba(15,35,80,.12)}.bl-manage-channel__copy{display:grid;gap:2px;min-width:0}.bl-manage-channel__copy strong{font-size:13px;overflow-wrap:anywhere}.bl-manage-channel__copy span{font-size:11px;color:#657086}.bl-manage-channel__actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}.bl-manage-channel__actions .btn{width:auto;min-height:36px;padding:7px 10px}.bl-channel-add-grid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.4fr);gap:8px}.bl-bulk-textarea{min-height:210px;resize:vertical;white-space:pre;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.bl-directory-contact-bundle,.bl-dir-contact-bundle{display:grid;gap:5px;padding:10px;margin-top:8px;border:1px solid rgba(255,198,72,.18);border-radius:12px;background:rgba(255,198,72,.035)}.bl-dir-contact-title{font-size:13px;font-weight:800}.bl-dir-contact-meta{font-size:10px;color:var(--muted,#9aa6bb)}.bl-dir-contact-actions{margin-top:4px}
 @media(max-width:430px){.bl-contact-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.bl-contact-search{grid-template-columns:1fr}.bl-contact-channel{grid-template-columns:auto minmax(0,1fr)}.bl-contact-channel>.btn,.bl-contact-channel>button{grid-column:2;justify-self:start}.bl-manage-channel{grid-template-columns:1fr}.bl-manage-channel__actions{justify-content:flex-start}.bl-channel-add-grid{grid-template-columns:1fr}}
+
+/* BharathMail Sender Trust — explainable caution only, not an identity badge */
+.bl-mail-trust-mini{display:inline-block;max-width:100%;margin:4px 0 0;padding:3px 7px;border:1px solid rgba(148,163,184,.4);border-radius:8px;font-size:11px;font-weight:650;color:inherit}
+.bl-mail-trust-mini.is-suspicious{border-color:#e87979;color:#fca5a5}
+.bl-mail-trust-mini.is-caution{border-color:#eab308;color:#facc15}
+.bl-mail-trust-panel{margin:12px 0;padding:14px;border:1px solid rgba(148,163,184,.38);border-left:4px solid #94a3b8;border-radius:12px;background:rgba(100,116,139,.09);color:inherit}
+.bl-mail-trust-panel.is-suspicious{border-left-color:#ef4444}
+.bl-mail-trust-panel.is-caution{border-left-color:#eab308}
+.bl-mail-trust-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.bl-mail-trust-status{font-size:12px;font-weight:700}
+.bl-mail-trust-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.bl-mail-trust-grid>div{min-width:0;display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:8px;background:rgba(100,116,139,.1);overflow-wrap:anywhere;font-size:12px}
+.bl-mail-trust-grid strong{font-size:11px;opacity:.8}
+.bl-mail-trust-reasons{margin:12px 0;padding-left:18px;font-size:13px;line-height:1.5}
+.bl-mail-trust-reasons li{margin-bottom:5px}
+.bl-mail-trust-note{margin:10px 0;font-size:12px;opacity:.85}
+.bl-mail-trust-advice{margin:10px 0 4px;font-size:13px;font-weight:650}
+@media(max-width:520px){.bl-mail-trust-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
 <div id="app"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="./bharatmail-trust-engine.js"></script>
 <script>
 /* BharathLink_Manage_Channels_20260929 */
 (function () {
@@ -11324,6 +11343,8 @@ const Views = {
         const mailDateLabel=Util.relativeDateTime(m.at);
         const preview=String(m.body||'').replace(/\s+/g,' ').trim().slice(0,110);
         const href=m.folder==='drafts'?`#/mail/compose?draft=${m.id}`:`#/mail/${m.id}`;
+        const mailTrust = m.folder==='inbox' && window.BharatMailTrustEngine
+          ? window.BharatMailTrustEngine.inspect(m) : null;
         const route=href.slice(1);
         const open=()=>Router.go(route);
         const row=h('div',{
@@ -11340,7 +11361,9 @@ const Views = {
               h('span',{class:'bl-mail-sep'},'·'),
               h('span',{class:'bl-mail-preview'},preview||((m.source==='external')?'External email':'BharathMail'))
             ),
-            h('span',{class:'bl-mail-source'},m.source==='external'?'Internet email':'BharathMail')
+            h('span',{class:'bl-mail-source'},m.source==='external'?'Internet email':'BharathMail'),
+            mailTrust ? h('span',{class:`bl-mail-trust-mini is-${mailTrust.status}`},mailTrust.label) :
+              (m.folder==='inbox' ? h('span',{class:'bl-mail-trust-mini'},'Sender verification unavailable') : null)
           ),
           h('span',{class:'bl-mail-meta'},
             h('span',{class:'bl-mail-time'},mailDateLabel),
@@ -11660,6 +11683,29 @@ const Views = {
       h('div',{class:'bl-detail-time'},Util.time(m.at))
     );
     const mailEntityHost=h('div',{class:'bl-entity-grid'});
+    const senderTrust = window.BharatMailTrustEngine
+      ? window.BharatMailTrustEngine.inspect(m) : null;
+    const mailTrustPanel = m.folder==='inbox' ? h('section',{
+      class:`bl-mail-trust-panel is-${senderTrust?.status||'unverified'}`,
+      'aria-label':'BharathMail sender trust assessment'
+    },
+      h('div',{class:'bl-mail-trust-heading'},
+        h('strong',{},'BharathMail Sender Trust'),
+        h('span',{class:'bl-mail-trust-status'},senderTrust?.label||'Verification unavailable')
+      ),
+      h('div',{class:'bl-mail-trust-grid'},
+        h('div',{},h('strong',{},'Domain authentication'),h('span',{},m.source==='external'?'SPF/DKIM/DMARC: not checked':'Internal · not applicable')),
+        h('div',{},h('strong',{},'Sender identity'),h('span',{},'Not independently verified')),
+        h('div',{},h('strong',{},'Organization authority'),h('span',{},'Not independently verified')),
+        h('div',{},h('strong',{},'Payment request'),h('span',{},'Not independently verified'))
+      ),
+      senderTrust?.reasons?.length ?
+        h('ul',{class:'bl-mail-trust-reasons'},...senderTrust.reasons.map(flag=>h('li',{},flag.reason))) :
+        h('p',{class:'bl-mail-trust-note'},'No additional local warning signals detected. This does not mean the sender is safe.'),
+      h('p',{class:'bl-mail-trust-note'},senderTrust?.limitations||'The sender could not be assessed; identity and safety are unverified.'),
+      h('p',{class:'bl-mail-trust-advice'},senderTrust?.advice||'Verify the sender and any payment request independently.'),
+      h('small',{},'Local warning signals only · no identity claim, AI verdict or automatic spam action')
+    ) : null;
     if(m.folder!=='sent'&&Supabase.accessToken)setTimeout(async()=>{
       try{const ent=await EntityDirectory.byEndpoint(m.source==='external'?'email':'bharatmail',sender);if(ent&&mailEntityHost.isConnected)mailEntityHost.replaceChildren(EntityDirectory.verifiedInline(ent,`Verified ${m.source==='external'?'email':'BharathMail'} endpoint`));}catch(_){}
     },0);
@@ -11759,7 +11805,7 @@ const Views = {
       h('button',{class:'bl-detail-action',type:'button',onClick:forward},I.forward(),h('span',{},'Forward'))
     );
 
-    const main=h('main',{class:'bl-detail-main'},subjectRow,senderRow,mailEntityHost,mailRiskWarning,mailQrRiskHost,detailsPanel,receiptBox,
+    const main=h('main',{class:'bl-detail-main'},subjectRow,senderRow,mailEntityHost,mailTrustPanel,mailRiskWarning,mailQrRiskHost,detailsPanel,receiptBox,
       h('div',{class:'bl-detail-body'},m.body||'(No text body)'),attachmentBox,actions);
     const closeDetailMenu=e=>{
       if(e?.key==='Escape'){moreMenu.hidden=true;return;}
