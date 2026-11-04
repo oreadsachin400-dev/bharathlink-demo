@@ -91,9 +91,12 @@ jobs:
         shell: pwsh
         run: |
           $env:CI = "true"
-          $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @("/d", "/c", "KeyPrep-Signer-Check-Windows.cmd") -Wait -PassThru -NoNewWindow
-          if ($proc.ExitCode -ne 1) {
-            throw "Blocked: Windows read-only launcher must refuse without an authorized personal USB phone. Exit=$($proc.ExitCode)"
+          # Direct process exit check: do not wait for the long-lived ADB daemon.
+          $PSNativeCommandUseErrorActionPreference = $false
+          & cmd.exe /d /c "KeyPrep-Signer-Check-Windows.cmd"
+          $code = $LASTEXITCODE
+          if ($code -ne 1) {
+            throw "Blocked: Windows read-only launcher must refuse without an authorized personal USB phone. Exit=$code"
           }
           Write-Host "PASS: Windows launcher refused to claim a phone signer match on a GitHub runner."
       - name: Confirm launcher never packaged or installed a phone app
