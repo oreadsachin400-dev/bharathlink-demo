@@ -13,7 +13,11 @@ concurrency:
 
 jobs:
   sign-existing-keyprep:
-    if: github.ref == 'refs/heads/bharathlink-safe-signing-recovery-v1-test'
+    # Release HOLD: Google Play Protect harmful-app finding is unresolved.
+    # Installed KeyPrep certificate and original private signing key custody are
+    # not independently verified. Preserve the signing plan but prohibit
+    # executing it or uploading an APK until a separately reviewed change.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
