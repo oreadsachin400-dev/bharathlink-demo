@@ -25,6 +25,16 @@ function countRawFromFields(rawMime){
  }
  return count;
 }
+// mailauth@8 returns signingHeaders.keys as a colon-separated string such
+// as "Date: Subject: To: From". Older/other builds may return an array.
+// Match a complete header-name token, NEVER a substring like "X-From".
+function signedFromHeaderPresent(keys){
+ if(typeof keys==="string")
+  return keys.split(":").some(k=>k.trim().toLowerCase()==="from");
+ if(Array.isArray(keys))
+  return keys.some(k=>typeof k==="string"&&k.trim().toLowerCase()==="from");
+ return false;
+}
 function qualifiedDomainDkimVerdict(result, expectedSenderAddress, rawMime){
  const sender=typeof expectedSenderAddress==="string"?expectedSenderAddress.trim().toLowerCase():"";
  const at=sender.lastIndexOf("@");
@@ -51,8 +61,7 @@ function qualifiedDomainDkimVerdict(result, expectedSenderAddress, rawMime){
   sig.canonBodyLengthLimited!==true&&
   !sig.status.underSized&&
   !(Array.isArray(sig.status.warnings)&&sig.status.warnings.length>0)&&
-  Array.isArray(sig.signingHeaders?.keys)&&
-  sig.signingHeaders.keys.some(key=>String(key).toLowerCase()==="from")&&
+  signedFromHeaderPresent(sig.signingHeaders?.keys)&&
   ["rsa-sha256","ed25519-sha256"].includes(String(sig.algo||"").toLowerCase())
  );
  return Object.freeze({
