@@ -76,6 +76,10 @@ BEGIN
        USING ERRCODE='42501'; END IF;
  END IF;
 
+ -- Lock the account before device/key rows (same order as device INSERT).
+ PERFORM 1 FROM auth.users u WHERE u.id=NEW.user_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Signing account binding required'
+   USING ERRCODE='42501'; END IF;
  -- A signing key cannot claim a user different from the owning device.
  PERFORM 1 FROM public.messaging_devices d
  WHERE d.id=NEW.device_id AND d.user_id=NEW.user_id
@@ -85,10 +89,13 @@ BEGIN
 
  -- An UNVERIFIED record is not a trusted signer. If it transitions into
  -- verified (INSERT or UPDATE), require a different existing verified device.
- IF NEW.verified_at IS NOT NULL AND (
-   TG_OP='INSERT' OR OLD.verified_at IS NULL
- ) THEN
-   PERFORM 1 FROM auth.users u WHERE u.id=NEW.user_id FOR UPDATE;
+ IF TG_OP='INSERT' THEN
+   IF NEW.verified_at IS NULL THEN RETURN NEW; END IF;
+ ELSIF TG_OP='UPDATE' THEN
+   IF OLD.verified_at IS NOT NULL OR NEW.verified_at IS NULL
+   THEN RETURN NEW; END IF;
+ END IF;
+ IF NEW.verified_at IS NOT NULL THEN
    PERFORM 1 FROM public.messaging_device_signing_keys k
    JOIN public.messaging_devices d
      ON d.id=k.device_id AND d.user_id=k.user_id
