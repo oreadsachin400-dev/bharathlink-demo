@@ -225,8 +225,8 @@
     "status": "REAL_RSA2048_DKIM_CRYPTO_WITH_SYNTHETIC_DNS_CI_PASS",
     "module": "mail-verifier/verify-original-dkim.mjs",
     "pinned_library": "mailauth@8.0.0",
-    "previous_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41821891666",
-    "synthetic_crypto_tests": 11,
+    "previous_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41822446724",
+    "synthetic_crypto_tests": 13,
     "tested_raw_mime_signature_and_tamper_rejection": true,
     "tested_dns_txt_public_key_replacement": true,
     "tested_from_domain_strict_alignment": true,
@@ -238,6 +238,14 @@
     "verified_person_or_organization": false,
     "deployed_to_supabase_or_netlify": false,
     "status_note": "A synthetic DKIM PASS is domain signature verification only; it is not sender legal identity or full DMARC.",
-    "handover": "docs/BharathMail-DKIM-Offline-Verification-2026-11-04.md"
+    "handover": "docs/BharathMail-DKIM-Offline-Verification-2026-11-04.md",
+    "combined_ci": {
+      "jobs_passed": 2,
+      "dkim_tests_passed": 13,
+      "earlier_security_tests_passed": 142,
+      "total_node_tests_passed": 155
+    },
+    "partial_body_signature_denied": true,
+    "testing_only_dns_key_denied": true
   }
 }
