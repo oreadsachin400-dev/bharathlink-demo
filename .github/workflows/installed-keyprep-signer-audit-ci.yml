@@ -7,6 +7,8 @@ on:
     paths:
       - 'scripts/audit_installed_keyprep_signer.py'
       - 'tests/test_installed_keyprep_signer_audit.py'
+      - 'KeyPrep-Signer-Check-Windows.cmd'
+      - 'tests/test_windows_keyprep_launcher.py'
       - 'tests/test_historical_apk_workflow_hold.py'
       - '.github/workflows/build-android-test.yml'
       - '.github/workflows/build-v36hf-kotlin-test.yml'
@@ -36,6 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_installed_keyprep_signer_audit.py' -v
+          python3 -m unittest discover -s tests -p 'test_windows_keyprep_launcher.py' -v
           python3 -m unittest discover -s tests -p 'test_protected_signing_workflow.py' -v
           python3 -m unittest discover -s tests -p 'test_historical_apk_workflow_hold.py' -v
       - name: Verify the tool cannot change a phone or access secrets
@@ -77,3 +80,24 @@ jobs:
           ! grep -Eq 'assembleDebug|assembleRelease|actions/upload-artifact@|adb install|adb uninstall' .github/workflows/installed-keyprep-signer-audit-ci.yml
           test ! -d app/build/outputs/apk
           echo "PASS: CI tests a future opt-in local tool; it cannot access any physical Android phone"
+
+
+  windows-launcher-no-phone-safety:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows launch must refuse when no personal USB device is available
+        shell: pwsh
+        run: |
+          $env:CI = "true"
+          $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @("/d", "/c", "KeyPrep-Signer-Check-Windows.cmd") -Wait -PassThru -NoNewWindow
+          if ($proc.ExitCode -ne 1) {
+            throw "Blocked: Windows read-only launcher must refuse without an authorized personal USB phone. Exit=$($proc.ExitCode)"
+          }
+          Write-Host "PASS: Windows launcher refused to claim a phone signer match on a GitHub runner."
+      - name: Confirm launcher never packaged or installed a phone app
+        shell: pwsh
+        run: |
+          if (Test-Path "app/build/outputs/apk") { throw "Unexpected Android APK output" }
+          Write-Host "PASS: no APK artifact and no test-device update"
