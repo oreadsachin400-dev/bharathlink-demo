@@ -193,10 +193,40 @@ export default {
      payment_beneficiary:"not_verified",
      safe_to_follow_request:false,verified_sender_badge:false,
      production_release_authorized:false});
-  }catch{
+  }catch(cause){
+   // FAIL CLOSED: only a bounded coarse reason, and only after a valid
+   // bearer token + owner-scoped RLS lookup. No email addresses, MIME,
+   // signed URLs, provider IDs, tokens, DNS TXT keys or stack traces.
+   const code=String(cause instanceof Error?cause.message:"");
+   const classifications:Record<string,string>={
+     invalid_user_session:"session_invalid",
+     mail_not_available_to_user:"mail_not_owned_or_unavailable",
+     invalid_provider_id:"provider_record_invalid",
+     resend_not_configured:"provider_credential_unavailable",
+     provider_unavailable:"provider_message_unavailable",
+     invalid_provider_metadata:"provider_metadata_unavailable",
+     raw_response_missing:"provider_response_unavailable",
+     raw_response_oversized:"provider_response_oversized",
+     invalid_bytes:"provider_response_invalid",
+     provider_binding_failed:"provider_metadata_binding_failed",
+     raw_unavailable:"original_mime_unavailable",
+     expired_raw_capability:"original_mime_link_unavailable",
+     invalid_raw_capability:"original_mime_link_unavailable",
+     unapproved_raw_origin:"original_mime_origin_not_approved",
+     raw_message_too_short:"original_mime_incomplete",
+     invalid_address:"address_metadata_invalid",
+     dns_provider_unavailable:"dns_resolver_unavailable",
+     dns_record_unavailable:"dns_record_unavailable",
+     dns_limit:"dns_query_limit",
+     unapproved_dns_name:"dns_name_not_approved",
+     invalid_dns_response:"dns_response_invalid",
+     invalid_dns_txt:"dns_record_invalid"
+   };
    return resp(422,{check:"real_resend_original_mime",domain_dkim:"not_checked",
     sender_identity:"not_verified",verified_sender_badge:false,
-    error:"evidence_or_validation_unavailable"});
+    spf:"not_checked",dmarc:"not_checked",
+    error:"evidence_or_validation_unavailable",
+    diagnostic_reason:classifications[code]||"unclassified_server_failure"});
   }finally{raw?.fill(0)}
  }
 };
