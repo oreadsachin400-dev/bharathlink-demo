@@ -116,7 +116,8 @@
     "no_new_edge_deploy_or_db_migration_for_mail_auth": true,
     "mail_dkim_offline_test_cannot_authorize_release": true,
     "mail_spf_dmarc_requires_real_signed_receiver_and_independent_dns": true,
-    "mail_real_receiver_provenance_still_unverified": true
+    "mail_real_receiver_provenance_still_unverified": true,
+    "mail_receiver_replay_still_test_only": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -337,5 +338,38 @@
     "android_apk_changed": false,
     "handover": "docs/BharathMail-Loopback-SMTP-Evidence-2026-11-04.md",
     "blocker": "Need independently operated secure public receiving SMTP infrastructure, trustworthy DNS, separate signer key custody, durable replay state, RFC handling and external security/release review"
+  },
+  "mail_receiver_replay_key_lifecycle_offline": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-smtp-replay-key-lifecycle-postgres-ci",
+    "status": "DISPOSABLE_POSTGRES_17_REAL_LOOPBACK_CRYPTO_TO_DB_AND_REPLAY_CI_PASS_NOT_DEPLOYED",
+    "latest_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41828267644",
+    "ci_jobs_passed": 2,
+    "offline_mail_node_tests_passed": 58,
+    "preceding_mail_and_device_security_tests_passed": 142,
+    "real_loopback_smtp_signed_receipt_disposable_postgres_node_tests_passed": 1,
+    "total_node_tests_passed": 201,
+    "independent_parallel_psql_consumers": 24,
+    "concurrent_same_receipt_idempotent_duplicates": 11,
+    "concurrent_cross_provider_nonce_replays_denied": 11,
+    "synthetic_key_pin_public_jwk_stored_only": true,
+    "synthetic_receiver_private_signer_key_persisted": false,
+    "durable_nonce_and_provider_uniqueness_tested": true,
+    "irrevocable_key_revocation_tested": true,
+    "revoked_keys_denied_at_store": true,
+    "append_only_sql_receipts_tested": true,
+    "staged_sql_disposable_postgres_only": true,
+    "real_live_receiver_or_dns_connected": false,
+    "real_live_issuer_key_custody_audited": false,
+    "real_sender_identity_authenticated": false,
+    "real_organization_or_payment_beneficiary_authenticated": false,
+    "applied_to_live_database": false,
+    "changed_live_resend_or_netlify": false,
+    "changed_android_apk": false,
+    "production_authorized": false,
+    "handover": "docs/BharathMail-Receiver-Replay-Key-Lifecycle-2026-11-04.md",
+    "sql_fixture": "sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql",
+    "crypto_gate": "mail-verifier/verify-and-consume-receiver-test.mjs",
+    "external_blocker": "Audited real SMTP receiver, trusted DNS, KMS/HSM key custody, production replay retention and external security assessment"
   }
 }
