@@ -127,6 +127,7 @@ test("staged Edge handler rejects all calls before reading secrets or contacting
  let handler;
  try{
    copyFileSync(join(here,"signed-report.mjs"),join(tmp,"signed-report.mjs"));
+   copyFileSync(join(here,"resend-raw-evidence.mjs"),join(tmp,"resend-raw-evidence.mjs"));
    const js=source.replace("(status:number,body:unknown)","(status,body)").replace("async(req:Request)=>","async(req)=>");
    writeFileSync(join(tmp,"index.mjs"),js);
    let touched=0;
@@ -145,6 +146,7 @@ test("synthetic enabled copy only: signed report is bound to service-only RPC, s
  const key=await pair();let handler,invocations=0;
  try{
    copyFileSync(join(here,"signed-report.mjs"),join(tmp,"signed-report.mjs"));
+   copyFileSync(join(here,"resend-raw-evidence.mjs"),join(tmp,"resend-raw-evidence.mjs"));
    const js=source.replace("const MAIL_AUTH_RELEASED=false;","const MAIL_AUTH_RELEASED=true;")
      .replace("(status:number,body:unknown)","(status,body)").replace("async(req:Request)=>","async(req)=>");
    assert.ok(js.includes("const MAIL_AUTH_RELEASED=true;"));
