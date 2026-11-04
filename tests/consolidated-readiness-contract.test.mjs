@@ -81,3 +81,26 @@ test("old Phase7A distribution workflow is permanently compile-only while harmfu
   assert.doesNotMatch(w,/apksigner\s+sign\b/);
   assert.match(w,/test ! -d v36hf-kotlin-build\/app\/build\/outputs\/apk/);
 });
+
+test("do not erase historical Android OTP PASS because current dashboard template is unreadable",()=>{
+  const otp=manifest.release_blockers.find(x=>x.id==="OTP_TEMPLATE_AND_DELIVERY");
+  assert.equal(otp.status,"HISTORICAL_PHONE_PASS_CURRENT_CONFIG_UNREADABLE");
+  assert.match(otp.evidence,/2 Nov 2026 prior phone-session record/);
+  assert.match(otp.evidence,/standalone Android Auth Probe/);
+  assert.match(otp.evidence,/not a fresh server-configuration attestation/i);
+  assert.match(otp.next_action,/Do not repeat SMTP or email-template setup/);
+  assert.equal(manifest.auth_probe_historical_checkpoint.outcome,
+    "HISTORICAL_PHONE_TEST_PASS_NOT_INDEPENDENTLY_REVALIDATED_TODAY");
+  assert.ok(manifest.auth_probe_historical_checkpoint.not_proven.includes(
+    "existing KeyPrep account UUID matches authenticated subject"));
+});
+test("old standalone Auth Probe also cannot publish new debug APKs",()=>{
+  const workflow=source(".github/workflows/build-isolated-auth-probe-test.yml");
+  assert.match(workflow,/COMPILE ONLY/);
+  assert.match(workflow,/:app:testDebugUnitTest/);
+  assert.doesNotMatch(workflow,/:app:assembleDebug/);
+  assert.doesNotMatch(workflow,/actions\/upload-artifact@/);
+  assert.match(workflow,/test ! -d v36hf-kotlin-build\/app\/build\/outputs\/apk/);
+  assert.equal(manifest.policy.auth_probe_future_apk_upload_blocked,true);
+  assert.equal(manifest.policy.do_not_repeat_previously_completed_otp_setup_without_failure,true);
+});
