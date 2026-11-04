@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - bharathlink-mail-signed-auth-backend-hold-ci
+      - bharathlink-mail-raw-evidence-binding-ci
     paths:
       - 'supabase/functions/bl-mail-auth-attest/**'
       - 'sql/staged/TEST-bharatmail-signed-sender-auth-v1.sql'
       - 'tests/mail-auth-signed-gate.test.mjs'
+      - 'tests/mail-auth-resend-raw-evidence.test.mjs'
       - 'tests/mail-auth-edge-postgres-integrated.test.mjs'
       - 'tests/fixtures/mail-auth-*.sql'
       - '.github/workflows/bharatmail-signed-auth-staged-ci.yml'
@@ -32,6 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           node --check supabase/functions/bl-mail-auth-attest/signed-report.mjs
+          node --check supabase/functions/bl-mail-auth-attest/resend-raw-evidence.mjs
+          node --test tests/mail-auth-resend-raw-evidence.test.mjs | tee /tmp/raw-evidence-ci.txt
+          grep -q '# fail 0' /tmp/raw-evidence-ci.txt
+          grep -q '# skipped 0' /tmp/raw-evidence-ci.txt
           node --test tests/mail-auth-signed-gate.test.mjs | tee /tmp/signed-mail-ci.txt
           grep -q '# fail 0' /tmp/signed-mail-ci.txt
           grep -q '# skipped 0' /tmp/signed-mail-ci.txt
