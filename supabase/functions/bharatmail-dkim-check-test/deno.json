@@ -1,0 +1,5 @@
+{
+  "compilerOptions": {"lib": ["deno.ns", "dom", "dom.iterable", "esnext"], "strict": true},
+  "nodeModulesDir": "none",
+  "tasks": {"check": "deno check index.ts"}
+}
