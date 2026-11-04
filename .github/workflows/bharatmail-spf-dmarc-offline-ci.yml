@@ -46,6 +46,8 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'trustReceived:false' verify-smtp-spf-dmarc.mjs
+          grep -Fq 'synthetic_domain_authenticated_only' verify-smtp-spf-dmarc.mjs
+          ! grep -q 'trustReceived:true' verify-smtp-spf-dmarc.mjs
           grep -Fq 'independent_receiver_approved:false' verify-signed-smtp-receipt.mjs
           grep -Fq 'safe_sender:false,release_approved:false' verify-smtp-spf-dmarc.mjs
           grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' ../supabase/functions/bl-mail-auth-attest/index.ts
@@ -90,7 +92,13 @@ jobs:
           const r=require('./docs/security-release-readiness.json');
           if(r.release_decision!=='HOLD'||r.is_production_authorized!==false||
              r.mail_dkim_offline?.deployed_to_supabase_or_netlify!==false||
-             r.mail_signed_sender_auth_backend?.real_independent_smtp_dns_verifier_connected!==false)
+             r.mail_signed_sender_auth_backend?.real_independent_smtp_dns_verifier_connected!==false||
+             r.mail_spf_dmarc_offline?.independently_audited_receiver_issuer_connected!==false||
+             r.mail_spf_dmarc_offline?.authenticated_connecting_smtp_ip_in_live_resend!==false||
+             r.mail_spf_dmarc_offline?.real_dns_evidence_authenticated!==false||
+             r.mail_spf_dmarc_offline?.release_authorized!==false||
+             r.mail_spf_dmarc_offline?.deployed_to_supabase_or_netlify!==false||
+             r.mail_spf_dmarc_offline?.testing_only_result_label!=='synthetic_domain_authenticated_only')
             throw Error('BLOCK: unapproved release or external verifier state');
           console.log('PASS: original app and mail verification still source-only / HOLD');
           NODE
