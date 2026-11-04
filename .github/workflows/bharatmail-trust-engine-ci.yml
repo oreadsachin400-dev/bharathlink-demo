@@ -36,6 +36,27 @@ jobs:
           node --test tests/bharatmail-trust-engine.test.mjs | tee /tmp/bharatmail-trust-results.txt
           grep -q '# fail 0' /tmp/bharatmail-trust-results.txt
           grep -q '# skipped 0' /tmp/bharatmail-trust-results.txt
+
+      - name: Regression check against existing authorization, issuer and device security contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/candidate-possession.test.mjs \
+            tests/device-approval-crypto.test.mjs \
+            tests/independent-review.test.mjs \
+            tests/phase5-recovery-issuer-crypto.test.mjs \
+            tests/phase7b-challenge-crypto.test.mjs \
+            tests/phase7d-edge-http-contract.test.mjs \
+            tests/phase7f-approval-v2-edge-http.test.mjs \
+            tests/phase7f-release-gates.test.mjs \
+            tests/phase7g-governance-contract.test.mjs \
+            tests/phase7h-issuer-pinning-contract.test.mjs \
+            tests/phase7i-first-device-hold-contract.test.mjs \
+            tests/consolidated-readiness-contract.test.mjs | tee /tmp/bharatmail-regression.txt
+          grep -q '# fail 0' /tmp/bharatmail-regression.txt
+          grep -q '# skipped 0' /tmp/bharatmail-regression.txt
+
       - name: Enforce zero backend release, external model request or app distribution
         shell: bash
         run: |
