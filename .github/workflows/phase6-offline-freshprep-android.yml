@@ -16,6 +16,10 @@ permissions:
 
 jobs:
   isolated-native-selftest:
+    # SECURITY HOLD: Play Protect harmful-app classification unresolved.
+    # Preserved historical workflow; do not build/publish debug APKs.
+    # Release requires explicit independent signing and Play Protect review.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
