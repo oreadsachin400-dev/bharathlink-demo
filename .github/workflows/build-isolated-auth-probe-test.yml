@@ -1,4 +1,4 @@
-name: BharathLink Isolated Native Auth Probe TEST APK
+name: BharathLink Isolated Auth Probe COMPILE ONLY — Release HOLD
 
 on:
   workflow_dispatch:
@@ -64,31 +64,28 @@ jobs:
           grep -q '/auth/v1/user' "$SRC/NativeTestAuth.kt"
           ! grep -rE 'SUPABASE_SERVICE_ROLE_KEY|addJavascriptInterface|bl20_commit_device_approval|bl20_candidate_proof_finish|register_e2ee_v2_device' "$SRC"
           ! grep -E 'KeyStore|LocalApprovalKeys' "$SRC/NativeAuthProbeActivity.kt"
-      - name: Compile app and run negative auth/session JUnit tests
+      - name: Compile and execute TEST-only authentication JUnit cases (NO APK)
         working-directory: v36hf-kotlin-build
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
-      - name: Verify signed TEST artifact and exact unique package
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Confirm tests executed, release HOLD, and zero APK output
         shell: bash
         run: |
           set -euo pipefail
-          APK=v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
-          test -s "$APK"
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > v36hf-kotlin-build/auth-probe-signing.txt
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" > v36hf-kotlin-build/auth-probe-badging.txt
-          grep -q "^package: name='com.bharathlink.app.test.authprobe' versionCode='1'" v36hf-kotlin-build/auth-probe-badging.txt
-          ! grep -q "com.bharathlink.app.test.keypreponly" v36hf-kotlin-build/auth-probe-badging.txt
-          grep -q "^launchable-activity: name='com.bharathlink.app.keyprep.NativeAuthProbeActivity'" v36hf-kotlin-build/auth-probe-badging.txt
-          sha256sum "$APK" > v36hf-kotlin-build/auth-probe.sha256
-          echo "PASS: unique app ID; old KeyPrep not replaced; TEST-only signed debug APK"
-      - name: Publish stateless standalone TEST auth-only APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: BharathLink-TEST-AuthProbe-Standalone-APK
-          path: |
-            v36hf-kotlin-build/app/build/outputs/apk/debug/app-debug.apk
-            v36hf-kotlin-build/auth-probe.sha256
-            v36hf-kotlin-build/auth-probe-signing.txt
-            v36hf-kotlin-build/auth-probe-badging.txt
-          if-no-files-found: error
-          retention-days: 10
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          folder=Path("v36hf-kotlin-build/app/build/test-results/testDebugUnitTest")
+          reports=list(folder.glob("TEST-*.xml"))
+          assert reports,"No executed Android JUnit reports"
+          total=0
+          for file in reports:
+              t=ET.parse(file).getroot()
+              total+=int(t.get("tests","0"))
+              for key in ("failures","errors","skipped"):
+                  assert int(t.get(key,"0"))==0,(file,key)
+          assert total>=3,"Insufficient executed authentication tests"
+          print(f"PASS: {total} native Auth Probe JUnit tests, zero failed/skipped")
+          PY
+          test ! -d v36hf-kotlin-build/app/build/outputs/apk
+          grep -Fq 'applicationIdSuffix = ".test.authprobe"' v36hf-kotlin-build/app/build.gradle.kts
+          echo 'HOLD: historic Auth Probe OTP succeeded; Play Protect issue remains unresolved for later Phase7A. No new debug APK uploaded.'
