@@ -166,3 +166,23 @@ test('subject can trigger organization claim when inbound DB stores only the bar
  assert.ok(r.reasons.some(x=>x.code==='AUTHORITY_CLAIM_PUBLIC_MAIL'));
  assert.equal(r.isFakeProven,false);
 });
+
+
+test('release readiness records signed webhook != independently authenticated email sender',()=>{
+ const metadata=JSON.parse(readFileSync(new URL('../docs/security-release-readiness.json',import.meta.url),'utf8'));
+ assert.equal(metadata.release_decision,'HOLD');
+ assert.equal(metadata.mail_trust_engine.source_status,'IMPLEMENTED_OFFLINE_CI_PASS');
+ assert.equal(metadata.mail_trust_engine.deployed_to_live_test,false);
+ assert.equal(metadata.mail_trust_engine.release_status,'HOLD_PENDING_SERVER_VERIFIED_AUTH');
+ assert.equal(metadata.mail_trust_engine.current_webhook_svix_origin_signature,'VERIFIED_IN_READ_ONLY_SOURCE');
+ assert.equal(metadata.mail_trust_engine.sender_domain_spf_dkim_dmarc,'NOT_VERIFIED');
+ assert.equal(metadata.mail_trust_engine.sender_identity,'NOT_VERIFIED');
+ assert.equal(metadata.mail_trust_engine.organization_authority,'NOT_VERIFIED');
+ assert.equal(metadata.mail_trust_engine.payment_request_owner,'NOT_VERIFIED');
+ assert.equal(metadata.mail_trust_engine.inbound_route_may_route_unverified,true);
+ assert.equal(metadata.mail_trust_engine.no_live_migration,true);
+ const audit=readFileSync(new URL('../docs/BharathMail-Inbound-Auth-Boundary-Audit-2026-11-04.md',import.meta.url),'utf8');
+ assert.match(audit,/webhook signature/i);
+ assert.match(audit,/does not prove/i);
+ assert.match(audit,/sender domain/i);
+});
