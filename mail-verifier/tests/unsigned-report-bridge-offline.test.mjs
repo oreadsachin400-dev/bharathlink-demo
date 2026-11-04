@@ -12,6 +12,7 @@ const ID="synthetic-mail-bridge-001";
 const FROM="Bank Support <alerts@bank.example>";
 const RECIPIENT="reply+abc123@bharathlink.example";
 const KID="ephemeral-receiver-bridge-test";
+const REPORT_KID="independent-synthetic-report-issuer";
 const RSA=generateKeyPairSync("rsa",{modulusLength:2048});
 const RSA_PEM=RSA.privateKey.export({format:"pem",type:"pkcs8"});
 const RSA_DNS="v=DKIM1; k=rsa; p="+RSA.publicKey.export({
@@ -67,7 +68,8 @@ async function prepare(raw,receiptChanges={}){
  return {raw,params:{
   receiverEnvelope:{receipt,signature:Buffer.from(sig).toString("base64url")},
   pinnedReceiverPublicJwk:{kty:"EC",crv:"P-256",x:pub.x,y:pub.y},
-  receiverKid:KID,expectedProviderEmailId:ID,expectedFrom:FROM,
+  receiverKid:KID,offlineReportIssuerKid:REPORT_KID,
+  expectedProviderEmailId:ID,expectedFrom:FROM,
   expectedRecipient:RECIPIENT,now:NOW
  }};
 }
@@ -75,6 +77,8 @@ test("real offline SPF+DKIM+DMARC yields ONLY unsigned test report, with exact r
  const f=await prepare();const d=dns();
  const x=await deriveOfflineUnsignedMailAuthReport(f.raw,{...f.params,resolveDns:d.resolveDns});
  assert.equal(x.report.spf,"pass");
+ assert.equal(x.report.kid,REPORT_KID);
+ assert.notEqual(x.report.kid,KID);
  assert.equal(x.report.spf_domain,"bank.example");
  assert.equal(x.report.dkim,"pass");
  assert.equal(x.report.dkim_domain,"bank.example");
@@ -105,7 +109,7 @@ test("ephemeral test-only issuer can sign computed report that backend schema ve
   new TextEncoder().encode(payload(x.report))));
  const verified=await verifySignedReport({
   report:x.report,signature:Buffer.from(signature).toString("base64url")
- },{kty:"EC",crv:"P-256",x:jwk.x,y:jwk.y},KID,NOW);
+ },{kty:"EC",crv:"P-256",x:jwk.x,y:jwk.y},REPORT_KID,NOW);
  assert.equal(verified.dmarc,"pass");
  assert.equal(verified.raw_sha256,x.report.raw_sha256);
  assert.equal(verified.recipient_address,RECIPIENT);
@@ -185,4 +189,15 @@ test("no trusted DNS resolver, receipt or actual MIME cannot fabricate a report"
  await assert.rejects(deriveOfflineUnsignedMailAuthReport(Buffer.from("x"),{
   ...f.params,resolveDns:dns().resolveDns
  }),/invalid_raw/);
+});
+
+test("receiver key identity cannot be reused as the downstream report issuer ID",async()=>{
+ const f=await prepare();const d=dns();
+ await assert.rejects(deriveOfflineUnsignedMailAuthReport(f.raw,{
+  ...f.params,offlineReportIssuerKid:KID,resolveDns:d.resolveDns
+ }),/distinct_offline_report_issuer_required/);
+ await assert.rejects(deriveOfflineUnsignedMailAuthReport(f.raw,{
+  ...f.params,offlineReportIssuerKid:undefined,resolveDns:d.resolveDns
+ }),/distinct_offline_report_issuer_required/);
+ assert.equal(d.calls.length,0);
 });
