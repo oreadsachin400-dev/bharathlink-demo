@@ -277,5 +277,32 @@
       "mail-verifier/verify-smtp-spf-dmarc.mjs"
     ],
     "handover": "docs/BharathMail-SPF-DMARC-Offline-2026-11-04.md"
+  },
+  "mail_unsigned_auth_report_bridge_offline": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-verified-report-bridge-offline-ci",
+    "status": "SYNTHETIC_UNSIGNED_REPORT_BRIDGE_CI_PASS_NOT_DEPLOYED",
+    "latest_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41825648953",
+    "ci_jobs_passed": 2,
+    "existing_dkim_tests_passed": 13,
+    "signed_smtp_spf_dmarc_tests_passed": 14,
+    "new_unsigned_bridge_tests_passed": 10,
+    "prior_mail_and_device_security_regression_passed": 142,
+    "total_node_tests_passed": 179,
+    "real_smtp_receiver_connected": false,
+    "independently_verified_receiver_issuer": false,
+    "independent_real_report_issuer_key_provisioned": false,
+    "raw_mime_and_recipient_bound_in_synthetic_ci": true,
+    "separate_receiver_and_report_issuer_key_ids_enforced": true,
+    "live_domain_auth_verified": false,
+    "live_sender_identity_verified": false,
+    "safe_payment_request_verified": false,
+    "signed_report_generated_in_production": false,
+    "supabase_or_netlify_deployed": false,
+    "android_apk_changed": false,
+    "release_authorized": false,
+    "source": "mail-verifier/derive-offline-unsigned-auth-report.mjs",
+    "handover": "docs/BharathMail-Unsigned-Report-Bridge-Offline-2026-11-04.md",
+    "external_blocker": "Independently audited real receiving SMTP gateway and DNS evidence, separate production issuer key custody, replay persistence, external security review and explicit release authorization"
   }
 }
