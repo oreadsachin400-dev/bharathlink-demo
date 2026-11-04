@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-jGbbhxkUkVonQC8rSRi5zxPLv//a+gx0uBb2kGjt910=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<title>BharathLink Mail | DKIM Domain Test</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
+main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
+header strong{display:block;font-size:20px;letter-spacing:.01em}header small{color:#dbe2f3}section{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:17px;box-shadow:0 1px 3px #13255009}
+h1{font-size:1.15rem;line-height:1.3;margin:0 0 8px}h2{font-size:1.05rem;margin:0 0 10px}p{margin:8px 0 12px}small,.hint{color:var(--sub);font-size:.875rem;line-height:1.5}.notice{padding:12px;border-left:4px solid var(--gold);background:#fff8ea;border-radius:7px}
+label{display:block;font-weight:600;margin:12px 0 5px}input{width:100%;padding:12px 13px;border:1px solid #99a5bf;background:white;color:var(--text);border-radius:10px;min-height:48px;font:inherit}
+button{min-height:47px;padding:9px 16px;border:0;border-radius:11px;background:var(--ink);color:white;font:inherit;font-weight:650;cursor:pointer}
+button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[disabled]{opacity:.6;cursor:wait}.button-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.button-row button{flex:1;min-width:120px}
+.mail-item{border-top:1px solid var(--line);padding:16px 0 4px;overflow-wrap:anywhere}.mail-item strong{display:block}.mail-item .from,.mail-item .date{font-size:.88rem;color:var(--sub)}.mail-item button{margin:7px 0 10px;width:100%}
+.result{font-size:.91rem;border-radius:8px;padding:10px 12px;background:#f5f6fb;border:1px solid var(--line);margin:0 0 9px}.result.pass{background:#e7f5ee;color:var(--success)}.result.warn{background:#fff5df;color:var(--warn)}
+#status{padding:9px 0;min-height:24px;color:var(--ink);font-weight:550}.foot{margin-top:20px}a{color:var(--ink)}:focus-visible{outline:3px solid var(--gold);outline-offset:2px}[hidden]{display:none!important}</style></head><body>
+<main><header><strong>BharathLink Mail</strong><small>Real received-email · DKIM domain signature TEST</small></header>
+<section><div class="notice"><b>TEST ONLY:</b> Checks whether an email has a strictly aligned DKIM domain signature. It does <b>not</b> verify the person, bank, organization or payment.</div></section>
+<section id="login"><h1>Sign in to BharathLink-20-TEST</h1><p class="hint">Use the existing TEST-project account, not your separate BharathLink Demo account. Login is sent directly to Supabase HTTPS; tokens are held only in memory on this page.</p>
+<label for="email">TEST account email</label><input type="email" id="email" inputmode="email" autocomplete="username" required>
+<label for="password">Password (or choose email OTP)</label><input type="password" id="password" autocomplete="current-password">
+<div class="button-row"><button type="button" id="password-login">Sign in</button><button type="button" class="alt" id="send-otp">Send email OTP</button></div>
+<div id="otp-panel" hidden><label for="otp">Numeric email OTP</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="10" type="text"><button id="verify-otp" type="button">Verify OTP</button></div></section>
+<section id="mail-section" hidden><h2>My received TEST email</h2><div class="button-row"><button id="refresh" type="button">Refresh inbox</button><button class="alt" id="clear" type="button">Clear test session</button></div>
+<p class="hint">Only inbound emails visible under your own Supabase account RLS are listed. Email contents and attachments are not shown.</p><div id="mail-list"></div></section>
+<p id="status" role="status" aria-live="polite"></p>
+<p class="hint foot">Even after DKIM PASS: SPF not checked · DMARC not checked · Identity not verified · Authority not verified · Payment destination not verified.</p></main>
+<script>(()=>{'use strict';
+const BASE='https://fsdusofbpwdrdvgexxyw.supabase.co';
+const PUB='sb_publishable_BMNUqIpIRRyjF2vutvi__w_3BGQQQ7Z';
+let token=null,busy=false;
+const el=id=>document.getElementById(id);
+const setStatus=s=>{el('status').textContent=String(s||'')};
+async function request(path,method='GET',data,authorized=false){
+ const h={apikey:PUB,Accept:'application/json'};
+ if(data!==undefined)h['Content-Type']='application/json';
+ if(authorized){if(!token)throw Error('Sign in required.');h.Authorization='Bearer '+token;}
+ let response;
+ try{response=await fetch(BASE+path,{method,headers:h,redirect:'error',cache:'no-store',...(data===undefined?{}:{body:JSON.stringify(data)})})}
+ catch{throw Error('Connection failed. Please check internet access.');}
+ const value=await response.json().catch(()=>({}));
+ if(!response.ok){
+  const messages={invalid_credentials:'TEST account email or password is incorrect.',email_not_confirmed:'Confirm the TEST account email first.',otp_expired:'Email OTP expired or incorrect.',over_request_rate_limit:'Too many attempts. Try again later.',login_required:'Sign in first.',mail_not_available_to_user:'This received email does not belong to this TEST account.',test_verifier_not_configured:'DKIM TEST backend is not configured.',evidence_or_validation_unavailable:'Original MIME or domain-signature evidence is unavailable. Do not assume this message is authentic or fake.',provider_unavailable:'Original email is unavailable from the provider.'};
+  const code=String(value.error_code||value.code||value.error||'');
+  throw Error(messages[code]||('Unable to complete request (HTTP '+response.status+'). No sender is verified.'));
+ }
+ return value;
+}
+async function action(button,fn){
+ if(busy)return;
+ busy=true;button.disabled=true;
+ try{await fn()}catch(err){setStatus(err instanceof Error?err.message:'Test request unavailable.');}
+ finally{button.disabled=false;busy=false;}
+}
+function checkEmail(){
+ const address=el('email').value.trim();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)||address.length>254)throw Error('Enter your TEST-account email address.');
+ return address;
+}
+async function onSignIn(access){
+ if(typeof access!=='string'||access.length<40)throw Error('Session not received.');
+ token=access;el('password').value='';el('otp').value='';
+ el('login').hidden=true;el('mail-section').hidden=false;
+ await listMail();
+}
+function makeMail(row){
+ const section=document.createElement('div');section.className='mail-item';
+ const subject=document.createElement('strong');subject.textContent=String(row.subject||'(No subject)').slice(0,160);
+ const from=document.createElement('p');from.className='from';from.textContent='From: '+String(row.from_address||'Unknown').slice(0,230);
+ const when=document.createElement('p');when.className='date';const stamp=Date.parse(row.created_at);
+ when.textContent=Number.isFinite(stamp)?new Date(stamp).toLocaleString():'Date unavailable';
+ const btn=document.createElement('button');btn.type='button';btn.textContent='Check DKIM domain signature';
+ const result=document.createElement('div');result.className='result';result.textContent='Sender identity: Not verified';result.setAttribute('role','status');
+ btn.addEventListener('click',async()=>{
+  if(btn.disabled)return;btn.disabled=true;
+  result.className='result';result.textContent='Checking original email and independent DNS…';
+  try{
+   const checked=await request('/functions/v1/bharatmail-dkim-check-test','POST',{message_id:row.id},true);
+   const pass=checked.domain_dkim==='pass'&&checked.domain_dkim_strictly_aligned===true;
+   result.className='result '+(pass?'pass':'warn');
+   result.textContent=pass?'DKIM domain signature: VALID. Person, bank, authority and payment still NOT VERIFIED.':
+    'DKIM domain signature: NOT VERIFIED. That does not prove this email is fake. Person and payment are NOT VERIFIED.';
+  }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
+  finally{btn.disabled=false;}
+ });
+ section.append(subject,from,when,btn,result);return section;
+}
+async function listMail(){
+ setStatus('Loading owned TEST inbox…');
+ const rows=await request('/rest/v1/bharatmail_external_messages?select=id,from_address,subject,created_at,direction&direction=eq.inbound&order=created_at.desc&limit=30','GET',undefined,true);
+ if(!Array.isArray(rows))throw Error('Inbox not available.');
+ const target=el('mail-list');target.replaceChildren();
+ if(rows.length===0){const notice=document.createElement('p');notice.textContent='No received messages for this TEST account. Send one harmless test email to your own test address, then refresh.';target.append(notice);}
+ for(const row of rows){if(typeof row?.id==='string')target.append(makeMail(row));}
+ setStatus(rows.length+' received TEST email(s) listed.');
+}
+el('password-login').addEventListener('click',function(){action(this,async()=>{
+ const email=checkEmail(),password=el('password').value;
+ if(!password)throw Error('Enter your password or choose email OTP.');
+ setStatus('Signing in to TEST Supabase…');
+ const auth=await request('/auth/v1/token?grant_type=password','POST',{email,password});
+ await onSignIn(auth.access_token);
+});});
+el('send-otp').addEventListener('click',function(){action(this,async()=>{
+ const email=checkEmail();
+ await request('/auth/v1/otp','POST',{email,create_user:false});
+ el('otp-panel').hidden=false;
+ setStatus('If the TEST account exists and email OTP is enabled, a code was sent.');
+});});
+el('verify-otp').addEventListener('click',function(){action(this,async()=>{
+ const email=checkEmail(),code=el('otp').value.trim();
+ if(!/^\d{6,10}$/.test(code))throw Error('Enter the numeric email OTP.');
+ const auth=await request('/auth/v1/verify','POST',{email,token:code,type:'email'});
+ await onSignIn(auth.access_token);
+});});
+el('refresh').addEventListener('click',function(){action(this,listMail);});
+el('clear').addEventListener('click',()=>{
+ token=null;el('mail-list').replaceChildren();el('password').value='';el('otp').value='';
+ el('mail-section').hidden=true;el('login').hidden=false;setStatus('Local test session cleared.');
+});
+})();</script></body></html>
