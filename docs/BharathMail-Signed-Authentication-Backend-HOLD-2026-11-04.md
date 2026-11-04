@@ -46,3 +46,9 @@ For this first contract, a `dmarc=pass` report is accepted only when the separat
 - Integrated P-256 + real PostgreSQL: `node --test tests/mail-auth-edge-postgres-integrated.test.mjs` with a fresh disposable PostgreSQL fixture.
 
 **Verdict: VERIFIED CODE AND SYNTHETIC CI. NOT A LIVE SPF/DKIM/DMARC AUTHENTICATION SERVICE. No authorization to deploy or mark senders verified.**
+
+## Live TEST release hold confirmed read-only
+
+At this checkpoint the connected BharathLink-20-TEST Supabase project was checked **read-only**. Both `to_regclass('public.bharatmail_sender_auth_v1')` and `to_regprocedure('public.bl_mail_record_auth_attestation_v1(...)')` returned absent; the deployed Edge Function list has **no** `bl-mail-auth-attest`. The existing `bharatmail-inbound-webhook` was still version 8. This confirms the staged receiver-authentication code was **not installed live**. No live mail user rows or secrets were fetched in this check.
+
+**Final verified CI:** [GitHub run #41817645828](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41817645828), **3/3 jobs SUCCESS**; includes 139/139 Node.js cases and real disposable PostgreSQL owner/replay/security checks. A source-only readiness JSON follow-up enables the same contract to rerun automatically on release-status edits.
