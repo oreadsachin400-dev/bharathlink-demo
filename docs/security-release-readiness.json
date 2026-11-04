@@ -118,7 +118,9 @@
     "mail_spf_dmarc_requires_real_signed_receiver_and_independent_dns": true,
     "mail_real_receiver_provenance_still_unverified": true,
     "mail_receiver_replay_still_test_only": true,
-    "mail_html_heuristic_must_not_mark_sender_verified": true
+    "mail_html_heuristic_must_not_mark_sender_verified": true,
+    "mail_cloudflare_worker_candidate_must_remain_offline": true,
+    "mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -404,5 +406,41 @@
     "tests": "tests/bharatmail-trust-engine.test.mjs",
     "handover": "docs/BharathMail-Html-Phishing-Caution-2026-11-04.md",
     "existing_external_mail_html_body_available_to_trust_inspect_in_staged_index": true
+  },
+  "mail_cloudflare_email_routing_candidate_offline": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-cloudflare-worker-auth-evidence-ci",
+    "status": "CLOUDFLARE_EMAIL_WORKER_READONLY_SYNTHETIC_EVIDENCE_CI_PASS_NOT_DEPLOYED",
+    "latest_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41836397487",
+    "ci_jobs_passed": 2,
+    "existing_mail_verifier_and_cloudflare_fixture_tests_passed": 74,
+    "new_cloudflare_email_worker_fixture_tests_passed": 16,
+    "trust_device_and_security_regressions_passed": 155,
+    "local_smtp_to_disposable_postgres_integration_tests_passed": 1,
+    "total_node_tests_passed": 230,
+    "postgres_parallel_transaction_checks": 24,
+    "cloudflare_mail_routing_external_docs_reviewed": true,
+    "cloudflare_email_worker_currently_deployed": false,
+    "read_only_synthetic_worker_event_adapter_written": true,
+    "envelope_mail_from_and_author_from_separated": true,
+    "reply_to_untrusted_domain_mismatch_caution_tested": true,
+    "strict_upstream_authentication_results_header_shape_tested": true,
+    "raw_mime_sha256_stream_cap_tested": true,
+    "cloudflare_internal_worker_origin_proven": false,
+    "actual_internet_received_email_evaluated": false,
+    "real_mx_or_dns_modified": false,
+    "original_resend_mx_untouched": true,
+    "external_spf_dkim_dmarc_independently_verified_in_live_bharathmail": false,
+    "third_party_provider_signed_report_verified": false,
+    "cloudflare_account_connected": false,
+    "real_sender_human_identity_verified": false,
+    "real_authority_or_payment_beneficiary_verified": false,
+    "production_authorized": false,
+    "supabase_or_netlify_deployed": false,
+    "android_apk_built_or_deployed": false,
+    "source": "mail-verifier/cloudflare-email-routing-readonly.mjs",
+    "tests": "mail-verifier/tests/cloudflare-email-routing-readonly.test.mjs",
+    "handover": "docs/BharathMail-Cloudflare-Email-Worker-2026-11-04.md",
+    "next_blocker": "Independent TEST Cloudflare DNS zone & internal email() handler operator authorization without touching Resend MX, then genuine test email evidence and signed issuer-to-backend transport"
   }
 }
