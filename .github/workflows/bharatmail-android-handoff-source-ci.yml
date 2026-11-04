@@ -6,8 +6,10 @@ on:
     paths:
       - 'BharathLink-Android/app/src/main/java/in/bharathlink/demo/MainActivity.java'
       - 'BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java'
+      - 'BharathLink-Android/app/src/main/java/in/bharathlink/demo/ExternalNavigationPolicy.java'
       - 'tests/android-mail-safety-source.test.mjs'
       - 'tests/android-mail-safety/MailSecurityLinkPolicyTest.java'
+      - 'tests/android-mail-safety/ExternalNavigationPolicyTest.java'
       - '.github/workflows/bharatmail-android-handoff-source-ci.yml'
   workflow_dispatch:
 
@@ -27,15 +29,18 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Run Java allowlist policy adversarial cases (no Android SDK or APK)
+      - name: Run Java TEST and external-navigation adversarial policies (NO APK)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/bl-mail-android-handoff
           javac --release 17 -d /tmp/bl-mail-android-handoff \
             BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java \
-            tests/android-mail-safety/MailSecurityLinkPolicyTest.java
+            BharathLink-Android/app/src/main/java/in/bharathlink/demo/ExternalNavigationPolicy.java \
+            tests/android-mail-safety/MailSecurityLinkPolicyTest.java \
+            tests/android-mail-safety/ExternalNavigationPolicyTest.java
           java -cp /tmp/bl-mail-android-handoff in.bharathlink.demo.MailSecurityLinkPolicyTest
+          java -cp /tmp/bl-mail-android-handoff in.bharathlink.demo.ExternalNavigationPolicyTest
       - name: Compile Android MainActivity using SDK stubs only — NO APK
         shell: bash
         run: |
@@ -57,8 +62,10 @@ jobs:
           javac --release 17 -cp "$androidjar" \
             -d /tmp/bl-mail-android-handoff \
             BharathLink-Android/app/src/main/java/in/bharathlink/demo/MainActivity.java \
-            BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java
+            BharathLink-Android/app/src/main/java/in/bharathlink/demo/MailSecurityLinkPolicy.java \
+            BharathLink-Android/app/src/main/java/in/bharathlink/demo/ExternalNavigationPolicy.java
           test -f /tmp/bl-mail-android-handoff/in/bharathlink/demo/MainActivity.class
+          test -f /tmp/bl-mail-android-handoff/in/bharathlink/demo/ExternalNavigationPolicy.class
           test -f /tmp/bl-mail-android-handoff/in/bharathlink/demo/MailSecurityLinkPolicy.class
           echo "PASS: Android API 35 Java source compile, no APK generated"
       - name: Source and release HOLD assertions
