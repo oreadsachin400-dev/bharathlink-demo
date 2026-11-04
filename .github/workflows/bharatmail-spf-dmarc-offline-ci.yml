@@ -90,7 +90,7 @@ jobs:
           const r=require('./docs/security-release-readiness.json');
           if(r.release_decision!=='HOLD'||r.is_production_authorized!==false||
              r.mail_dkim_offline?.deployed_to_supabase_or_netlify!==false||
-             r.mail_raw_mime_binding?.independent_real_verifier_connected!==false)
+             r.mail_signed_sender_auth_backend?.real_independent_smtp_dns_verifier_connected!==false)
             throw Error('BLOCK: unapproved release or external verifier state');
           console.log('PASS: original app and mail verification still source-only / HOLD');
           NODE
