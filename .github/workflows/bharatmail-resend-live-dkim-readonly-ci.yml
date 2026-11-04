@@ -183,7 +183,8 @@ jobs:
              r.mail_resend_received_dkim_owner_scoped_test?.test_edge_function_deployed!==true ||
              r.mail_resend_received_dkim_owner_scoped_test?.test_edge_function_verify_jwt!==true ||
              r.mail_resend_received_dkim_owner_scoped_test?.original_main_project_function_deployed!==false ||
-             r.mail_resend_received_dkim_owner_scoped_test?.real_signed_in_inbound_email_dkim_check_invoked!==false ||
+             r.mail_resend_received_dkim_owner_scoped_test?.real_signed_in_inbound_email_dkim_check_invoked!==true ||
+             r.mail_resend_received_dkim_owner_scoped_test?.original_email_dkim_pass_confirmed!==false ||
              r.mail_resend_received_dkim_owner_scoped_test?.production_authorized!==false ||
              r.policy?.mail_cloudflare_local_handler_no_deployment_until_isolated_zone_review!==true ||
              r.mail_cloudflare_local_email_pilot?.worker_local_route_config_has_no_external_routes!==true ||
