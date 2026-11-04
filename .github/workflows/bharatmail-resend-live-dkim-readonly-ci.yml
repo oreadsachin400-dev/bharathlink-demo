@@ -310,23 +310,12 @@ jobs:
           grep -Fq 'verified_sender_badge:false' index.ts
           ! grep -E 'resend\.emails\.send|supabase\.functions\.deploy' index.ts
 
-      - name: Type-check safe mobile TEST interface and inspect inline JavaScript
+      - name: Verify non-renderable Supabase Edge HTML URL has been explicitly retired
         shell: bash
         run: |
           set -euo pipefail
           deno check supabase/functions/bharatmail-dkim-test-ui/index.ts
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          s=Path("supabase/functions/bharatmail-dkim-test-ui/index.ts").read_text()
-          assert "sb_secret_" not in s and "service_role" not in s
-          assert "localStorage" not in s and "sessionStorage" not in s
-          assert "verified_sender_badge" not in s
-          assert "script-src 'nonce-" in s and "frame-ancestors 'none'" in s
-          assert '"create_user":true' not in s and "create_user:false" in s
-          m=re.search(r'<script nonce="__BL_NONCE__">([\s\S]+?)</script>',s)
-          assert m is not None
-          Path("/tmp/blmail-dkim-test-ui.js").write_text(m.group(1))
-          PY
-          node --check /tmp/blmail-dkim-test-ui.js
-          echo 'PASS: standalone TEST-only HTML + inline JS syntax and no-secret gates'
+          grep -Fq 'html_not_supported_on_default_edge_domain' supabase/functions/bharatmail-dkim-test-ui/index.ts
+          grep -Fq 'status:410' supabase/functions/bharatmail-dkim-test-ui/index.ts
+          ! grep -Fq '<form' supabase/functions/bharatmail-dkim-test-ui/index.ts
+          echo 'PASS: broken Edge HTML host is retired; real UI requires normal static HTTPS hosting'
