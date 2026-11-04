@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "deno.ns",
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "strict": true
+  },
+  "tasks": {
+    "check": "deno check index.ts"
+  }
+}
