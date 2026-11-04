@@ -59,3 +59,12 @@ Independent issuer-backed identity, organization role delegation and recipient/p
 - No live Supabase, Netlify, Android APK, SMTP, payment provider, or authoritative identity changes.
 
 This is not a server-side SPF/DKIM/DMARC test, actual web/Android visual QA, or production acceptance test.
+
+## Latest receiving-authentication audit and CI checkpoint
+
+- [Verified offline run #41814453029](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41814453029): **24/24 Mail Trust tests + 91/91 existing security regression tests = 115/115 PASS**, zero failures and skips.
+- Read-only Supabase TEST inspection confirmed the deployed inbound Resend webhook's **Svix signature check** authenticates the webhook, not the sender's SPF/DKIM/DMARC or legal identity.
+- The existing `bharatmail_inbound_events.authentication_status` defaults to `unverified`; current routing can accept `unverified` mail after its separate reply-token checks. The client must **never** label such mail as authenticated based on the received `From` field.
+- Reviewed source/security boundary: [BharathMail inbound authentication audit](https://github.com/oreadsachin400-dev/bharathlink-demo/blob/bharathlink-mail-trust-engine-staged-ci/docs/BharathMail-Inbound-Auth-Boundary-Audit-2026-11-04.md).
+- `docs/security-release-readiness.json` now explicitly records **Mail Trust source implementation PASS but production release HOLD**, with real SPF/DKIM/DMARC, sender identity, organizational authority and payment recipient verification all unverified.
+- **No live mail, Supabase, Netlify, app signing, Android APK or first-device identity changes.** The feature remains a reviewed, tested GitHub source implementation awaiting a future controlled TEST deployment.
