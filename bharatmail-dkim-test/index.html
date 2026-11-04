@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-OzN1v5FDtjOMafDvzC7czo1wifd1fwSUa/t0V+oJCMI=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-VSHvfmt7gFAeHAxf4f2UCQI4xySUu0dfQp6kST20Z+g=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -132,8 +132,20 @@ function makeMail(row){
    const reason=typeof checked.dkim_reason==='string'&&
       Object.prototype.hasOwnProperty.call(knownReasons,checked.dkim_reason)
       ?knownReasons[checked.dkim_reason]:'The result did not meet strict DKIM requirements.';
-   result.textContent=pass?'DKIM domain signature: VALID. Person, bank, authority and payment still NOT VERIFIED.':
-     'DKIM domain signature: NOT VERIFIED. '+reason+' This does not prove fraud. Sender identity, authority and payment are NOT VERIFIED.';
+   // Domain authentication is not human, organization or payment identity.
+   // Only a server-confirmed strict DKIM pass plus exact-domain policy is
+   // reported as a limited DMARC PASS. SPF needs trusted SMTP peer evidence.
+   const dmarcPass=pass&&checked.dmarc==='pass'&&
+     checked.dmarc_policy_scope==='exact_author_domain_only'&&
+     ['none','quarantine','reject'].includes(checked.dmarc_policy);
+   const dmarcText=dmarcPass?
+     ' DMARC domain alignment: PASS via independently verified DKIM and exact-domain policy.':
+     ' DMARC: NOT CHECKED (no confirmed exact-domain policy result).';
+   result.textContent=pass?
+     'DKIM domain signature: VALID.'+dmarcText+
+     ' SPF: NOT CHECKED. Person, bank, authority and payment still NOT VERIFIED.':
+     'DKIM domain signature: NOT VERIFIED. '+reason+
+     ' DMARC: NOT CHECKED. SPF: NOT CHECKED. This does not prove fraud. Sender identity, authority and payment are NOT VERIFIED.';
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
