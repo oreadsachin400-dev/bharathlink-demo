@@ -122,3 +122,55 @@ deployment. Do not repoint app Auth tokens between two Supabase projects.
 
 **RELEASE DECISION: TEST ENDPOINT ACTIVE ONLY / REAL EMAIL CHECK PENDING /
 PRODUCTION AND ANDROID RELEASE HOLD.**
+
+## Update — mobile TEST UI deployed for direct user-owned real-email check
+
+The remaining owner-invocation dependency now has a concrete, mobile-friendly,
+**deployed TEST page**:
+
+https://fsdusofbpwdrdvgexxyw.supabase.co/functions/v1/bharatmail-dkim-test-ui
+
+- A NEW Supabase function `bharatmail-dkim-test-ui` is ACTIVE, version 1,
+  in project `fsdusofbpwdrdvgexxyw`. Management read-back confirms
+  `verify_jwt=false` **for static public HTML only**. The actual DKIM data
+  function `bharatmail-dkim-check-test` stays `verify_jwt=true`.
+- Public page is served from the Supabase TEST HTTPS origin; it includes
+  only a public publishable key and static JS/CSS. No Resend token,
+  privileged Supabase key or caller password is shipped to HTML.
+- Explicit TEST login supports password or email OTP. OTP request
+  specifies `create_user:false` (does not create new accounts).
+  Authentication requests go directly from the browser to the same
+  TEST Supabase Auth endpoint. Password, OTP and access JWT are never
+  sent to the HTML-serving Edge function.
+- Access token lives **in JavaScript memory only**; no `localStorage`,
+  cookies or `sessionStorage`; refresh requires logging in again.
+  Sign-out clears the token and displayed mail rows.
+- Authenticated PostgREST list is limited to 30 inbound mail records and
+  relies on existing owner-only RLS; sender/subject are rendered using
+  `textContent`, not unsafe HTML. Each row has one user-click
+  "Check DKIM domain signature" button; it sends only the UUID.
+- Strict per-response Content Security Policy includes random
+  nonce for inline JS/CSS, `connect-src` to the exact TEST Supabase
+  origin, `frame-ancestors 'none'`, `form-action 'none'`, and no third-party
+  scripts, iframes or analytics.
+- The result explicitly states domain-signature only — a DKIM pass never
+  authorizes a "Verified Person", "Official Bank", payment safety or the
+  launch of the production sender badge.
+- No changes to the original BharathLink app, Resend MX, existing
+  external inbound webhook, Android APK or production Supabase project.
+
+**Operator action now reduced to a single browser flow:** open the
+above TEST page, log in using the existing BharathLink-20-TEST account,
+choose one inbound email and tap the DKIM-check button. The user
+should share *only a screenshot or the redacted result state* if feedback
+is needed, not email credentials, authorization tokens, original MIME
+or full email IDs.
+
+**Limitations:** Deployment status is confirmed through connected Supabase
+management read-back, and GitHub CI independently typechecks the source and
+its inline JS. A real remote browser GET smoke and an authenticated
+owned-mail POST result were NOT available from this assistant's network
+environment; these must not be presented as already passed.
+
+**Production release remains HARD HOLD**, and SPF/DMARC plus human/authority/
+payment identity remain not checked.
