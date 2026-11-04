@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; style-src &#x27;sha256-BCF3Jko9mUeaR+ycl5ksfuRo/yAv+d767mn2NRAuwPg=&#x27;; script-src &#x27;sha256-nJrTLbGNWfdK+SLtMQD3Ze9CkG2QlyoLRDjyGlxYiQ8=&#x27; &#x27;sha256-CWAwxvJ7oUfA3q6bbTyIEiMH6U2tOEIbJsEK6D7gdpM=&#x27;">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; style-src &#x27;sha256-BCF3Jko9mUeaR+ycl5ksfuRo/yAv+d767mn2NRAuwPg=&#x27;; script-src &#x27;sha256-/Rlj8V9EPnFH7LmvPB6LXO6qzOny7NDrD9Apic5vCmI=&#x27; &#x27;sha256-CWAwxvJ7oUfA3q6bbTyIEiMH6U2tOEIbJsEK6D7gdpM=&#x27;">
 <title>BharathMail | Offline Scam Warning Demo</title><style>:root{color-scheme:light;--navy:#192966;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--warn:#805500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Arial,sans-serif}
 main{max-width:650px;margin:0 auto;padding:0 14px 38px}
@@ -15,7 +15,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #d59f25;outline-offset:3p
 .output.warn{background:#fff4dd;color:var(--warn)}.note{border-left:4px solid #d59f25;background:#fff8e8;padding:12px;border-radius:8px}a{color:var(--navy)}
 </style></head><body>
 <main><header><strong>BharathMail Security</strong><span>Offline scam warning DEMO • TEST only</span></header>
-<section><h1>Try 5 fictional email examples</h1>
+<section><h1>Try 7 fictional email examples</h1>
 <p class="note"><b>SIMULATION ONLY:</b> These are invented messages, not your inbox. No login, email sending, external lookup, or email-content upload. No actual sender, authority, payment or message is verified.</p>
 <p class="sub">Choose an example to see what the current limited Hindi/Hinglish and link-warning rules detect. A warning is not proof of fraud, and no warning does not mean safe.</p>
 <div id="samples" class="samples" aria-label="Fictional test examples"></div>
@@ -30,6 +30,8 @@ const SAMPLE=Object.freeze([
  Object.freeze({id:'hinglish-pay',label:'Hinglish: urgent payment',from:'help@example.com',subject:'Payment notice',body:'Turant 500 rupaye bhejo',reason:'URGENT_PAYMENT'}),
  Object.freeze({id:'authority-claim',label:'Hindi: fake authority claim',from:'officer@gmail.com',subject:'पुलिस विभाग सूचना',body:'नमस्कार',reason:'AUTHORITY_CLAIM_PUBLIC_MAIL'}),
  Object.freeze({id:'hidden-link',label:'HTML: misleading link destination',from:'billing@example.com',subject:'Invoice notice',body:'Please see below',html_body:'<a href="https://bad.example/collect">https://bank.example/account</a>',reason:'HTML_LINK_DESTINATION_MISMATCH'}),
+ Object.freeze({id:'bare-label',label:'HTML: bank website label hides the real link',from:'billing@example.com',subject:'Statement',body:'See link',html_body:'<a href="https://evil.example/collect">bank.example</a>',reason:'HTML_LINK_DESTINATION_MISMATCH'}),
+ Object.freeze({id:'redirect',label:'Link: cross-domain redirect hidden in URL',from:'alerts@example.com',subject:'Account notice',body:'See link',html_body:'<a href="https://trusted.example/go?next=https%3A%2F%2Fevil.example%2Fpay">Continue</a>',reason:'CROSS_DOMAIN_REDIRECT_PARAMETER'}),
  Object.freeze({id:'safety-advice',label:'Hinglish: safety advice (control)',from:'help@example.com',subject:'Safety reminder',body:'Kisi ko OTP mat bhejna',absent:'SECRET_REQUEST'})
 ]);
 const list=document.getElementById('samples'),answer=document.getElementById('result');

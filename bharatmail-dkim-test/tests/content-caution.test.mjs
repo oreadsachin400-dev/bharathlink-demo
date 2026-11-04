@@ -160,7 +160,7 @@ test('Public demo is synthetic, offline, hash-pinned, and keeps mail inbox isola
  assert.doesNotMatch(demo,/\bfetch\s*\(|\bXMLHttpRequest\b|localStorage|sessionStorage|innerHTML\s*=|<textarea|<input\b|<form\b/);
  assert.doesNotThrow(()=>new Script(script));
 });
-test('All five fictional cases exercise exact caution behavior without verifying identity',()=>{
+test('All seven fictional cases exercise exact caution behavior without verifying identity',()=>{
  const cases=[
   ['help@example.com','केवाईसी अपडेट','अपना ओटीपी भेजो','SECRET_REQUEST'],
   ['help@example.com','Payment notice','Turant 500 rupaye bhejo','URGENT_PAYMENT'],
@@ -262,4 +262,18 @@ test('Scam detector v4 retains CSP/SRI pins on actual inbox and offline demo',()
   assert.ok(page.includes('integrity="sha256-'+sha(engineBytes)+'"'));
   assert.ok(page.includes('&#x27;sha256-'+sha(engineBytes)+'&#x27;'));
  }
+});
+
+test('Offline demo includes both new link-phishing scenarios without accessing the real mailbox',()=>{
+ const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
+ assert.match(demo,/Try 7 fictional email examples/);
+ assert.match(demo,/id:'bare-label'/);
+ assert.match(demo,/id:'redirect'/);
+ assert.match(demo,/reason:'CROSS_DOMAIN_REDIRECT_PARAMETER'/);
+ assert.match(demo,/reason:'HTML_LINK_DESTINATION_MISMATCH'/);
+ assert.doesNotMatch(demo,/\bfetch\s*\(|\bXMLHttpRequest\b|localStorage|sessionStorage|innerHTML\s*=/);
+ const script=demo.match(/<script>([\s\S]*?)<\/script>/)[1];
+ const csp=demo.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+ assert.ok(csp.includes('&#x27;sha256-'+sha(script)+'&#x27;'));
+ assert.doesNotThrow(()=>new Script(script));
 });
