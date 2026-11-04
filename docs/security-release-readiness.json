@@ -113,7 +113,8 @@
     "protected_keyprep_signing_workflow_disabled_while_clearance_pending": true,
     "known_legacy_apk_build_upload_jobs_job_level_disabled": true,
     "mail_sender_auth_must_remain_unverified_until_external_verifier": true,
-    "no_new_edge_deploy_or_db_migration_for_mail_auth": true
+    "no_new_edge_deploy_or_db_migration_for_mail_auth": true,
+    "mail_dkim_offline_test_cannot_authorize_release": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -218,5 +219,25 @@
     "applied_to_live_supabase": false,
     "deploy_authorized": false,
     "next_real_blocker": "Independent real SMTP/DNS receiver verification authority and signed evidence with independently protected P-256 private key"
+  },
+  "mail_dkim_offline": {
+    "date": "2026-11-04",
+    "status": "REAL_RSA2048_DKIM_CRYPTO_WITH_SYNTHETIC_DNS_CI_PASS",
+    "module": "mail-verifier/verify-original-dkim.mjs",
+    "pinned_library": "mailauth@8.0.0",
+    "previous_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41821891666",
+    "synthetic_crypto_tests": 11,
+    "tested_raw_mime_signature_and_tamper_rejection": true,
+    "tested_dns_txt_public_key_replacement": true,
+    "tested_from_domain_strict_alignment": true,
+    "default_trusted_dns_resolver_provided": false,
+    "tested_real_received_email": false,
+    "tested_live_dns": false,
+    "real_spf_result": "not_checked",
+    "real_dmarc_policy_result": "not_checked",
+    "verified_person_or_organization": false,
+    "deployed_to_supabase_or_netlify": false,
+    "status_note": "A synthetic DKIM PASS is domain signature verification only; it is not sender legal identity or full DMARC.",
+    "handover": "docs/BharathMail-DKIM-Offline-Verification-2026-11-04.md"
   }
 }
