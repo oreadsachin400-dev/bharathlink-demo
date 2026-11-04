@@ -51,6 +51,7 @@ jobs:
           grep -Fq 'socket.remoteAddress' loopback-smtp-test-receiver.mjs
           grep -Fq 'BHARATHLINK_OFFLINE_SMTP_LOOPBACK_TEST' loopback-smtp-test-receiver.mjs
           grep -Fq 'external_receiver_audited:false' loopback-smtp-test-receiver.mjs
+          grep -Fq 'production_authorized:false' loopback-smtp-test-receiver.mjs
           grep -Fq 'OFFLINE_SYNTHETIC_ONLY_UNSIGNED' derive-offline-unsigned-auth-report.mjs
           grep -Fq 'production_authorized:false' derive-offline-unsigned-auth-report.mjs
           grep -Fq 'receiver_issuer_audited:false' derive-offline-unsigned-auth-report.mjs
@@ -101,7 +102,12 @@ jobs:
              r.mail_spf_dmarc_offline?.real_user_domain_auth_verified!==false ||
              r.mail_signed_sender_auth_backend?.real_independent_smtp_dns_verifier_connected!==false ||
              r.policy?.mail_sender_auth_must_remain_unverified_until_external_verifier!==true ||
-             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true) {
+             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
+             r.policy?.mail_real_receiver_provenance_still_unverified!==true ||
+             r.mail_loopback_smtp_receiver_evidence?.real_internet_facing_smtp_receiver_connected!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.real_sender_domain_authenticated!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.production_authorized!==false ||
+             r.mail_loopback_smtp_receiver_evidence?.live_supabase_netlify_resend_modified!==false) {
               throw Error('Unapproved release/readiness state');
           }
           console.log('PASS: sender verification and all related live releases remain HOLD');
