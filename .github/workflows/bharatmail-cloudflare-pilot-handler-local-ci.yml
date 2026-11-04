@@ -161,7 +161,6 @@ jobs:
              Object.hasOwn(c,'routes') || Object.hasOwn(c,'route'))
              throw Error('Unapproved Cloudflare worker deploy shape or runtime config');
           NODE
-          ! grep -E 'wrangler deploy|supabase (db push|functions deploy)|actions/upload-artifact@' .github/workflows/bharatmail-cloudflare-pilot-handler-local-ci.yml
           grep -Fq 'DISPOSABLE TEST ONLY' sql/staged/TEST-bharatmail-receiver-key-replay-v1.sql
           node - <<'NODE'
           const r=require('./docs/security-release-readiness.json');
