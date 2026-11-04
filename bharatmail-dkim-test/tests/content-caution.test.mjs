@@ -134,7 +134,7 @@ test('Anti-scam guidance in Hindi, Hinglish and English is not an OTP solicitati
  assert.ok(!codes(r).includes('URGENT_PAYMENT'));
 });
 test('Local-only bilingual analysis never upgrades a sender, bank or payment',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v3-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v4-2026-11-05');
  const source=engineBytes.toString('utf8');
  assert.match(source,/function bilingualSignals\(text,header\)/);
  assert.doesNotMatch(source,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
@@ -210,7 +210,7 @@ test('Amount-specific Hindi/Hinglish money requests are cautiously distinguished
  }
 });
 test('Risk-engine version and CSP/SRI remain mutually pinned in real and offline demo pages',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v3-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v4-2026-11-05');
  const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
  const hash=sha(engineBytes);
  for(const source of [html,demo]){
@@ -226,4 +226,40 @@ test('Threat conditional नहीं तो is not negated payment advice',()=>
  const negated=inspect('a@example.com','Reminder','₹500 भेजो नहीं');
  assert.ok(!codes(negated).includes('PAYMENT_SOLICITATION'));
  assert.equal(urgent.isVerified,false);assert.equal(urgent.isFakeProven,false);
+});
+
+test('HTML link text with bare hostname is checked against actual destination',()=>{
+ for(const [html_body,flagged] of [
+  ['<a href="https://evil.example/collect">bank.example</a>',true],
+  ['<a href="https://evil.example/collect">www.bank.example</a>',true],
+  ['<a href="https://bank.example/login">bank.example</a>',false],
+  ['<a href="https://bank.example/login">https://www.bank.example/</a>',false],
+  ['<a href="https://bank.example/">Visit our services</a>',false]
+ ]){
+  const r=inspect('billing@example.com','Invoice','See link',{html_body});
+  assert.equal(codes(r).includes('HTML_LINK_DESTINATION_MISMATCH'),flagged,html_body);
+  assert.equal(r.isVerified,false);assert.equal(r.isFakeProven,false);
+ }
+});
+test('Redirect query parameters flag cross-domain and unsafe destinations, but never fetch them',()=>{
+ const fixtures=[
+  ['<a href="https://trusted.example/go?next=https%3A%2F%2Fevil.example%2Fpay">Continue</a>','CROSS_DOMAIN_REDIRECT_PARAMETER',true],
+  ['<a href="https://trusted.example/go?next=https%3A%2F%2Ftrusted.example%2Fhome">Continue</a>','CROSS_DOMAIN_REDIRECT_PARAMETER',false],
+  ['<a href="https://trusted.example/go?url=javascript%3Aalert%281%29">Continue</a>','UNSAFE_REDIRECT_PARAMETER',true]
+ ];
+ for(const [html_body,code,flagged] of fixtures){
+  const r=inspect('billing@example.com','Notice','See link',{html_body});
+  assert.equal(codes(r).includes(code),flagged,html_body);
+  assert.equal(r.isVerified,false);assert.equal(r.identityVerification,'not_verified');
+  assert.equal(r.paymentRequestVerification,'not_verified');
+ }
+ assert.doesNotMatch(engineBytes.toString('utf8'),/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
+});
+test('Scam detector v4 retains CSP/SRI pins on actual inbox and offline demo',()=>{
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v4-2026-11-05');
+ const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
+ for(const page of [html,demo]){
+  assert.ok(page.includes('integrity="sha256-'+sha(engineBytes)+'"'));
+  assert.ok(page.includes('&#x27;sha256-'+sha(engineBytes)+'&#x27;'));
+ }
 });

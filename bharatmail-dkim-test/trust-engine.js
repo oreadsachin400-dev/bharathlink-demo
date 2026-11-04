@@ -11,7 +11,7 @@
   if (root) root.BharatMailTrustEngine = api;
 })(typeof window !== 'undefined' ? window : null, function () {
   'use strict';
-  const VERSION = 'bharathmail-trust-local-v3-2026-11-05';
+  const VERSION = 'bharathmail-trust-local-v4-2026-11-05';
   const MAX_SUBJECT = 300;
   const MAX_BODY = 12000;
   const PUBLIC_INBOX = new Set([
@@ -121,9 +121,20 @@
       return url;
     } catch (_) { return null; }
   }
+  function comparableHost(host) {
+    return String(host || '').toLowerCase().replace(/\.$/, '').replace(/^www\./, '');
+  }
+  const REDIRECT_KEYS = new Set([
+    'url','redirect','redirect_url','redirect_uri','next','continue',
+    'return','return_url','target','dest','destination','to'
+  ]);
   function inspectUrl(value, reasons) {
     const raw = decodeHtmlEntities(value.trim());
     const low = raw.toLowerCase();
+    if(raw.length>4096) {
+      add(reasons,'INCOMPLETE_LINK_SCAN','medium','This link is too long for the local inspection limit.');
+      return;
+    }
     if (/^(?:javascript|data|file|vbscript|blob):/.test(low)) {
       add(reasons, 'UNSAFE_HTML_LINK', 'high', 'An HTML link uses an unsafe or non-web destination scheme.');
       return;
@@ -143,6 +154,25 @@
     }
     if (SHORTENER.has(host)) {
       add(reasons, 'SHORTENED_LINK', 'medium', 'A shortened link hides the destination until opened.');
+    }
+    // Never follow, download or DNS-resolve URLs from an email. Legitimate
+    // redirects also exist; this is caution, not a fraud determination.
+    let count=0;
+    for(const [key,value] of url.searchParams){
+      if(++count>32){
+        add(reasons,'INCOMPLETE_LINK_SCAN','medium','Some URL parameters were not inspected.');
+        break;
+      }
+      if(!REDIRECT_KEYS.has(key.toLowerCase()))continue;
+      const dest=decodeHtmlEntities(value.trim());
+      if(/^(?:javascript|data|file|vbscript|blob):/i.test(dest)){
+        add(reasons,'UNSAFE_REDIRECT_PARAMETER','high','A redirect parameter references a non-web URL scheme.');
+        continue;
+      }
+      const next=parsedWebUrl(dest);
+      if(next && comparableHost(next.hostname)!==comparableHost(host))
+        add(reasons,'CROSS_DOMAIN_REDIRECT_PARAMETER','medium',
+          'A redirect parameter points to a different domain. Destination not visited.');
     }
   }
   function bilingualSignals(text,header){
@@ -250,11 +280,13 @@
         if (!/^(?:mailto:|tel:|#)/i.test(link.target.trim()))
           inspectUrl(link.target, reasons);
         const visible = extractUrls(link.label)[0];
-        const shown = visible ? parsedWebUrl(visible) : null;
-        const target = parsedWebUrl(decodeHtmlEntities(link.target.trim()));
+        const bareText=decodeHtmlEntities(link.label.trim()).replace(/[),.;!?]+$/g,'');
+        const bareDomain=/^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s]*)?$/i.test(bareText);
+        const shown=visible ? parsedWebUrl(visible) :
+          bareDomain ? parsedWebUrl('https://'+bareText) : null;
+        const target=parsedWebUrl(decodeHtmlEntities(link.target.trim()));
         if (shown && target &&
-          shown.hostname.toLowerCase().replace(/\.$/, '') !==
-          target.hostname.toLowerCase().replace(/\.$/, '')) {
+          comparableHost(shown.hostname) !== comparableHost(target.hostname)) {
           add(reasons, 'HTML_LINK_DESTINATION_MISMATCH', 'high', 'A visible website address points to a different website when opened.');
         }
       }
