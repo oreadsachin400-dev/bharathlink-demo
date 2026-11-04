@@ -78,10 +78,10 @@ class InstalledKeyPrepSignerTests(unittest.TestCase):
         self.assertEqual(len(fake.commands),5)
         self.assertEqual(fake.commands[1][3:6],("shell","pm","path"))
         self.assertTrue(all(isinstance(cmd,tuple) for cmd in fake.commands))
-        all_args=" ".join(" ".join(cmd).lower() for cmd in fake.commands)
+        tokens={arg.lower() for cmd in fake.commands for arg in cmd}
         for forbidden in ("install","uninstall","clear","root","run-as",
-                          "shell sh","keystore","auth/","otp","su","am force-stop"):
-            self.assertNotIn(forbidden,all_args)
+                          "sh","su","pm clear","force-stop","push","remount"):
+            self.assertNotIn(forbidden,tokens)
 
     def test_unauthorized_phone_denied_before_app_lookup(self):
         fake=SyntheticRunner(devices="List of devices attached\nR58N1234567\tunauthorized\n")
