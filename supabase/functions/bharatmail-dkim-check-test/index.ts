@@ -20,7 +20,8 @@ const resp=(status:number,body:unknown)=>new Response(JSON.stringify(body),{
  "access-control-allow-methods":"POST,OPTIONS"}
 });
 function parseAddress(v:unknown):string{
- if(typeof v!=="string"||v.length>320||/[\r\n\0,]/.test(v))reject("invalid_address");
+ if(typeof v!=="string")return reject("invalid_address");
+ if(v.length>320||/[\r\n\0,]/.test(v))return reject("invalid_address");
  let x=v.trim();
  const m=x.match(/^[^<>]*<([^<>]+)>$/);if(m)x=m[1].trim();
  if(!EMAIL.test(x)||x.length>254||x.includes(".."))reject("invalid_address");
@@ -30,10 +31,11 @@ function parseAddress(v:unknown):string{
  return x.toLowerCase();
 }
 async function boundedBytes(res:Response,cap:number):Promise<Uint8Array>{
- if(!res.body)reject("raw_response_missing");
+ const stream=res.body;
+ if(!stream)return reject("raw_response_missing");
  const size=Number(res.headers.get("content-length")||"0");
  if(!Number.isSafeInteger(size)||size<0||size>cap)reject("raw_response_oversized");
- const reader=res.body.getReader();const chunks:Uint8Array[]=[];let count=0;
+ const reader=stream.getReader();const chunks:Uint8Array[]=[];let count=0;
  try{
   for(;;){const {done,value}=await reader.read();if(done)break;
     if(!(value instanceof Uint8Array))reject("invalid_bytes");
@@ -112,7 +114,7 @@ async function fromResend(row:any,key:string):Promise<Uint8Array>{
  const expiration=Date.parse(record.expires_at);
  if(!Number.isFinite(expiration)||expiration<=Date.now()||
     expiration>Date.now()+3600000)reject("expired_raw_capability");
- let url:URL;try{url=new URL(record.download_url)}catch{reject("invalid_raw_capability")}
+ const url:URL=(()=>{try{return new URL(record.download_url)}catch{return reject("invalid_raw_capability")}})();
  const host=url.hostname.toLowerCase();
  // Resend officially documents signed CloudFront raw-email URLs. Never
  // allow arbitrary untrusted host, userinfo, redirect, port or local IP.
