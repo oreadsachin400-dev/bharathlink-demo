@@ -66,7 +66,7 @@ begin
    'mail-b-02','Alice <alice@another.example>',
    'reply+b0000000-0000-4000-8000-000000000002@bharathlink.com',
    'another.example','none','none','none',
-   'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+   'edeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,
    'synthetic-independent-issuer',now(),'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd');
  if r<>'recorded' then raise exception 'legitimate distinct mail denied: %',r; end if;
 end $$;
@@ -109,6 +109,21 @@ begin
    'synthetic-independent-issuer',now(),'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
  if r<>'unknown_inbound_id' then raise exception 'unknown provider ID allowed: %',r; end if;
 end $$;
+
+-- A second otherwise-valid inbound email must never reuse a prior signed nonce.
+do $
+declare replay_blocked boolean := false;
+begin
+  begin
+    perform public.bl_mail_record_auth_attestation_v1(
+      'mail-replay','Replay Test <r@replay.example>',
+      'reply+e0000000-0000-4000-8000-000000000005@bharathlink.com',
+      'replay.example','pass','pass','pass',
+      'edaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+      'synthetic-independent-issuer',now(),'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+  exception when unique_violation then replay_blocked:=true; end;
+  if not replay_blocked then raise exception 'cross-message nonce replay was accepted'; end if;
+end $;
 
 -- Append-only receipt: even service_role cannot rewrite auth evidence.
 do $$
