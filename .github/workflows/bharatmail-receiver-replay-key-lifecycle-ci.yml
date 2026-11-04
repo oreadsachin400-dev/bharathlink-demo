@@ -67,7 +67,7 @@ jobs:
 
   disposable-postgres-receiver-key-replay:
     runs-on: ubuntu-24.04
-    timeout-minutes: 18
+    timeout-minutes: 22
     services:
       postgres:
         image: postgres:17
@@ -89,6 +89,9 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
       - name: Install PostgreSQL client if absent
         shell: bash
         run: |
@@ -114,6 +117,14 @@ jobs:
           set -euo pipefail
           bash -n tests/fixtures/mail-receiver-replay-concurrency.sh
           bash tests/fixtures/mail-receiver-replay-concurrency.sh
+      - name: End-to-end real localhost SMTP to pinned-key Postgres replay and revocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tests/mail-receiver-crypto-postgres-integration.test.mjs
+          node --test tests/mail-receiver-crypto-postgres-integration.test.mjs | tee /tmp/bl-mail-smtp-pg-e2e.log
+          grep -q '# fail 0' /tmp/bl-mail-smtp-pg-e2e.log
+          grep -q '# skipped 0' /tmp/bl-mail-smtp-pg-e2e.log
       - name: Keep all production receiver, key and device release holds
         shell: bash
         run: |
