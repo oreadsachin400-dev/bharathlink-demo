@@ -98,10 +98,43 @@ begin
 
   -- Edge's deterministic report validator enforces strict SPF/DKIM alignment.
   -- SQL additionally refuses syntactically invalid domains and out-of-time receipts.
-  if p_sender_domain !~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$'
-    or right(lower(btrim(p_from_address)),length(p_sender_domain)+1) not in
-       ('@'||p_sender_domain, '@'||p_sender_domain||'>')
-    then return 'from_domain_mismatch'; end if;
+  if p_sender_domain !~ '^[a-z0-9-]+(\.[a-z0-9-]+)+
+  if p_issued_at > now()+interval '30 seconds'
+    or p_issued_at < now()-interval '3 minutes' then return 'expired_attestation'; end if;
+
+  select report_sha256 into old_digest from public.bharatmail_sender_auth_v1
+    where provider_email_id=p_provider_email_id;
+  if found then
+    if old_digest=p_sha256 then return 'duplicate'; end if;
+    return 'conflicting_attestation';
+  end if;
+
+  insert into public.bharatmail_sender_auth_v1 (
+    provider_email_id,external_message_id,recipient_user_id,
+    from_address,recipient_address,sender_domain,
+    spf_result,dkim_result,dmarc_result,verifier_key_id,verifier_issued_at,
+    attestation_nonce,report_sha256
+  ) values (
+    p_provider_email_id,m.id,m.recipient_user_id,
+    p_from_address,p_recipient_address,p_sender_domain,
+    p_spf,p_dkim,p_dmarc,p_kid,p_issued_at,p_nonce,p_sha256
+  );
+  return 'recorded';
+end;
+$$;
+
+revoke all on function public.bl_mail_record_auth_attestation_v1(
+ text,text,text,text,text,text,text,uuid,text,timestamptz,text)
+ from public,anon,authenticated;
+grant execute on function public.bl_mail_record_auth_attestation_v1(
+ text,text,text,text,text,text,text,uuid,text,timestamptz,text)
+ to service_role;
+commit;
+
+    or not (
+      lower(btrim(p_from_address)) like '%@'||p_sender_domain
+      or lower(btrim(p_from_address)) like '%@'||p_sender_domain||'>'
+    ) then return 'from_domain_mismatch'; end if;
   if p_issued_at > now()+interval '30 seconds'
     or p_issued_at < now()-interval '3 minutes' then return 'expired_attestation'; end if;
 
