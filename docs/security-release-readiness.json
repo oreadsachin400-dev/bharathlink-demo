@@ -60,8 +60,8 @@
     {
       "id": "SIGNING_CONTINUITY",
       "status": "BLOCKED",
-      "evidence": "Historical KeyPrep TEST CI debug signer differs across builds; original installed APK signer/private signing key continuity unverified.",
-      "next_action": "Verify installed signer and authorized signing-key custody. Preserve original KeyPrep; do not uninstall, clear or overwrite."
+      "evidence": "Historical KeyPrep TEST CI debug signer differs across builds; original installed APK signer/private signing key continuity unverified. A local opt-in read-only Android audit helper is now implemented and passed 11 mocked CI cases. Its real phone operation has NOT been performed; verified private signing-key custody cannot be established from certificate matching.",
+      "next_action": "On a trusted laptop with the original KeyPrep phone authorized via USB, run scripts/audit_installed_keyprep_signer.py read-only to compare installed v40 public APK certificate with the archived signer. Never install/uninstall/clear keys. Independently verify private signing-key custody and Google Play Protect clearance before any new APK signing."
     },
     {
       "id": "OTP_TEMPLATE_AND_DELIVERY",
@@ -109,7 +109,8 @@
     "phase7a_future_apk_upload_blocked": true,
     "original_keyprep_uninstall_forbidden": true,
     "auth_probe_future_apk_upload_blocked": true,
-    "do_not_repeat_previously_completed_otp_setup_without_failure": true
+    "do_not_repeat_previously_completed_otp_setup_without_failure": true,
+    "protected_keyprep_signing_workflow_disabled_while_clearance_pending": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -132,5 +133,18 @@
       "real E2EE"
     ],
     "private_otp_never_required_in_chat": true
+  },
+  "signing_provenance": {
+    "expected_package": "com.bharathlink.app.test.keypreponly",
+    "archived_version_code": 40,
+    "archived_apk_certificate_sha256": "df835814a04cbf15a1d08e595339d0d9db3fd1b7ba34a1c8ef45c5d422064475",
+    "audit_script": "scripts/audit_installed_keyprep_signer.py",
+    "tests": "tests/test_installed_keyprep_signer_audit.py",
+    "mocked_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41784302917",
+    "real_installed_certificate_status": "NOT_YET_READ_FROM_PHONE",
+    "original_private_signing_key_custody_status": "UNVERIFIED",
+    "protected_github_signing_workflow_status": "JOB_LEVEL_HARD_HOLD_IF_FALSE",
+    "play_protect_disposition": "NO_CLEARANCE_CONFIRMED",
+    "otp_historical_phone_pass_unaffected": true
   }
 }
