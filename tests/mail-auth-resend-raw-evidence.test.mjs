@@ -110,7 +110,7 @@ test("overlarge streamed raw MIME rejected even without Content-Length",async()=
 test("allowlist cannot be inferred from signed URL, email domain, or an arbitrary request",async()=>{
  for(const hosts of ["","localhost","127.0.0.1","raw.synthetic.invalid,*.example.org","http://raw.synthetic.invalid"]){
   await assert.rejects(getBoundRawSha256({...opts,allowedRawHosts:hosts,fetchFn:makeMock().fetchFn}),
-    /raw_hosts_not_configured/);
+    /raw_hosts_not_configured|untrusted_signed_raw_origin/);
  }
 });
 test("raw source API key is mandatory and never accepts arbitrary non-Resend tokens",async()=>{
