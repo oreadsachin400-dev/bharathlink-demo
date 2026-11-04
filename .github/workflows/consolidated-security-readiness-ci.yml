@@ -177,7 +177,6 @@ jobs:
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-ci-bootstrap.sql
           psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
-          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-postgres-smoke.sql
       - name: Edge handler with actual PostgreSQL and synthetic P-256 user
         shell: bash
         run: |
@@ -185,6 +184,11 @@ jobs:
           node --test tests/phase7e-edge-postgres-integrated.test.mjs | tee consolidated-edge-postgres.txt
           grep -q '# fail 0' consolidated-edge-postgres.txt
           grep -q '# skipped 0' consolidated-edge-postgres.txt
+      - name: Independent database challenge and replay smoke after HTTP fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7b-postgres-smoke.sql
       - name: No trust creation by proof-of-possession flow
         shell: bash
         run: |
