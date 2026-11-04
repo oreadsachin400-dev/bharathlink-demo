@@ -1,0 +1,127 @@
+name: BharathLink Phase 7H — Immutable Issuer Pin & Revocation CI (OFFLINE)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7h-issuer-pinning-revocation-ci
+    paths:
+      - 'sql/staged/TEST-recovery-review-immutable-issuer-pin-v3.sql'
+      - 'tests/phase7h-*.mjs'
+      - 'tests/fixtures/phase7h-*.sql'
+      - '.github/workflows/phase7h-issuer-key-pin-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  issuer-pin-source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify issuer immutability and hard nonapproval gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/phase7h-issuer-pinning-contract.test.mjs
+      - name: Verify no deployments and no operational first-device activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fqx 'const FEATURE_RELEASED=false; // deliberately non-configurable from environment' supabase/functions/bl20-candidate-possession/index.ts
+          grep -Fqx 'const APPROVAL_FEATURE_RELEASED = false;' supabase/functions/bl20-device-approval/index.ts
+          grep -Fqx 'const V2_RELEASED=false; // deliberately not overridable via environment' supabase/functions/bl20-device-approval-v2/index.ts
+          grep -Fq 'const RECOVERY_RELEASED = false;' supabase/functions/bl20-recovery-v1/index.ts
+          ! grep -Eq 'supabase (functions deploy|db push)|gradle.*assemble' .github/workflows/phase7h-issuer-key-pin-ci.yml
+          echo 'PASS: no deployment, APK, real issuer, production trust or device activation'
+
+  real-postgres-issuer-pin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7h_ephemeral_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7h_ephemeral_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Install disposable Phase 4-5 candidate and review fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/device-approval-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-sessions.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-possession-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-candidate-fingerprint-v1_1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-challenge-atomic-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase4-recovery-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-issuer-pin-v2.sql
+      - name: Sign with genuine synthetic P-256 issuer using exact DB canonical payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase5-real-signed-recovery-ci.mjs
+      - name: Apply private Phase 7G governance and new Phase 7H issuer pin (CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-first-device-governance-intent-v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-recovery-review-immutable-issuer-pin-v3.sql
+      - name: Consume signed receipt through new v3 with single-use issuer fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/phase7h-concurrent-issuer-pin.mjs
+      - name: Reject issuer key substitution, tampered pin, historical edits and revoked issuer
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7h-pre-governance-denials.sql
+      - name: Race two independent SQL clients to stage a nonapproval intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7g-governance-denials.sql
+          node tests/phase7g-concurrent-intent.mjs
+      - name: Rotate issuer key, auto-veto pending intent, revoke issuer, prohibit reactivation
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7h-rotation-revocation-audit.sql
+      - name: No new trusted users, device records, approved intent or live operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from public.messaging_devices where user_id='99999999-9999-4999-8999-999999999999'" | grep -qx '0'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from bl20_first_device_v1_private.review_intents where state='governance_vetoed'" | grep -qx '1'
+          psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from bl20_issuer_pin_v1_private.receipt_pins" | grep -qx '1'
+          echo 'PASS: immutable issuer receipt pin and auditable veto, ZERO trusted first devices'
