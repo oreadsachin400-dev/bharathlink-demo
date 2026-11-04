@@ -13,6 +13,8 @@ public final class ExternalNavigationPolicyTest {
         String home="https://bharathlink-20-test.netlify.app/";
         internal(home,true);
         internal(home+"mail?query=abc",true);
+        internal(home+"#mail",true); // preserve SPA in-app hash navigation
+        verify(home+"#mail",true,true,false);
         verify(home,true,true,false);
         verify("https://example.com/help",true,true,true);
         verify("https://example.com/help",false,true,false); // iframe
