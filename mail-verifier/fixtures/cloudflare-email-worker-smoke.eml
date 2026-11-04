@@ -1,0 +1,11 @@
+From: "Synthetic Bank" <alerts@bank.example>
+To: test-evidence@mail.test.bharathlink.example
+Reply-To: support@different.example
+Subject: Cloudflare local Email Worker SMTP source-only smoke
+Date: Wed, 04 Nov 2026 12:30:00 +0000
+Message-ID: <blmail-cloudflare-smoke-20261104@bank.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Authentication-Results: attacker.example; spf=pass; dmarc=pass
+
+SYNTHETIC ONLY. Never make payments on the basis of this message.

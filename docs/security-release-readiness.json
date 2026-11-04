@@ -120,7 +120,8 @@
     "mail_receiver_replay_still_test_only": true,
     "mail_html_heuristic_must_not_mark_sender_verified": true,
     "mail_cloudflare_worker_candidate_must_remain_offline": true,
-    "mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review": true
+    "mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review": true,
+    "mail_cloudflare_local_handler_no_deployment_until_isolated_zone_review": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -442,5 +443,43 @@
     "tests": "mail-verifier/tests/cloudflare-email-routing-readonly.test.mjs",
     "handover": "docs/BharathMail-Cloudflare-Email-Worker-2026-11-04.md",
     "next_blocker": "Independent TEST Cloudflare DNS zone & internal email() handler operator authorization without touching Resend MX, then genuine test email evidence and signed issuer-to-backend transport"
+  },
+  "mail_cloudflare_local_email_pilot": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-cloudflare-pilot-handler-local-ci",
+    "status": "REAL_WRANGLER_LOCAL_EMAIL_ENTRYPOINT_AND_OFFLINE_SECURITY_CI_PASS_NOT_DEPLOYED",
+    "ci_url": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41839305792",
+    "ci_jobs_passed": 3,
+    "offline_mail_verifier_and_pilot_node_tests_passed": 86,
+    "existing_mail_and_device_security_tests_passed": 155,
+    "real_local_smtp_to_disposable_postgres_node_tests_passed": 1,
+    "total_node_tests_passed": 242,
+    "concurrent_disposable_postgres_replay_checks": 24,
+    "cloudflare_wrangler_version": "4.157.0",
+    "actual_local_cloudflare_runtime_email_event_invoked": true,
+    "local_synthetic_rfc5322_message_id_included": true,
+    "local_disabled_handler_reject_confirmed": true,
+    "local_email_forward_performed": false,
+    "test_worker_handler_default_disabled": true,
+    "worker_module_default_export_only": true,
+    "worker_local_route_config_has_no_external_routes": true,
+    "explicit_single_test_recipient_and_separate_sink_gating_tested": true,
+    "forward_first_only_in_explicit_synthetic_test_path": true,
+    "raw_hash_redacted_from_logs": true,
+    "real_cloudflare_remote_worker_deployed": false,
+    "real_cloudflare_email_routing_configured": false,
+    "actual_real_internet_smtp_message_received": false,
+    "real_sender_domain_authenticated": false,
+    "real_person_or_organization_verified": false,
+    "real_payment_beneficiary_verified": false,
+    "external_signed_sender_auth_report_generated": false,
+    "existing_resend_mx_or_dns_modified": false,
+    "supabase_netlify_android_modified": false,
+    "production_authorized": false,
+    "worker_source": "mail-verifier/cloudflare-pilot-worker.mjs",
+    "worker_local_config": "mail-verifier/wrangler.local.jsonc",
+    "worker_tests": "mail-verifier/tests/cloudflare-pilot-worker.test.mjs",
+    "handover": "docs/BharathMail-Cloudflare-Local-Email-Pilot-2026-11-04.md",
+    "next_external_blocker": "Verified isolated external Cloudflare test DNS/routing zone and controlled receiving mailbox; user/operator must authorize account setup, real test email flow and subsequent signed evidence architecture"
   }
 }

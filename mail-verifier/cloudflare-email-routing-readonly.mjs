@@ -141,4 +141,6 @@ async function inspectCloudflareEmailRoutingFixture(message,{
     production_authorized:false
   });
 }
-export {inspectCloudflareEmailRoutingFixture,authResults,MAX_RAW_BYTES};
+// Export restricted pure helpers to the Cloudflare email() pilot. Exporting these
+// does NOT authorize a caller to trust header strings or promote sender identity.
+export {inspectCloudflareEmailRoutingFixture,authResults,rawHash,addr,MAX_RAW_BYTES};

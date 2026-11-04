@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/wrangler.json",
+  "name": "blmail-email-worker-local-test-only",
+  "main": "./cloudflare-pilot-worker.mjs",
+  "compatibility_date": "2026-11-04",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "BLMAIL_PILOT_MODE": "DISABLED",
+    "BLMAIL_TEST_RECIPIENT": "test-evidence@mail.test.bharathlink.example",
+    "BLMAIL_TEST_ZONE": "mail.test.bharathlink.example",
+    "BLMAIL_TEST_SINK": "reviewed-sink@receiver.example"
+  }
+}
