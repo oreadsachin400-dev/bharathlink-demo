@@ -139,7 +139,12 @@ jobs:
              r.mail_loopback_smtp_receiver_evidence?.real_internet_facing_smtp_receiver_connected!==false ||
              r.mail_spf_dmarc_offline?.release_authorized!==false ||
              r.policy?.mail_sender_auth_must_remain_unverified_until_external_verifier!==true ||
-             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true) {
+             r.policy?.no_new_edge_deploy_or_db_migration_for_mail_auth!==true ||
+             r.policy?.mail_receiver_replay_still_test_only!==true ||
+             r.mail_receiver_replay_key_lifecycle_offline?.applied_to_live_database!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.real_live_receiver_or_dns_connected!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.production_authorized!==false ||
+             r.mail_receiver_replay_key_lifecycle_offline?.changed_android_apk!==false) {
             throw Error('unsafe mail receiver release configuration');
           }
           console.log('PASS: no live receiver authorization and mail identity trust remains HOLD');
