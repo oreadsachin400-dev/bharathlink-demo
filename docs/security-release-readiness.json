@@ -167,5 +167,24 @@
     "limit": "Only inspected exact known branches/workflows; cannot guarantee unrelated forks or future changes",
     "original_keyprep_installed_signer_verified": false,
     "play_protect_clearance_verified": false
+  },
+  "mail_trust_engine": {
+    "updated": "2026-11-04",
+    "source_status": "IMPLEMENTED_OFFLINE_CI_PASS",
+    "deployed_to_live_test": false,
+    "release_status": "HOLD_PENDING_SERVER_VERIFIED_AUTH",
+    "code": "bharatmail-trust-engine.js",
+    "integrated_ui": "index.html",
+    "offline_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41812067141",
+    "current_webhook_svix_origin_signature": "VERIFIED_IN_READ_ONLY_SOURCE",
+    "sender_domain_spf_dkim_dmarc": "NOT_VERIFIED",
+    "sender_identity": "NOT_VERIFIED",
+    "organization_authority": "NOT_VERIFIED",
+    "payment_request_owner": "NOT_VERIFIED",
+    "inbound_events_authentication_status_default": "unverified",
+    "inbound_route_may_route_unverified": true,
+    "auth_boundary_doc": "docs/BharathMail-Inbound-Auth-Boundary-Audit-2026-11-04.md",
+    "existing_external_from_verified_badge_disabled_in_staged_ui": true,
+    "no_live_migration": true
   }
 }
