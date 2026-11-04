@@ -21,6 +21,26 @@ function allowlist(spec){
       fail("raw_hosts_not_configured");
   return new Set(hosts);
 }
+async function readBytesWithin(response,cap){
+  if(!response.body||typeof response.body.getReader!=="function") fail("missing_response_body");
+  const reader=response.body.getReader();
+  const chunks=[];
+  let size=0;
+  try {
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      if(!(value instanceof Uint8Array))fail("invalid_stream_bytes");
+      size+=value.byteLength;
+      if(size>cap)fail("response_size_exceeded");
+      chunks.push(value);
+    }
+  }catch(e){try{await reader.cancel();}catch{}throw e;}
+  const bytes=new Uint8Array(size);
+  let position=0;
+  for(const chunk of chunks){bytes.set(chunk,position);position+=chunk.byteLength;}
+  return bytes;
+}
 function rawUrl(signedUrl,hosts,now){
   if(typeof signedUrl!=="string"||signedUrl.length>8192)fail("missing_signed_raw");
   let url;
@@ -56,10 +76,13 @@ async function getBoundRawSha256({
   if(!Number.isFinite(apiSize)||apiSize>512000)fail("provider_metadata_too_large");
   let body;
   try {
-    const text=await r.text();
-    if(text.length>512000)fail("provider_metadata_too_large");
-    body=JSON.parse(text);
-  }catch(e){if(e?.message==="provider_metadata_too_large")throw e;fail("invalid_provider_metadata");}
+    const bytes=await readBytesWithin(r,512000);
+    body=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+    bytes.fill(0);
+  }catch(e){
+    if(e?.message==="response_size_exceeded")fail("provider_metadata_too_large");
+    fail("invalid_provider_metadata");
+  }
   if(!body||body.id!==provider_email_id||typeof body.from!=="string"||
       !Array.isArray(body.to)||body.to.length!==1||
       addressPart(body.from)!==trustedFrom||addressPart(body.to[0])!==to)
@@ -80,27 +103,15 @@ async function getBoundRawSha256({
   const advertised=Number(original.headers?.get("content-length")||"0");
   if(!Number.isSafeInteger(advertised)||advertised<0||advertised>MAX_RAW_BYTES)
     fail("raw_size_exceeded");
-  // Consume bounded stream; do not use unbounded arrayBuffer() on attacker mail.
-  if(!original.body||typeof original.body.getReader!=="function")fail("missing_raw_body");
-  const reader=original.body.getReader();
-  let chunks=[],size=0;
-  try{
-    while(true){
-      const part=await reader.read();
-      if(part.done)break;
-      if(!(part.value instanceof Uint8Array))fail("invalid_raw_bytes");
-      size+=part.value.byteLength;
-      if(size>MAX_RAW_BYTES)fail("raw_size_exceeded");
-      chunks.push(part.value);
-    }
-  }catch(e){try{await reader.cancel();}catch{}throw e;}
-  if(size<10)fail("invalid_raw_message");
-  const bytes=new Uint8Array(size);
-  let i=0;for(const c of chunks){bytes.set(c,i);i+=c.length;}
+  // Bound actual bytes as they arrive, even if Content-Length is forged/missing.
+  let bytes;
+  try { bytes=await readBytesWithin(original,MAX_RAW_BYTES); }
+  catch(e){if(e?.message==="response_size_exceeded")fail("raw_size_exceeded");throw e;}
+  if(bytes.byteLength<10)fail("invalid_raw_message");
   // Bytes are hashed exactly as delivered. Do not normalize CRLF, MIME or
   // reinterpret untrusted Authentication-Results as provider-authenticated.
   const digest=hex(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)));
-  bytes.fill(0);chunks=[];
+  bytes.fill(0);
   return Object.freeze({
     provider_email_id,from_address,recipient_address,
     raw_sha256:digest,provenance:"resend-receiving-api-raw-content",
