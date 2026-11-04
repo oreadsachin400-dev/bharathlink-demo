@@ -155,15 +155,19 @@ test("wrong provider ID, recipient or pinned receiver key rejected before any DN
  }),/receiver_invalid_signature/);
  assert.equal(x.calls.length,0);
 });
-test("expired and future signed SMTP receipts blocked without network",async()=>{
- const f=await fixture(await mime(),{received_at:NOW-200,expires_at:NOW-90});
- await assert.rejects(verifySmtpDomainAuthentication(f.raw,{
-  ...f.params,resolveDns:dns().resolver
- }),/receipt_stale/);
- const next=await fixture(await mime(),{received_at:NOW+50,expires_at:NOW+100});
- await assert.rejects(verifySmtpDomainAuthentication(next.raw,{
-  ...next.params,resolveDns:dns().resolver
- }),/receipt_stale/);
+test("expired and future SMTP receipts blocked before DNS",async()=>{
+ const f=await fixture();
+ for(const changes of [
+  {received_at:NOW-200,expires_at:NOW-90},
+  {received_at:NOW+50,expires_at:NOW+100}
+ ]){
+  const altered={...f.envelope,receipt:{...f.envelope.receipt,...changes}};
+  const x=dns();
+  await assert.rejects(verifySmtpDomainAuthentication(f.raw,{
+   ...f.params,receiverEnvelope:altered,resolveDns:x.resolver
+  }),/receipt_stale/);
+  assert.equal(x.calls.length,0);
+ }
 });
 test("DNS timeout and missing authoritative resolver never produce sender-auth pass",async()=>{
  const f=await fixture();
@@ -184,10 +188,13 @@ test("single malformed From header and multiple authors are not promoted",async(
 test("huge MIME and invalid receiver envelope IP are blocked before SPF",async()=>{
  const big=Buffer.alloc(5*1024*1024+1,65);
  await assert.rejects(verifySmtpDomainAuthentication(big,{resolveDns:dns().resolver}),/invalid_raw/);
- const f=await fixture(await mime(),{smtp_client_ip:"unknown.invalid"});
+ const f=await fixture();
+ const altered={...f.envelope,receipt:{...f.envelope.receipt,smtp_client_ip:"unknown.invalid"}};
+ const x=dns();
  await assert.rejects(verifySmtpDomainAuthentication(f.raw,{
-  ...f.params,resolveDns:dns().resolver
+  ...f.params,receiverEnvelope:altered,resolveDns:x.resolver
  }),/smtp_ip/);
+ assert.equal(x.calls.length,0);
 });
 test("signed SMTP receipt doesn't by itself approve a production receiving authority",async()=>{
  const f=await fixture();
