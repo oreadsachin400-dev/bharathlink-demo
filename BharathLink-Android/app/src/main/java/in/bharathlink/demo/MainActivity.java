@@ -43,8 +43,16 @@ public class MainActivity extends Activity {
   s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
   web.setWebViewClient(new WebViewClient(){
    @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){
-    Uri u=request.getUrl(); if("https".equals(u.getScheme()) && "bharathlink-20-test.netlify.app".equals(u.getHost())) return false;
-    try {startActivity(new Intent(Intent.ACTION_VIEW,u));} catch(Exception ignored){} return true;
+    Uri u=request.getUrl();
+    String target=u==null?null:u.toString();
+    if(ExternalNavigationPolicy.isInternalAppUrl(target))return false;
+    if(!ExternalNavigationPolicy.mayOpenExternal(target,request.isForMainFrame(),request.hasGesture()))return true;
+    try {
+      Intent external=new Intent(Intent.ACTION_VIEW,u);
+      external.addCategory(Intent.CATEGORY_BROWSABLE);
+      startActivity(external);
+    }catch(Exception ignored){}
+    return true;
    }
   });
   web.setWebChromeClient(new WebChromeClient(){
