@@ -1893,6 +1893,8 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 .bl-mail-trust-reasons li{margin-bottom:5px}
 .bl-mail-trust-note{margin:10px 0;font-size:12px;opacity:.85}
 .bl-mail-trust-advice{margin:10px 0 4px;font-size:13px;font-weight:650}
+.bl-mail-dkim-preview-btn{margin:8px 0 0;font-size:12px}
+.bl-mail-dkim-preview-btn:disabled{opacity:.65;cursor:wait}
 @media(max-width:520px){.bl-mail-trust-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -11685,6 +11687,53 @@ const Views = {
     const mailEntityHost=h('div',{class:'bl-entity-grid'});
     const senderTrust = window.BharatMailTrustEngine
       ? window.BharatMailTrustEngine.inspect(m) : null;
+    // Owner-scoped, read-only DKIM DOMAIN signature preview.
+    // The backend must independently read original MIME from Resend and
+    // resolve the signing-domain DNS key. It never verifies a person/payment.
+    const domainAuthStatus=h('span',{},m.source==='external'?
+      'SPF/DKIM/DMARC: not checked':'Internal · not applicable');
+    const dkimCheckResult=h('p',{
+      class:'bl-mail-trust-note','role':'status','aria-live':'polite'
+    },'DKIM signature check not run. The visible sender is not verified.');
+    let dkimCheckBusy=false;
+    const dkimCheckButton=m.folder==='inbox'&&m.source==='external' ?
+      h('button',{type:'button',class:'btn bl-mail-dkim-preview-btn',
+        onClick:async()=>{
+          if(dkimCheckBusy)return;
+          if(!Supabase.accessToken){
+            dkimCheckResult.textContent='Sign in to check this email signature.';
+            return;
+          }
+          dkimCheckBusy=true;
+          dkimCheckButton.disabled=true;
+          dkimCheckButton.textContent='Checking domain signature…';
+          try{
+            const check=await Supabase.request('/functions/v1/bl-mail-dkim-preview',{
+              method:'POST',body:JSON.stringify({message_id:m.id})
+            });
+            if(check?.test_preview_only!==true||check?.is_sender_verified!==false||
+               check?.is_safe!==false||check?.sender_identity!=='not_verified')
+              throw Error('Untrusted domain check response');
+            if(check.domain_signature==='cryptographically_checked_strict_dkim_pass' &&
+               check.dkim==='pass' &&
+               typeof check.signing_domain==='string'){
+              domainAuthStatus.textContent='DKIM signature: cryptographically checked for '+check.signing_domain+
+                ' · SPF/DMARC not checked';
+              dkimCheckResult.textContent='Domain signature checked. Sender identity, organization authority, and payment request remain UNVERIFIED.';
+            }else{
+              domainAuthStatus.textContent='DKIM: '+String(check.dkim||'not_checked')+
+                ' · SPF/DMARC not checked';
+              dkimCheckResult.textContent='No qualifying DKIM domain signature established. Sender identity remains UNVERIFIED.';
+            }
+          }catch(_){
+            dkimCheckResult.textContent='Domain signature check unavailable. Sender is NOT independently verified.';
+          }finally{
+            dkimCheckBusy=false;
+            dkimCheckButton.disabled=false;
+            dkimCheckButton.textContent='Check DKIM domain signature (TEST)';
+          }
+        }
+      },'Check DKIM domain signature (TEST)') : null;
     const mailTrustPanel = m.folder==='inbox' ? h('section',{
       class:`bl-mail-trust-panel is-${senderTrust?.status||'unverified'}`,
       'aria-label':'BharathMail sender trust assessment'
@@ -11694,7 +11743,7 @@ const Views = {
         h('span',{class:'bl-mail-trust-status'},senderTrust?.label||'Verification unavailable')
       ),
       h('div',{class:'bl-mail-trust-grid'},
-        h('div',{},h('strong',{},'Domain authentication'),h('span',{},m.source==='external'?'SPF/DKIM/DMARC: not checked':'Internal · not applicable')),
+        h('div',{},h('strong',{},'Domain authentication'),domainAuthStatus),
         h('div',{},h('strong',{},'Sender identity'),h('span',{},'Not independently verified')),
         h('div',{},h('strong',{},'Organization authority'),h('span',{},'Not independently verified')),
         h('div',{},h('strong',{},'Payment request'),h('span',{},'Not independently verified'))
@@ -11702,6 +11751,8 @@ const Views = {
       senderTrust?.reasons?.length ?
         h('ul',{class:'bl-mail-trust-reasons'},...senderTrust.reasons.map(flag=>h('li',{},flag.reason))) :
         h('p',{class:'bl-mail-trust-note'},'No additional local warning signals detected. This does not mean the sender is safe.'),
+      dkimCheckButton,
+      dkimCheckButton ? dkimCheckResult : null,
       h('p',{class:'bl-mail-trust-note'},senderTrust?.limitations||'The sender could not be assessed; identity and safety are unverified.'),
       h('p',{class:'bl-mail-trust-advice'},senderTrust?.advice||'Verify the sender and any payment request independently.'),
       h('small',{},'Local warning signals only · no identity claim, AI verdict or automatic spam action')

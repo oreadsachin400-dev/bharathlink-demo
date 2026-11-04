@@ -121,7 +121,9 @@
     "mail_html_heuristic_must_not_mark_sender_verified": true,
     "mail_cloudflare_worker_candidate_must_remain_offline": true,
     "mail_resend_existing_mx_must_not_be_changed_without_separate_migration_review": true,
-    "mail_cloudflare_local_handler_no_deployment_until_isolated_zone_review": true
+    "mail_cloudflare_local_handler_no_deployment_until_isolated_zone_review": true,
+    "mail_resend_dkim_preview_source_only_no_live_deploy": true,
+    "mail_resend_dkim_domain_signature_not_human_identity": true
   },
   "auth_probe_historical_checkpoint": {
     "date": "2026-11-02",
@@ -481,5 +483,40 @@
     "worker_tests": "mail-verifier/tests/cloudflare-pilot-worker.test.mjs",
     "handover": "docs/BharathMail-Cloudflare-Local-Email-Pilot-2026-11-04.md",
     "next_external_blocker": "Verified isolated external Cloudflare test DNS/routing zone and controlled receiving mailbox; user/operator must authorize account setup, real test email flow and subsequent signed evidence architecture"
+  },
+  "mail_resend_original_mime_dkim_preview": {
+    "checkpoint": "2026-11-04",
+    "branch": "bharathlink-mail-resend-real-dkim-on-demand-preview",
+    "state": "SOURCE_IMPLEMENTED_CI_PASS_PENDING_REAL_RESEND_ORIGINAL_MIME_CHECK",
+    "last_ci": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41842124967",
+    "ci_jobs_passed": 2,
+    "node_tests_passed": 150,
+    "mail_verifier_tests_passed": 97,
+    "ui_and_resend_binding_tests_passed": 53,
+    "deno_edge_compile_passed": true,
+    "live_inbound_records_seen_count": 3,
+    "live_inbound_latest_date": "2026-10-26",
+    "live_inbound_auth_status_all": "unverified",
+    "live_inbound_original_raw_mime_fetched_for_dkim": false,
+    "dns_dkim_live_message_checked": false,
+    "cloudflare_mx_migration_needed_for_dkim_only": false,
+    "source_original_resend_mime_fetch_supported": true,
+    "strict_dkim_from_domain_cryptographic_verifier_ready": true,
+    "rls_owner_scoped_read_only_edge_preview_staged": true,
+    "web_ui_on_demand_dkim_button_staged": true,
+    "real_edge_preview_deployed": false,
+    "live_web_ui_deployed": false,
+    "raw_download_host_allowlist_verified_in_live_environment": false,
+    "operator_enabled_preview_mode": false,
+    "actual_sender_person_verified": false,
+    "organization_authority_verified": false,
+    "payment_destination_verified": false,
+    "spf_dmarc_verified": false,
+    "identity_or_payment_safe_badge_authorized": false,
+    "live_db_or_dns_changed": false,
+    "real_resend_mx_untouched": true,
+    "release_authorized": false,
+    "handover": "docs/BharathMail-Resend-Original-Mime-DKIM-Preview-2026-11-04.md",
+    "next_external_gate": "Securely confirm exact Resend raw URL hostname, current Resend secret and allowed PWA origin, then independently review/test deployment of JWT-scoped Edge preview without altering inbound routing"
   }
 }

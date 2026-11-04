@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "mailauth/lib/dkim/verify": "npm:mailauth@8.0.0/lib/dkim/verify"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false
+  }
+}

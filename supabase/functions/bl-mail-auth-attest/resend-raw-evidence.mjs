@@ -53,7 +53,7 @@ function rawUrl(signedUrl,hosts,now){
   // Redact signed query: never include capability URL in exceptions or logs.
   return url.toString();
 }
-async function getBoundRawSha256({
+async function getBoundRawMime({
   provider_email_id, from_address, recipient_address, apiKey,
   allowedRawHosts, fetchFn=fetch, nowMs=Date.now()
 }){
@@ -115,11 +115,26 @@ async function getBoundRawSha256({
   // Bytes are hashed exactly as delivered. Do not normalize CRLF, MIME or
   // reinterpret untrusted Authentication-Results as provider-authenticated.
   const digest=hex(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)));
-  bytes.fill(0);
+  // Keep MIME bytes solely for the independent server-side DKIM verifier.
+  // Caller must zero them in a finally block, never log or return to client.
   return Object.freeze({
     provider_email_id,from_address,recipient_address,
-    raw_sha256:digest,provenance:"resend-receiving-api-raw-content",
+    raw_sha256:digest,raw_bytes:bytes,
+    provenance:"resend-receiving-api-raw-content",
     spf:"not_checked",dkim:"not_checked",dmarc:"not_checked"
   });
 }
-export {getBoundRawSha256,MAX_RAW_BYTES};
+async function getBoundRawSha256(options) {
+  const bound=await getBoundRawMime(options);
+  try {
+    return Object.freeze({
+      provider_email_id:bound.provider_email_id,
+      from_address:bound.from_address,
+      recipient_address:bound.recipient_address,
+      raw_sha256:bound.raw_sha256,
+      provenance:bound.provenance,
+      spf:"not_checked",dkim:"not_checked",dmarc:"not_checked"
+    });
+  } finally { bound.raw_bytes.fill(0); }
+}
+export {getBoundRawSha256,getBoundRawMime,MAX_RAW_BYTES};
