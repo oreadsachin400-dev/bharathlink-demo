@@ -15,6 +15,9 @@ permissions:
 
 jobs:
   offline-inspector:
+    # SECURITY HOLD: Play Protect warning unresolved and signing continuity unverified.
+    # Historic test APK producer may not run or upload artifacts.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
