@@ -36,6 +36,10 @@ maps the result only to synthetic authentication evidence. Forged
 `Received`, `Return-Path` and `Authentication-Results` fields never supply
 the socket IP or envelope MAIL FROM.
 
+## Verified GitHub Actions CI
+
+[Run #41826760574](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41826760574): **2/2 jobs PASS, 190/190 automated tests PASS** with **zero failures and skips**. This includes **11 real loopback SMTP tests**, **37 existing SPF/DKIM/DMARC and report bridge tests**, and **142 Mail + device/recovery security regression tests**. The integration test explicitly asserts that SPF, DKIM and DMARC all pass using the actual 127.0.0.1 TCP peer IP and synthetic DNS records.
+
 ## CI and scope
 
 The branch's workflow runs real socket tests and the prior offline mail
