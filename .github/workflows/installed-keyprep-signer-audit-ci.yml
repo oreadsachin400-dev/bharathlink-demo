@@ -16,6 +16,7 @@ on:
       - '.github/workflows/phase6-offline-freshprep-android.yml'
       - '.github/workflows/installed-keyprep-signer-audit-ci.yml'
       - 'docs/KeyPrep-Installed-Signer-Local-Audit-2026-11-04.md'
+      - 'docs/Historical-APK-Workflow-Release-HOLD-Audit-2026-11-04.md'
       - 'docs/security-release-readiness.json'
       - 'tests/test_protected_signing_workflow.py'
       - '.github/workflows/keyprep-protected-signing.yml'
