@@ -54,7 +54,7 @@
     {
       "id": "PLAY_PROTECT",
       "status": "BLOCKED",
-      "evidence": "Phase 7A APK was blocked as harmful; appeal submitted but no favorable determination confirmed. Existing Phase7A debug APK is preserved as archived appeal evidence. Its workflow now compiles/tests only and no longer uploads an APK on future runs.",
+      "evidence": "Phase 7A APK was blocked as harmful; appeal submitted but no favorable determination confirmed. Existing Phase7A debug APK is preserved as archived appeal evidence. Its workflow now compiles/tests only and no longer uploads an APK on future runs. The historical standalone Auth Probe workflow is also compile/JUnit-only on its original and consolidation branches (future debug APK upload blocked); existing evidence untouched.",
       "next_action": "Obtain an official classification outcome and safe distribution/security review; do not turn off protection or force install."
     },
     {
@@ -65,9 +65,9 @@
     },
     {
       "id": "OTP_TEMPLATE_AND_DELIVERY",
-      "status": "NOT_VERIFIED",
-      "evidence": "Supabase hosted Magic Link email template and current provider settings not readable via prior connector audit. TEST project is ACTIVE_HEALTHY on a Free organization plan and created 2026-10-14. Supabase restricted new Free projects with default SMTP from customizing Auth email templates starting 2026-06-03; actual Auth custom SMTP/template state remains unverified.",
-      "next_action": "Read-only inspect TEST Authentication > SMTP and Email Templates > Magic Link. If using default SMTP on Free, configure a verified custom SMTP provider or paid tier before changing the template to {{ .Token }}. Verify delivery and rate limits with authorized TEST accounts only; never expose OTP."
+      "status": "HISTORICAL_PHONE_PASS_CURRENT_CONFIG_UNREADABLE",
+      "evidence": "2 Nov 2026 prior phone-session record: Resend custom Auth SMTP setup saved, shared Magic Link/OTP template updated with {{ .Token }} while retaining {{ .ConfirmationURL }}, and standalone Android Auth Probe reportedly received/verified numeric email OTP, authenticated an existing TEST Supabase account and displayed a server account UUID. The repository's earlier 2 Nov handover 'not tested' predates that phone test. GitHub Auth Probe CI #41455968905 separately confirms source compilation/build, NOT physical login. The current hosted Auth template/SMTP settings remain unreadable using available connector actions; historical phone test is not a fresh server-configuration attestation. Auth Probe does not access original KeyPrep or prove account-to-existing-key binding, independent human identity, device approval, or E2EE.",
+      "next_action": "Do not repeat SMTP or email-template setup absent a regression. Preserve the prior Android OTP PASS as a TEST-only historical result. Resume testing only when configuration materially changes or a verified login error appears; prioritize Play Protect clearance and original KeyPrep signer continuity, then real account-to-local-key binding without migrating existing keys."
     },
     {
       "id": "ANDROID_LIVE_CHALLENGE",
@@ -107,6 +107,30 @@
     "no_trust_flag_activation": true,
     "no_release_until_all_external_gates_independently_verified": true,
     "phase7a_future_apk_upload_blocked": true,
-    "original_keyprep_uninstall_forbidden": true
+    "original_keyprep_uninstall_forbidden": true,
+    "auth_probe_future_apk_upload_blocked": true,
+    "do_not_repeat_previously_completed_otp_setup_without_failure": true
+  },
+  "auth_probe_historical_checkpoint": {
+    "date": "2026-11-02",
+    "scope": "BharathLink-20-TEST standalone native Android Auth Probe",
+    "outcome": "HISTORICAL_PHONE_TEST_PASS_NOT_INDEPENDENTLY_REVALIDATED_TODAY",
+    "previously_recorded": [
+      "Resend Auth SMTP saved",
+      "Magic Link OTP template saved with {{ .Token }} and {{ .ConfirmationURL }}",
+      "numeric email OTP verification PASS",
+      "Supabase authenticated existing account PASS",
+      "account UUID received PASS"
+    ],
+    "distinct_github_build_run": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41455968905",
+    "not_proven": [
+      "currently stored hosted SMTP/template settings",
+      "existing KeyPrep account UUID matches authenticated subject",
+      "AndroidKeyStore cross-app key continuity",
+      "independent real identity",
+      "trusted device",
+      "real E2EE"
+    ],
+    "private_otp_never_required_in_chat": true
   }
 }
