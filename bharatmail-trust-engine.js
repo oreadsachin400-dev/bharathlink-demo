@@ -29,6 +29,10 @@
   }
   function sender(raw) {
     const input = safeText(raw, 320).trim();
+    // Reject header injection and ambiguous multiple sender addresses.
+    if (/[\r\n\0]/.test(input) || (input.match(/<[^<>]*>/g)||[]).length>1) {
+      return {address:'',domain:'',displayName:'',valid:false};
+    }
     const bracketed = input.match(/<\s*([^<>]+)\s*>/);
     const address = (bracketed ? bracketed[1] : input).trim().toLowerCase();
     const displayName = bracketed ? input.slice(0, bracketed.index).replace(/["']/g, '').trim() : '';
@@ -74,9 +78,13 @@
     if (external && visibleSender.valid && reply.valid && reply.domain !== visibleSender.domain) {
       add(reasons, 'REPLY_TO_DIFFERS', 'medium', 'The reply address uses a different domain from the visible sender.');
     }
-    const asksForSecret = /\b(?:send|share|tell|provide|give|reply with|enter|submit|forward)\b.{0,45}\b(?:otp|one.time (?:code|password)|verification code|pin|cvv|password|passcode)\b|\b(?:otp|password|pin|cvv)\b.{0,35}\b(?:send|share|forward|provide)\b/i.test(content);
-    const warnsNotToShare = /\b(?:do not|don't|never|avoid|mat|nahi|nahin)\s+(?:\w+\s+){0,3}(?:send|share|provide|give|forward)\b/i.test(content);
-    if (asksForSecret && !warnsNotToShare) {
+    // Evaluate independent clauses, not the whole email: a scammer must not
+    // suppress "send OTP" simply by adding "never share OTP" elsewhere.
+    const asksSecret = /\b(?:send|share|tell|provide|give|reply with|enter|submit|forward)\b.{0,45}\b(?:otp|one.time (?:code|password)|verification code|pin|cvv|password|passcode)\b|\b(?:otp|password|pin|cvv)\b.{0,35}\b(?:send|share|forward|provide)\b/i;
+    const negatedSecret = /\b(?:do not|don't|never|avoid|mat|nahi|nahin)\s+(?:\w+\s+){0,3}(?:send|share|provide|give|forward)\b/i;
+    const asksForSecret = content.split(/[.!?;\n]+/).some(clause =>
+      asksSecret.test(clause) && !negatedSecret.test(clause));
+    if (asksForSecret) {
       add(reasons, 'SECRET_REQUEST', 'high', 'The email appears to ask for a password, OTP, PIN or other secret.');
     }
     const urgency = /\b(?:urgent|immediately|last chance|act now|within \d+ (?:minutes?|hours?)|account (?:blocked|suspended)|final warning|arrest warrant|digital arrest|turant|jaldi|abhi)\b/i.test(content);
