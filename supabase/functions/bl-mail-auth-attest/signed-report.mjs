@@ -67,7 +67,12 @@ function payload(report){
 function unbase64url(v){
   ensure(typeof v==="string"&&/^[A-Za-z0-9_-]+$/.test(v)&&v.length<=1024,"bad_signature_encoding");
   // Browser/Node WebCrypto supported; no third-party decoder dependencies.
-  const raw=atob(v.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-v.length%4)%4));
+  let raw;
+  try {
+    raw=atob(v.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-v.length%4)%4));
+  } catch (_) {
+    throw Error("bad_signature_encoding");
+  }
   return Uint8Array.from(raw,c=>c.charCodeAt(0));
 }
 function hex(bytes){return Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("");}
