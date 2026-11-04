@@ -16,6 +16,9 @@ permissions:
 
 jobs:
   kotlin-v36hf-test:
+    # SECURITY HOLD: Play Protect warning unresolved and signing continuity unverified.
+    # Keep historic steps for reference; do not run APK build or upload.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
