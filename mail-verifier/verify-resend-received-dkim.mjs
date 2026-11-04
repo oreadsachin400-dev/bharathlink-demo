@@ -77,6 +77,18 @@ async function resolveTrustedDkimTxt(name,type,{fetchFn=fetch}={}){
  if(txt.length!==1)bad("dns_missing_or_ambiguous_txt");
  return [[decodeDohTxt(txt[0].data)]];
 }
+/**
+ * @param {{
+ *   provider_email_id?:string,
+ *   from_address?:string,
+ *   recipient_address?:string,
+ *   resendApiKey?:string,
+ *   allowedRawHosts?:string,
+ *   fetchFn?:typeof fetch,
+ *   resolveTxt?:(name:string,type:string)=>Promise<string[][]>,
+ *   now?:Date
+ * }} options
+ */
 async function verifyResendReceivedDkim({
  provider_email_id,from_address,recipient_address,
  resendApiKey,allowedRawHosts,fetchFn=fetch,
