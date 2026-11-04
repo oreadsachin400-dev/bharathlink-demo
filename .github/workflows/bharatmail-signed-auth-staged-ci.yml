@@ -8,6 +8,7 @@ on:
       - 'supabase/functions/bl-mail-auth-attest/**'
       - 'sql/staged/TEST-bharatmail-signed-sender-auth-v1.sql'
       - 'tests/mail-auth-signed-gate.test.mjs'
+      - 'tests/mail-auth-edge-postgres-integrated.test.mjs'
       - 'tests/fixtures/mail-auth-*.sql'
       - '.github/workflows/bharatmail-signed-auth-staged-ci.yml'
       - 'docs/BharathMail-Signed-Authentication-Backend-HOLD-2026-11-04.md'
@@ -109,3 +110,53 @@ jobs:
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/mail-auth-rpc-assertions.sql
           echo "PASS: only synthetic independent issuer data, no real inbox read or mutation"
+
+  signed-edge-real-postgres-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic_mail_auth_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: synthetic_mail_auth_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Fresh synthetic app users, routed mail, and staged RLS receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/mail-auth-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-bharatmail-signed-sender-auth-v1.sql
+      - name: Actual P-256 signed Edge HTTP to PostgreSQL replay/cross-account proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/mail-auth-edge-postgres-integrated.test.mjs | tee /tmp/blmail-auth-integrated.txt
+          grep -q '# fail 0' /tmp/blmail-auth-integrated.txt
+          grep -q '# skipped 0' /tmp/blmail-auth-integrated.txt
+          echo "PASS: signed synthetic issuer + disposable PostgreSQL, no real sender authentication claims"
