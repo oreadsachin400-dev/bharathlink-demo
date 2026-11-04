@@ -104,3 +104,42 @@ test('no warnings still means unverified, never a safe email',()=>{
  assert.match(html,/This does NOT mean safe/);
  assert.match(html,/Attachments unchecked/);
 });
+
+test('Hindi/Hinglish OTP and urgent-payment text plus fake authority claims trigger caution',()=>{
+ const cases=[
+ ['agent@example.com','KYC','Apna OTP bhejo','SECRET_REQUEST'],
+ ['agent@example.com','केवाईसी','अपना ओटीपी भेजो','SECRET_REQUEST'],
+ ['agent@example.com','सूचना','पासवर्ड बताओ','SECRET_REQUEST'],
+ ['agent@example.com','KYC','Turant 500 rupaye bhejo','URGENT_PAYMENT'],
+ ['agent@example.com','सूचना','अभी ₹500 भेजो नहीं तो खाता बंद','URGENT_PAYMENT'],
+ ['help@gmail.com','पुलिस विभाग सूचना','नमस्कार','AUTHORITY_CLAIM_PUBLIC_MAIL'],
+ ['help@gmail.com','Sarkari Bank Notice','hello','AUTHORITY_CLAIM_PUBLIC_MAIL']
+ ];
+ for(const [from,subject,body,reason] of cases){
+  const r=inspect(from,subject,body);
+  assert.ok(codes(r).includes(reason),subject+' / '+body);
+  assert.equal(r.isVerified,false);
+  assert.equal(r.isFakeProven,false);
+  assert.equal(r.domainAuthentication,'not_checked');
+  assert.equal(r.identityVerification,'not_verified');
+ }
+});
+test('Anti-scam guidance in Hindi, Hinglish and English is not an OTP solicitation',()=>{
+ for(const body of ['Kisi ko OTP mat bhejna','किसी को ओटीपी मत भेजो','Never share your OTP.']){
+  const r=inspect('agent@example.com','Safety',body);
+  assert.ok(!codes(r).includes('SECRET_REQUEST'),body);
+  assert.equal(r.isVerified,false);
+ }
+ const r=inspect('agent@example.com','Safety','पैसे मत भेजो।');
+ assert.ok(!codes(r).includes('URGENT_PAYMENT'));
+});
+test('Local-only bilingual analysis never upgrades a sender, bank or payment',()=>{
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v2-2026-11-05');
+ const source=engineBytes.toString('utf8');
+ assert.match(source,/function bilingualSignals\(text,header\)/);
+ assert.doesNotMatch(source,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
+ const r=inspect('help@gmail.com','पुलिस विभाग सूचना','अभी ₹500 भेजो');
+ assert.equal(r.organizationAuthority,'not_verified');
+ assert.equal(r.paymentRequestVerification,'not_verified');
+ assert.equal(r.isFakeProven,false);
+});
