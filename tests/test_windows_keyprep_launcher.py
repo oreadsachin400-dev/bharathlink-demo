@@ -16,7 +16,7 @@ class WindowsKeyPrepLauncherTests(unittest.TestCase):
         cls.lower=cls.body.lower()
 
     def test_only_the_original_read_only_python_auditor_is_invoked(self):
-        self.assertEqual(self.lower.count('"scripts\\audit_installed_keyprep_signer.py"'),2)
+        self.assertEqual(self.lower.count('"scripts\\audit_installed_keyprep_signer.py"'),3)
         self.assertIn('scripts\\check_keyprep_signing.py',self.lower)
         self.assertNotIn("phase7a",self.lower)
 
