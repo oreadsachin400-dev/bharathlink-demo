@@ -11,7 +11,7 @@ const AUDIENCE="bharathlink-mail-auth-v1";
 const ALLOWED=new Set(["pass","fail","none","neutral","softfail","temperror","permerror"]);
 const REPORT_KEYS=[
   "v","aud","kid","provider_email_id","from_address","recipient_address",
-  "sender_domain","spf","spf_domain","dkim","dkim_domain","dmarc",
+  "sender_domain","raw_sha256","spf","spf_domain","dkim","dkim_domain","dmarc",
   "nonce","issued_at","expires_at"
 ];
 const utf8=new TextEncoder();
@@ -41,6 +41,7 @@ function validateReport(r,now=Math.floor(Date.now()/1000)){
   const fromMail=addressPart(r.from_address);
   ensure(simpleMail(r.recipient_address)&&r.recipient_address===r.recipient_address.toLowerCase(),"bad_recipient");
   ensure(validDomain(r.sender_domain)&&r.sender_domain===fromMail.split("@")[1],"from_domain_mismatch");
+  ensure(typeof r.raw_sha256==="string"&&/^[a-f0-9]{64}$/.test(r.raw_sha256),"missing_or_bad_raw_sha256");
   ensure(ALLOWED.has(r.spf)&&ALLOWED.has(r.dkim)&&ALLOWED.has(r.dmarc),"bad_auth_status");
   ensure(typeof r.spf_domain==="string"&&typeof r.dkim_domain==="string","bad_identity_domain");
   ensure(r.spf_domain===""||validDomain(r.spf_domain),"bad_spf_identity");
@@ -95,7 +96,7 @@ async function verifySignedReport(envelope,publicJwk,expectedKid,now=Math.floor(
   return Object.freeze({
     provider_email_id:r.provider_email_id,from_address:r.from_address,
     recipient_address:r.recipient_address,sender_domain:r.sender_domain,
-    spf:r.spf,dkim:r.dkim,dmarc:r.dmarc,
+    raw_sha256:r.raw_sha256,spf:r.spf,dkim:r.dkim,dmarc:r.dmarc,
     nonce:r.nonce,kid:r.kid,issued_at:r.issued_at,report_sha256:digest
   });
 }
