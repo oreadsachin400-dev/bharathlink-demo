@@ -158,7 +158,7 @@
     const amount=/(?:₹\s*[\d,]+(?:\.\d{1,2})?|\b\d[\d,]{0,11}(?:\.\d{1,2})?\s*(?:rs\.?|inr|rupees?|rupaye|rupiya|rupiye|रुपये|रुपए|रुपया)\b)/iu;
     const sendVerb=/(?:\b(?:send|bhejo|bhejna|bhej\s*do|chahiye|de\s*do|dena|dijiye|pay|transfer|jama\s*karo)\b|भेजो|भेजें|भेजिए|भेजना|भेज\s*दो|चाहिए|दे\s*दो|दीजिए|भुगतान\s*करो|ट्रांसफर\s*करो)/iu;
     const noPayment=/(?:\b(?:mat|nahi|nahin|don't|do\s*not|never)\b|मत|नहीं)\s+(?:(?:[\p{L}\p{M}\p{N}]+\s+){0,3})(?:bhejo|bhejna|pay|send|transfer|dena|de\s*do|भेजो|भेजें|भेजिए|भेजना|ट्रांसफर\s*करो|भुगतान\s*करो)/iu;
-    const noPaymentAfter=/(?:\b(?:bhejo|bhejna|send|pay|transfer|dena)\s+(?:mat|nahi|nahin)\b|(?:भेजो|भेजना|भेजें|भेजिए|देना)\s+(?:मत|नहीं))/iu;
+    const noPaymentAfter=/(?:\b(?:bhejo|bhejna|send|pay|transfer|dena)\s+(?:mat\b|nahi\b(?!\s+to\b)|nahin\b(?!\s+to\b))|(?:भेजो|भेजना|भेजें|भेजिए|देना)\s+(?:मत|नहीं(?!\s+तो)))/iu;
     const urgent=/(?:\b(?:turant|jaldi|abhi|fauran|aaj\s*hi|khata\s*band)\b|तुरंत|फ़ौरन|जल्दी|अभी|आज\s*ही|अंतिम\s*चेतावनी|डिजिटल\s*अरेस्ट|खाता\s*बंद)/iu.test(content);
     // Preserve comma-separated thousands and decimal amounts in the same clause.
     const parts=content.split(/[!?;\n।]+|,(?!\d)|\.(?!\d)/u);

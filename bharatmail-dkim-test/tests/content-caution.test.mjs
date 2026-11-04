@@ -134,7 +134,7 @@ test('Anti-scam guidance in Hindi, Hinglish and English is not an OTP solicitati
  assert.ok(!codes(r).includes('URGENT_PAYMENT'));
 });
 test('Local-only bilingual analysis never upgrades a sender, bank or payment',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v2-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v3-2026-11-05');
  const source=engineBytes.toString('utf8');
  assert.match(source,/function bilingualSignals\(text,header\)/);
  assert.doesNotMatch(source,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
@@ -189,7 +189,8 @@ test('Amount-specific Hindi/Hinglish money requests are cautiously distinguished
   ['₹500 bhejo','PAYMENT_SOLICITATION'],
   ['50,000 rupaye bhejo','PAYMENT_SOLICITATION'],
   ['अभी ₹50,000 भेजो','URGENT_PAYMENT'],
-  ['Turant 500 rs send karo','URGENT_PAYMENT']
+  ['Turant 500 rs send karo','URGENT_PAYMENT'],
+  ['अभी ₹500 भेजो नहीं तो खाता बंद','URGENT_PAYMENT']
  ];
  for(const [body,reason] of positive){
   const r=inspect('someone@example.com','Payment notice',body);
@@ -217,4 +218,12 @@ test('Risk-engine version and CSP/SRI remain mutually pinned in real and offline
   assert.ok(source.includes('&#x27;sha256-'+hash+'&#x27;'));
  }
  assert.doesNotMatch(engineBytes.toString('utf8'),/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
+});
+
+test('Threat conditional नहीं तो is not negated payment advice',()=>{
+ const urgent=inspect('a@example.com','Notice','अभी ₹500 भेजो नहीं तो खाता बंद');
+ assert.ok(codes(urgent).includes('URGENT_PAYMENT'));
+ const negated=inspect('a@example.com','Reminder','₹500 भेजो नहीं');
+ assert.ok(!codes(negated).includes('PAYMENT_SOLICITATION'));
+ assert.equal(urgent.isVerified,false);assert.equal(urgent.isFakeProven,false);
 });
