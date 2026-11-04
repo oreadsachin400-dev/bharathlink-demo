@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; style-src &#x27;sha256-BCF3Jko9mUeaR+ycl5ksfuRo/yAv+d767mn2NRAuwPg=&#x27;; script-src &#x27;sha256-nJrTLbGNWfdK+SLtMQD3Ze9CkG2QlyoLRDjyGlxYiQ8=&#x27; &#x27;sha256-0GPSu1cAYhHXZi2o21WZzcYL/rBr1nIrd+hLYS10wXk=&#x27;">
+<title>BharathMail | Offline Scam Warning Demo</title><style>:root{color-scheme:light;--navy:#192966;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--warn:#805500}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Arial,sans-serif}
+main{max-width:650px;margin:0 auto;padding:0 14px 38px}
+header{background:var(--navy);color:white;border-radius:0 0 16px 16px;padding:24px 20px}header strong{display:block;font-size:21px}
+section{background:white;border:1px solid var(--line);padding:18px;border-radius:16px;margin-top:16px}
+h1{font-size:1.15rem;margin:0 0 8px}h2{font-size:1.03rem;margin:6px 0}
+p{margin:8px 0 14px}.sub{font-size:.88rem;color:#4e5971}.samples{display:grid;grid-template-columns:1fr;gap:9px;margin:14px 0}
+button{width:100%;text-align:left;background:white;color:var(--navy);border:1px solid var(--navy);border-radius:12px;font:650 16px/1.3 system-ui,Arial,sans-serif;padding:15px 16px;min-height:48px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid #d59f25;outline-offset:3px}
+.output{border:1px solid var(--line);border-radius:12px;background:#f5f6fb;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:110px}
+.output.warn{background:#fff4dd;color:var(--warn)}.note{border-left:4px solid #d59f25;background:#fff8e8;padding:12px;border-radius:8px}a{color:var(--navy)}
+</style></head><body>
+<main><header><strong>BharathMail Security</strong><span>Offline scam warning DEMO • TEST only</span></header>
+<section><h1>Try 5 fictional email examples</h1>
+<p class="note"><b>SIMULATION ONLY:</b> These are invented messages, not your inbox. No login, email sending, external lookup, or email-content upload. No actual sender, authority, payment or message is verified.</p>
+<p class="sub">Choose an example to see what the current limited Hindi/Hinglish and link-warning rules detect. A warning is not proof of fraud, and no warning does not mean safe.</p>
+<div id="samples" class="samples" aria-label="Fictional test examples"></div>
+<div id="result" class="output" role="status" aria-live="polite">Select a fictional sample to inspect locally. Sender identity is NOT VERIFIED.</div>
+</section>
+<section><h2>What this does not check</h2><p class="sub">Real email messages, SPF, DKIM, DMARC, legal identity, payment account ownership, actual link safety, attachments and malware are not examined in this demo.</p>
+<a href="./">Return to BharathMail Security TEST</a></section>
+</main><script src="./trust-engine.js" integrity="sha256-0GPSu1cAYhHXZi2o21WZzcYL/rBr1nIrd+hLYS10wXk=" crossorigin="anonymous"></script>
+<script>(()=>{'use strict';
+const SAMPLE=Object.freeze([
+ Object.freeze({id:'hindi-otp',label:'Hindi: OTP request',from:'help@example.com',subject:'केवाईसी अपडेट',body:'अपना ओटीपी भेजो',reason:'SECRET_REQUEST'}),
+ Object.freeze({id:'hinglish-pay',label:'Hinglish: urgent payment',from:'help@example.com',subject:'Payment notice',body:'Turant 500 rupaye bhejo',reason:'URGENT_PAYMENT'}),
+ Object.freeze({id:'authority-claim',label:'Hindi: fake authority claim',from:'officer@gmail.com',subject:'पुलिस विभाग सूचना',body:'नमस्कार',reason:'AUTHORITY_CLAIM_PUBLIC_MAIL'}),
+ Object.freeze({id:'hidden-link',label:'HTML: misleading link destination',from:'billing@example.com',subject:'Invoice notice',body:'Please see below',html_body:'<a href="https://bad.example/collect">https://bank.example/account</a>',reason:'HTML_LINK_DESTINATION_MISMATCH'}),
+ Object.freeze({id:'safety-advice',label:'Hinglish: safety advice (control)',from:'help@example.com',subject:'Safety reminder',body:'Kisi ko OTP mat bhejna',absent:'SECRET_REQUEST'})
+]);
+const list=document.getElementById('samples'),answer=document.getElementById('result');
+function inspectExample(example){
+ answer.className='output';
+ try{
+  const engine=window.BharatMailTrustEngine;
+  if(!engine||typeof engine.inspect!=='function')throw Error('Local scanner unavailable.');
+  const found=engine.inspect({source:'external',from:example.from,subject:example.subject,body:example.body,html_body:example.html_body});
+  if(!found||found.isVerified!==false||found.isFakeProven!==false||
+    found.domainAuthentication!=='not_checked'||found.identityVerification!=='not_verified'||
+    found.organizationAuthority!=='not_verified'||found.paymentRequestVerification!=='not_verified')
+   throw Error('Untrusted result; identity verification is unavailable.');
+  const codes=found.reasons.map(x=>x.code);
+  const asExpected=example.reason?codes.includes(example.reason):!codes.includes(example.absent);
+  const explanation=found.reasons.map(x=>x.reason).slice(0,5).join(' ');
+  const summary=example.reason?
+    (asExpected?'DEMO CAUTION DETECTED. ':'DEMO PATTERN NOT DETECTED. '):
+    (asExpected?'No OTP solicitation warning for this safety reminder. ':'Unexpected warning on safety reminder. ');
+  answer.textContent=
+    'FICTIONAL SAMPLE ONLY: '+example.label+'\n'+summary+
+    (explanation||'No caution signals from the limited rule set.')+
+    '\nNOT VERIFIED: sender identity, organization, and payment. '+
+    'These rules do not prove fraud or safety; attachments and real emails are not inspected here.';
+  if(found.reasons.length)answer.className='output warn';
+ }catch(e){
+  answer.className='output warn';
+  answer.textContent='DEMO UNAVAILABLE. '+(e instanceof Error?e.message:'Scanner error.')+
+  ' No identity or email is verified.';
+ }
+}
+for(const sample of SAMPLE){
+ const btn=document.createElement('button');btn.type='button';
+ btn.textContent=sample.label;btn.setAttribute('aria-controls','result');
+ btn.addEventListener('click',()=>inspectExample(sample));
+ list.appendChild(btn);
+}
+})();</script></body></html>

@@ -143,3 +143,41 @@ test('Local-only bilingual analysis never upgrades a sender, bank or payment',()
  assert.equal(r.paymentRequestVerification,'not_verified');
  assert.equal(r.isFakeProven,false);
 });
+
+test('Public demo is synthetic, offline, hash-pinned, and keeps mail inbox isolated',()=>{
+ const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
+ const script=demo.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+ const style=demo.match(/<style>([\s\S]*?)<\/style>/)?.[1];
+ const csp=demo.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1];
+ assert.ok(script && style && csp);
+ assert.ok(csp.includes('default-src &#x27;none&#x27;'));
+ assert.ok(csp.includes('script-src &#x27;sha256-'+sha(script)+'&#x27;'));
+ assert.ok(csp.includes('&#x27;sha256-'+sha(engineBytes)+'&#x27;'));
+ assert.ok(csp.includes('style-src &#x27;sha256-'+sha(style)+'&#x27;'));
+ assert.ok(demo.includes('integrity="sha256-'+sha(engineBytes)+'"'));
+ assert.match(demo,/SIMULATION ONLY/);
+ assert.match(html,/href="\.\/scam-demo\.html" rel="noreferrer"/);
+ assert.doesNotMatch(demo,/\bfetch\s*\(|\bXMLHttpRequest\b|localStorage|sessionStorage|innerHTML\s*=|<textarea|<input\b|<form\b/);
+ assert.doesNotThrow(()=>new Script(script));
+});
+test('All five fictional cases exercise exact caution behavior without verifying identity',()=>{
+ const cases=[
+  ['help@example.com','केवाईसी अपडेट','अपना ओटीपी भेजो','SECRET_REQUEST'],
+  ['help@example.com','Payment notice','Turant 500 rupaye bhejo','URGENT_PAYMENT'],
+  ['officer@gmail.com','पुलिस विभाग सूचना','नमस्कार','AUTHORITY_CLAIM_PUBLIC_MAIL']
+ ];
+ for(const [from,subject,body,reason] of cases){
+  const r=inspect(from,subject,body);
+  assert.ok(codes(r).includes(reason),body);
+  assert.equal(r.isVerified,false);
+  assert.equal(r.isFakeProven,false);
+  assert.equal(r.identityVerification,'not_verified');
+ }
+ const link=inspect('billing@example.com','Invoice notice','Please see below',{
+  html_body:'<a href="https://bad.example/collect">https://bank.example/account</a>'
+ });
+ assert.ok(codes(link).includes('HTML_LINK_DESTINATION_MISMATCH'));
+ const advice=inspect('help@example.com','Safety reminder','Kisi ko OTP mat bhejna');
+ assert.ok(!codes(advice).includes('SECRET_REQUEST'));
+ assert.equal(advice.isVerified,false);
+});
