@@ -13,7 +13,7 @@ const REPORT_URL="https://mail-auth.synthetic.invalid";
 const SERVICE="only-disposable-synthetic-service-token";
 const KID="independent-smtp-audit-key-v1";
 const NOW=Math.floor(Date.now()/1000);
-globalThis.crypto=webcrypto;
+// Node 22 provides read-only globalThis.crypto; do not overwrite it.
 
 function report(overrides={}){
  return {
