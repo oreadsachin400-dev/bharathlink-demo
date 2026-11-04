@@ -146,6 +146,7 @@ test("socket-evidenced email reaches SPF DKIM DMARC and only UNSIGNED report sch
  const v=await verifySmtpDomainAuthentication(x.rawMime,{
   ...options(x),resolveDns:d.resolveDns
  });
+ assert.equal(v.spf,"pass",JSON.stringify(v));
  assert.equal(v.dkim,"pass",JSON.stringify(v));
  assert.equal(v.dmarc,"pass",JSON.stringify(v));
  assert.equal(v.status,"synthetic_domain_authenticated_only");
