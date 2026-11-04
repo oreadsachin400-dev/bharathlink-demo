@@ -146,7 +146,11 @@
     "original_private_signing_key_custody_status": "UNVERIFIED",
     "protected_github_signing_workflow_status": "JOB_LEVEL_HARD_HOLD_IF_FALSE",
     "play_protect_disposition": "NO_CLEARANCE_CONFIRMED",
-    "otp_historical_phone_pass_unaffected": true
+    "otp_historical_phone_pass_unaffected": true,
+    "windows_local_launcher": "KeyPrep-Signer-Check-Windows.cmd",
+    "windows_operator_guide": "docs/KeyPrep-Windows-ReadOnly-Check-2026-11-04.md",
+    "windows_launcher_CI": "https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/41786533126",
+    "windows_launcher_gate": "31/31 synthetic and policy tests, 2/2 CI jobs. Windows no-phone test blocked; no live phone certificate measured."
   },
   "historical_apk_distribution_hold": {
     "date": "2026-11-04",
