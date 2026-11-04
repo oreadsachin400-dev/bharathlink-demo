@@ -345,12 +345,16 @@ export default {
      original_mime_stream:"provider_response_unavailable",
      dkim_crypto:"dns_resolver_unavailable"
    };
-   if(!Object.hasOwn(classifications,code)) console.warn("BLMAIL_DKIM_TEST_UNEXPECTED_PHASE:"+stage);
+   // Fixed allowlisted category only. Never log the exception text or any mail data.
+   const diagnostic=Object.hasOwn(classifications,code)
+     ?classifications[code]
+     :(fallbackByStage[stage]||"unclassified_server_failure");
+   console.warn("BLMAIL_DKIM_TEST_FAILURE_CATEGORY:"+diagnostic);
    return resp(422,{check:"real_resend_original_mime",domain_dkim:"not_checked",
     sender_identity:"not_verified",verified_sender_badge:false,
     spf:"not_checked",dmarc:"not_checked",
     error:"evidence_or_validation_unavailable",
-    diagnostic_reason:classifications[code]||fallbackByStage[stage]||"unclassified_server_failure"});
+    diagnostic_reason:diagnostic});
   }finally{raw?.fill(0)}
  }
 };
