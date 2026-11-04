@@ -11,7 +11,9 @@ import {dkimVerify} from "npm:mailauth@8.0.0/lib/dkim/verify";
 const TEST_REF="fsdusofbpwdrdvgexxyw";
 const MAX_RAW=5*1024*1024;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const EMAIL=/^[a-z0-9.!#$%&'*+/=?^`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
+// RFC 5322 atext includes underscore. BharathLink's own virtual
+// mailbox localparts use it; rejecting _ blocked all 6 existing TEST mails.
+const EMAIL=/^[a-z0-9.!#$%&'*+/=?^`{|}~_-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
 const DOMAIN=/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 const reject=(code:string):never=>{throw Error(code)};
 const resp=(status:number,body:unknown)=>new Response(status===204?null:JSON.stringify(body),{
