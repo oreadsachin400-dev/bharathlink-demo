@@ -78,6 +78,8 @@ test('TEST inbox only invokes JWT-backed provider metadata gateway after explici
  assert.match(html,/evidence\.items\.length>20/);
  assert.match(html,/window\.BharatMailAttachmentMetadata\.scan\(evidence\.items\)/);
  assert.match(html,/INCOMPLETE provider metadata/);
+ assert.match(html,/No metadata warning proves a file is safe to open/);
+ assert.doesNotMatch(html,/No result means safe to open/);
  assert.doesNotMatch(html,/\/rest\/v1\/bharatmail_external_attachments\?select=/);
  assert.doesNotMatch(html,/select=[^'"\n]*(?:storage_path|provider_attachment_id|key_b64|iv_b64)/);
  assert.doesNotMatch(code,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-PRDpsd2VyTYJUO3MoQbjIainr76Z/DP4cBOmMDSHXIE=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-575m9JaYlqVf619fVrM+93SdnwJCzv2TEgF3CjI57gs=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -294,7 +294,7 @@ function makeMail(row){
       'PROVIDER ATTACHMENT METADATA ONLY: '+risk.metadataEntriesInspected+' record(s) checked.'+
       (partial?' INCOMPLETE provider metadata; not all attachments may be represented.':'')+
       (notes?' CAUTION: '+notes:' No warning signals in available metadata.')+
-      ' File bytes, malware, sender, organization and payment NOT VERIFIED. No result means safe to open.';
+      ' File bytes, malware, sender, organization and payment NOT VERIFIED. No metadata warning proves a file is safe to open.';
    }
   }catch(_){
    attachmentStatus.className='result warn';
