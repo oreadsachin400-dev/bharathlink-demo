@@ -80,9 +80,7 @@ test('tampering every bound account/device/evidence field invalidates witness si
  for(const name of names){
    await blocked('INVALID_WITNESS_SIGNATURE',x=>{
      const v=x.statement[name];
-     x.statement[name]=typeof v==='number'?v+1:
-        v.includes('Sha256')?v:v;
-     if(name==='sequence')return;
+     if(name==='sequence'){x.statement.sequence=v+1;return;}
      if(name==='issuerId'){x.statement[name]='another-issuer-synthetic';return;}
      if(name==='observedAt'){x.statement[name]=dt(-10000);return;}
      if(name==='expiresAt'){x.statement[name]=dt(50000);return;}
@@ -127,7 +125,7 @@ test('forged, malformed and wrong key signature fails',async()=>{
     chars[15]=chars[15]==='A'?'B':'A';
     x.signatureBase64Url=chars.join('');
  });
- await blocked('INVALID_WITNESS_SIGNATURE',async()=>{}).catch(()=>{});
+
 });
 test('missing crypto verifier fails, all successful results still non-authorizing',async()=>{
  await blocked('CRYPTO_NOT_AVAILABLE',x=>{x.subtle=null;});
