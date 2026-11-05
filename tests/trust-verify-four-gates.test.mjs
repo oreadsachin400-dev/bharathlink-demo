@@ -49,6 +49,18 @@ test('unauthenticated visitors can view ONLY offline walkthrough, not authentica
   assert.match(view, /HOLD|verdict\.decision/);
 });
 
+test('public preview readable dark theme and four-gate labels are regression guarded', () => {
+  assert.match(html, /\.bl-trust-preview \.section-title\{[\s\S]*?color:#ffffff;/);
+  assert.match(html, /\.bl-trust-preview \.section \.hint\{color:#d3def0\}/);
+  assert.match(html, /\.bl-trust-preview \.kv dt\{[\s\S]*?color:#cfddf4;/);
+  assert.match(html, /\.bl-trust-preview \.kv dd\{[\s\S]*?color:#ffffff;/);
+  assert.match(html, /node\.classList\.add\('bl-trust-preview'\)/);
+  assert.match(html, /KvRow\('WHO'/);
+  assert.match(html, /KvRow\('SAME WHO'/);
+  assert.match(html, /KvRow\('WHERE'/);
+  assert.match(html, /KvRow\('AUTHORITY'/);
+});
+
 test('trust-check home entry and route present', () => {
   assert.match(html, /service\('trust','\/trust-verify'/);
   assert.match(html, /\/trust-verify\$\/.*Views\.trustVerify/);
