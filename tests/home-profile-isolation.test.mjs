@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {Script} from 'node:vm';
 
 const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const A='11111111-1111-4111-8111-111111111111';
@@ -128,4 +129,10 @@ test('Existing photo clearing does not erase encrypted chats, email routing, or 
  assert.doesNotMatch(body,/delete from|rpc\/|storage\/v1\/object/i);
  assert.match(source,/this\.authSubject\(\)/);
  assert.match(source,/Supabase\.restoreTestSession\(\)/);
+});
+
+test('Complete BharatLink browser bundle compiles after account-isolation patch',()=>{
+ const match=source.match(/<script>([\s\S]*?)<\/script>/);
+ assert.ok(match&&match[1].length>100000);
+ assert.doesNotThrow(()=>new Script(match[1],{filename:'bharathlink-root-index-inline.js'}));
 });
