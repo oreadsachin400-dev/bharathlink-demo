@@ -1,0 +1,36 @@
+name: BharathLink Phase 7J — read-only live trust readiness gate (NO DEPLOY)
+
+on:
+  push:
+    branches:
+      - bharathlink-phase7j-trust-readiness-audit-ci
+    paths:
+      - recovery-gate/live-trust-posture.mjs
+      - tests/phase7j-trust-posture.test.mjs
+      - sql/audit/TEST-first-device-trust-posture-READ-ONLY.sql
+      - .github/workflows/phase7j-trust-posture-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-security-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test LIVE posture classifier and staged first-device HOLD
+        run: |
+          set -euo pipefail
+          node --test tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Confirm build cannot change database, Edge, APK, or production
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'supabase (db push|functions deploy)|curl .*POST|gradle.*assemble|upload-artifact' .github/workflows/phase7j-trust-posture-ci.yml
+          grep -Fq 'return frozen(' recovery-gate/live-trust-posture.mjs
+          ! grep -Eq 'deviceEnrollmentAllowed: *true|recoveryAllowed: *true|existingKeysMayBeCleared: *true' recovery-gate/live-trust-posture.mjs
+          echo 'PASS: offline only. No runtime enrollment, issuer insertion, key reset or database DDL.'
