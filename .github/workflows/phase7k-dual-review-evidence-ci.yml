@@ -1,0 +1,38 @@
+name: BharathLink Phase 7K — dual-review signed evidence (OFFLINE ONLY)
+on:
+  push:
+    branches:
+      - bharathlink-phase7k-dual-review-crypto-ci
+    paths:
+      - recovery-gate/dual-review-evidence.mjs
+      - tests/phase7k-dual-review-evidence.test.mjs
+      - .github/workflows/phase7k-dual-review-evidence-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7j-trust-readiness-audit-ci
+    paths:
+      - recovery-gate/dual-review-evidence.mjs
+      - tests/phase7k-dual-review-evidence.test.mjs
+      - .github/workflows/phase7k-dual-review-evidence-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dual-review-synthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run P-256 reviewer proof + all Phase7J and Phase7I contract tests
+        run: |
+          set -euo pipefail
+          node --test tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs tests/independent-review.test.mjs
+      - name: Verify no activation, database or deployment path added
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'deviceApproved:[[:space:]]*true|canActivate:[[:space:]]*true|e2eeReady:[[:space:]]*true' recovery-gate/dual-review-evidence.mjs
+          ! grep -Eq 'supabase (db push|functions deploy)|gradle.*assemble|upload-artifact' recovery-gate/dual-review-evidence.mjs
+          echo 'PASS: synthetic signature verification only, no release or mutation'
