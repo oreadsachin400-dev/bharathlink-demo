@@ -1,9 +1,10 @@
 name: BharatMail TEST local content-risk regression (NO DEPLOY)
 on:
   push:
-    branches: [main]
+    branches: [main, blmail-owner-delete-test-20261105]
     paths:
       - 'bharatmail-dkim-test/**'
+      - 'supabase/sql/bharatmail_owner_received_inbox_delete_v1.sql'
       - 'supabase/functions/bharatmail-attachment-metadata-test/**'
       - 'supabase/functions/bharatmail-attachment-snapshot-test/**'
       - 'supabase/functions/bharatmail-inbound-webhook/**'
