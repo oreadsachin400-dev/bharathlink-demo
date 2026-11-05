@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'bharatmail-dkim-test/**'
+      - 'supabase/sql/bharatmail_owner_received_inbox_delete_v1.sql'
+      - 'supabase/sql/bharatmail_received_delete_stored_file_guard_v1.sql'
       - 'supabase/functions/bharatmail-attachment-metadata-test/**'
       - 'supabase/functions/bharatmail-attachment-snapshot-test/**'
       - 'supabase/functions/bharatmail-inbound-webhook/**'

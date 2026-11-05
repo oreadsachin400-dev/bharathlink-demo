@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-5vmganIFSxBITd5kNQtVhilCLoBcHZpDRyNZBk7pfo0=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-/Hbd8rPPEUlgpe1aSHF+82WdgM4UB8VaKCv7EFptpd0=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -37,6 +37,7 @@ async function request(path,method='GET',data,authorized=false){
  const h={apikey:PUB,Accept:'application/json'};
  if(data!==undefined)h['Content-Type']='application/json';
  if(authorized){if(!token)throw Error('Sign in required.');h.Authorization='Bearer '+token;}
+ if(method==='DELETE')h.Prefer='return=representation';
  let response;
  try{response=await fetch(BASE+path,{method,headers:h,redirect:'error',cache:'no-store',...(data===undefined?{}:{body:JSON.stringify(data)})})}
  catch{throw Error('Connection failed. Please check internet access.');}
@@ -359,6 +360,45 @@ function makeMail(row){
    snapshotStatus.textContent='METADATA NOT SAVED or unavailable under this account. No file downloaded; malware and file safety NOT VERIFIED.';
   }finally{snapshotBtn.disabled=false;}
  });
+ // Explicit owner-only removal from the TEST inbox. NOT complete erasure
+ // from the signed inbound event log, Resend, stored files or backups.
+ const removeBtn=document.createElement('button');removeBtn.type='button';removeBtn.className='alt';
+ removeBtn.textContent='Remove this received TEST email and saved metadata';
+ const removeStatus=document.createElement('div');removeStatus.className='hint';
+ removeStatus.setAttribute('role','status');
+ removeStatus.textContent='No email will be removed without your confirmation. Original provider mail, signed event records, backups and any stored file bytes are outside this removal.';
+ removeBtn.addEventListener('click',async()=>{
+  if(removeBtn.disabled)return;
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(row.id)){
+   removeStatus.textContent='Invalid message identifier; no deletion attempted.';return;
+  }
+  const agreed=window.confirm('Remove this one email from your BharatMail TEST inbox and its saved attachment metadata? This cannot be undone. The original provider email, signed inbound-event record, backups and stored file bytes will NOT be erased.');
+  if(!agreed){removeStatus.textContent='Removal cancelled; no change made.';return;}
+  const typed=window.prompt('Type REMOVE to confirm this one TEST inbox email:', '');
+  if(typed!=='REMOVE'){removeStatus.textContent='Removal cancelled; no change made.';return;}
+  removeBtn.disabled=true;
+  removeStatus.textContent='Checking your signed-in account and requesting deletion of this one received inbox record…';
+  try{
+   const removed=await request(
+     '/rest/v1/bharatmail_external_messages?id=eq.'+encodeURIComponent(row.id)+
+     '&direction=eq.inbound&select=id','DELETE',undefined,true
+   );
+   if(!Array.isArray(removed)||removed.length!==1||removed[0]?.id!==row.id)
+    throw Error('Removal not confirmed');
+   const left=await request(
+     '/rest/v1/bharatmail_received_attachment_snapshots?select=external_message_id&external_message_id=eq.'+
+     encodeURIComponent(row.id),'GET',undefined,true
+   );
+   if(!Array.isArray(left)||left.length!==0)
+    throw Error('Metadata deletion not confirmed');
+   section.remove();
+   setStatus('One received TEST inbox email and its linked metadata were removed. Signed inbound event, original provider mail, backups and file bytes were NOT erased.');
+   try{await listMail();}
+   catch(_){setStatus('TEST inbox row removed. Refresh inbox if the list count is stale; provider and signed events are retained.');}
+  }catch(_){
+   removeStatus.textContent='Removal NOT CONFIRMED. Refresh inbox to check before retrying. Never assume provider copies, signed events, backups or file bytes were erased.';
+  }finally{removeBtn.disabled=false;}
+ });
  const btn=document.createElement('button');btn.type='button';btn.textContent='Check DKIM domain signature';
  const result=document.createElement('div');result.className='result';result.textContent='Sender identity: Not verified';result.setAttribute('role','status');
  btn.addEventListener('click',async()=>{
@@ -402,7 +442,7 @@ function makeMail(row){
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
- section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,snapshotBtn,snapshotStatus,btn,result);return section;
+ section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,snapshotBtn,snapshotStatus,removeBtn,removeStatus,btn,result);return section;
 }
 async function listMail(){
  setStatus('Loading owned TEST inbox…');
