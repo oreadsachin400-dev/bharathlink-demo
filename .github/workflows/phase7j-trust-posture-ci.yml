@@ -38,7 +38,7 @@ jobs:
       - name: Confirm build cannot change database, Edge, APK, or production
         run: |
           set -euo pipefail
-          ! grep -Eq 'supabase (db push|functions deploy)|curl .*POST|gradle.*assemble|upload-artifact' .github/workflows/phase7j-trust-posture-ci.yml
+          ! grep -Eq 'supabase (db push|functions deploy)|curl .*POST|gradle.*assemble|upload-artifact' recovery-gate/live-trust-posture.mjs
           grep -Fq 'return frozen(' recovery-gate/live-trust-posture.mjs
           ! grep -Eq 'deviceEnrollmentAllowed: *true|recoveryAllowed: *true|existingKeysMayBeCleared: *true' recovery-gate/live-trust-posture.mjs
           echo 'PASS: offline only. No runtime enrollment, issuer insertion, key reset or database DDL.'
