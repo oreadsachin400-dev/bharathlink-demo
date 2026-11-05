@@ -1,0 +1,44 @@
+name: BharathLink Phase 7Q — durable witness checkpoint CAS (OFFLINE)
+on:
+  push:
+    branches:
+      - bharathlink-phase7q-witness-durable-cas-ci
+    paths:
+      - recovery-gate/witness-checkpoint-cas.mjs
+      - tests/phase7q-*
+      - tests/helpers/phase7q-*
+      - .github/workflows/phase7q-durable-witness-cas-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7p-witness-checkpoint-consistency-ci
+    paths:
+      - recovery-gate/witness-checkpoint-cas.mjs
+      - tests/phase7q-*
+      - tests/helpers/phase7q-*
+      - .github/workflows/phase7q-durable-witness-cas-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-atomic-witness-store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Node SQLite native support
+        run: |
+          set -euo pipefail
+          node -e "const s=require('node:sqlite');if(typeof s.DatabaseSync!=='function')process.exit(1)"
+      - name: Durable witness CAS, two-process race, and Phase 7I-P regression suite
+        run: |
+          set -euo pipefail
+          node --test tests/phase7q-persistent-witness-cas.test.mjs tests/phase7p-witness-log-consistency.test.mjs tests/phase7o-external-witness.test.mjs tests/phase7n-owner-hash-ingress.test.mjs tests/phase7m-verified-ledger-bridge.test.mjs tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Assert no endpoint, device activation, production or key mutation
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'deviceApproved:[[:space:]]*true|canActivate:[[:space:]]*true|e2eeReady:[[:space:]]*true' recovery-gate/witness-checkpoint-cas.mjs
+          ! grep -Eq 'fetch[(]|INSERT INTO public[.]|UPDATE public[.]|supabase[.]|service_role|removeAllCookies' recovery-gate/witness-checkpoint-cas.mjs
+          echo 'PASS: synthetic SQLite witness persistence only; no Supabase, Netlify or Android modification'
