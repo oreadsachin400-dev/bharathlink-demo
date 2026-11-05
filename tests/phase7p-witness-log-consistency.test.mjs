@@ -102,7 +102,7 @@ test('modified event hash and fabricated final head reject',async()=>{
 test('tampering signed checkpoint metadata with otherwise valid chain invalidates signature',async()=>{
  await blocked('CHECKPOINT_SIGNATURE_INVALID',x=>{x.candidateCheckpoint.expiresAt=at(60000);});
  await blocked('CHECKPOINT_SIGNATURE_INVALID',x=>{x.candidateCheckpoint.issuedAt=at(-5000);});
- await blocked('CHECKPOINT_SIGNATURE_INVALID',x=>{x.candidateCheckpoint.witnessKeyId='another-auditor-key-id';x.trustedAnchor.witnessKeyId='another-auditor-key-id';});
+ await blocked('CHECKPOINT_SIGNATURE_INVALID',x=>{x.candidateCheckpoint.logId='another-valid-audit-log';x.trustedAnchor.logId='another-valid-audit-log';});
 });
 test('expired, future or extra checkpoint fields rejected',async()=>{
  await blocked('INVALID_CHECKPOINT',x=>{x.candidateCheckpoint.expiresAt=at(-1);});
