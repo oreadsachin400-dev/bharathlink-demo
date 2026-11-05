@@ -67,15 +67,18 @@ test('No metadata warning and empty list are still NOT a safe-file conclusion',(
  }
  assert.throws(()=>engine.scan(null));
 });
-test('TEST inbox fetch is owner-triggered, direction-bound, and metadata-column-only',()=>{
+test('TEST inbox only invokes JWT-backed provider metadata gateway after explicit click',()=>{
  assert.match(html,/attachmentBtn\.addEventListener\('click',async\(\)=>\{/);
- assert.match(html,/bharatmail_external_attachments\?select=external_message_id,direction,filename,content_type,size_bytes/);
- assert.match(html,/external_message_id=eq\.'\+\s*encodeURIComponent\(row\.id\)/);
- assert.match(html,/&direction=eq\.inbound&limit=21/);
- assert.match(html,/records\.some\(record=>!record\|\|record\.external_message_id!==row\.id\|\|record\.direction!=='inbound'\)/);
- assert.match(html,/window\.BharatMailAttachmentMetadata\.scan\(records\)/);
- assert.match(html,/request\(ownerQuery,'GET',undefined,true\)/);
- assert.match(html,/request\(query,'GET',undefined,true\)/);
+ assert.match(html,/\/functions\/v1\/bharatmail-attachment-metadata-test/);
+ assert.match(html,/request\(\s*'\/functions\/v1\/bharatmail-attachment-metadata-test','POST',\s*\{message_id:row\.id\},true\s*\)/);
+ assert.match(html,/evidence\.source!=='resend_receiving_attachments_api'/);
+ assert.match(html,/evidence\.files_downloaded!==false/);
+ assert.match(html,/evidence\.malware_scanned!==false/);
+ assert.match(html,/evidence\.verified_sender_badge!==false/);
+ assert.match(html,/evidence\.items\.length>20/);
+ assert.match(html,/window\.BharatMailAttachmentMetadata\.scan\(evidence\.items\)/);
+ assert.match(html,/INCOMPLETE provider metadata/);
+ assert.doesNotMatch(html,/\/rest\/v1\/bharatmail_external_attachments\?select=/);
  assert.doesNotMatch(html,/select=[^'"\n]*(?:storage_path|provider_attachment_id|key_b64|iv_b64)/);
  assert.doesNotMatch(code,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
 });

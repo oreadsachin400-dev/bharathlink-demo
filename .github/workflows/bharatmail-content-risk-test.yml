@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'bharatmail-dkim-test/**'
+      - 'supabase/functions/bharatmail-attachment-metadata-test/**'
       - '.github/workflows/bharatmail-content-risk-test.yml'
   workflow_dispatch:
 permissions:
