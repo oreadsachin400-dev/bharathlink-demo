@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; style-src &#x27;sha256-dICTQ8WJUQy+xMm6TJWM2nu4/zykRh6vERRjiFiX0dE=&#x27;; script-src &#x27;sha256-jq7fodG+yOAmSailw0u+EvZRcxhb0+dQmepY9ZPZugM=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27;">
+<title>BharatMail | Offline Attachment Metadata Demo</title><style>:root{color-scheme:light;--navy:#192966;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--warn:#805500}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Arial,sans-serif}
+main{max-width:650px;margin:0 auto;padding:0 14px 38px}
+header{background:var(--navy);color:white;border-radius:0 0 16px 16px;padding:24px 20px}header strong{display:block;font-size:21px}
+section{background:white;border:1px solid var(--line);padding:18px;border-radius:16px;margin-top:16px}
+h1{font-size:1.15rem;margin:0 0 8px}h2{font-size:1.03rem;margin:6px 0}
+p{margin:8px 0 14px}.sub{font-size:.88rem;color:#4e5971}.samples{display:grid;grid-template-columns:1fr;gap:9px;margin:14px 0}
+button{width:100%;text-align:left;background:white;color:var(--navy);border:1px solid var(--navy);border-radius:12px;font:650 16px/1.3 system-ui,Arial,sans-serif;padding:15px 16px;min-height:48px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid #d59f25;outline-offset:3px}
+.output{border:1px solid var(--line);border-radius:12px;background:#f5f6fb;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:110px}
+.output.warn{background:#fff4dd;color:var(--warn)}.note{border-left:4px solid #d59f25;background:#fff8e8;padding:12px;border-radius:8px}a{color:var(--navy)}</style></head>
+<body><main><header><strong>BharatMail Security TEST</strong><span>Attachment metadata-only demo • no files uploaded</span></header>
+<section><h1>Try 6 fictional attachment examples</h1><p class="note"><b>METADATA ONLY:</b> No actual email attachment is loaded, uploaded, downloaded, opened, scanned for viruses or certified safe.</p>
+<p class="sub">Filename and MIME type can be forged. A warning is not proof of malware, and no warning never proves file safety.</p>
+<div id="samples" class="samples" aria-label="Fictional attachment examples"></div>
+<div id="result" class="output" role="status" aria-live="polite">Select a fictional metadata example. Malware: NOT SCANNED.</div>
+</section><section><h2>Security boundaries</h2><p class="sub">No file bytes, hashes, macros, ZIP contents, download URLs, email addresses, sender authentication, or real attachments are inspected here. This is TEST-only local metadata analysis.</p>
+<a href="./">Return to BharatMail Security TEST</a></section></main>
+<script src="./attachment-metadata.js" integrity="sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=" crossorigin="anonymous"></script>
+<script>(()=>{'use strict';
+const samples=Object.freeze([
+ Object.freeze({label:'Invoice: double extension (.pdf.exe)',files:Object.freeze([{filename:'invoice.pdf.exe',content_type:'application/octet-stream',size_bytes:1128}]),code:'ATTACHMENT_DOUBLE_EXTENSION'}),
+ Object.freeze({label:'Spreadsheet: macro-enabled (.xlsm)',files:Object.freeze([{filename:'budget.xlsm',content_type:'application/vnd.ms-excel.sheet.macroenabled.12',size_bytes:14892}]),code:'ATTACHMENT_ACTIVE_CONTENT'}),
+ Object.freeze({label:'Invoice: filename PDF, declared MIME image/png',files:Object.freeze([{filename:'bill.pdf',content_type:'image/png',size_bytes:750}]),code:'ATTACHMENT_MIME_MISMATCH'}),
+ Object.freeze({label:'File: oversized attachment (over 25 MiB)',files:Object.freeze([{filename:'backup.zip',content_type:'application/zip',size_bytes:30*1024*1024}]),code:'ATTACHMENT_LARGE'}),
+ Object.freeze({label:'Filename: hidden Unicode direction marker',files:Object.freeze([{filename:'invoice\u202eexe.pdf',content_type:'application/pdf',size_bytes:1088}]),code:'ATTACHMENT_FILENAME_OBFUSCATED'}),
+ Object.freeze({label:'Ordinary PDF metadata (control)',files:Object.freeze([{filename:'notes.pdf',content_type:'application/pdf',size_bytes:12000}]),absent:'ATTACHMENT_MIME_MISMATCH'})
+]);
+const list=document.getElementById('samples'),result=document.getElementById('result');
+for(const sample of samples){
+ const btn=document.createElement('button');btn.type='button';
+ btn.textContent=sample.label;
+ btn.addEventListener('click',()=>{
+  result.className='output';
+  try{
+   const engine=window.BharatMailAttachmentMetadata;
+   if(!engine||typeof engine.scan!=='function')throw Error('Local metadata scanner missing.');
+   const scan=engine.scan(sample.files);
+   if(scan.coverage!=='metadata_only'||scan.fileBytesInspected!==false||
+      scan.malwareScanned!==false||scan.isMalwareProven!==false||
+      scan.isAttachmentSafe!==false||scan.senderIdentityVerified!==false)
+    throw Error('Untrusted metadata result.');
+   const expected=sample.code?scan.reasonCodes.includes(sample.code):!scan.reasonCodes.includes(sample.absent);
+   const summary=sample.code?(expected?'DEMO METADATA CAUTION DETECTED. ':'EXPECTED CAUTION NOT DETECTED. '):
+     (expected?'No metadata warning from this limited example. ':'Unexpected warning in this example. ');
+   result.textContent='FICTIONAL METADATA ONLY: '+sample.label+'\n'+summary+
+     (scan.reasons.map(x=>x.reason).join(' ')||'This limited filename/MIME/size sample had no warning signals.')+
+     '\nNo file bytes accessed. Malware: NOT SCANNED. Sender and organization: NOT VERIFIED.'+
+     ' File safety: NOT ESTABLISHED. Metadata may be incorrect or forged.';
+   if(scan.reasons.length)result.className='output warn';
+  }catch(_){
+   result.className='output warn';
+   result.textContent='DEMO UNAVAILABLE. No files or email examined. Safety NOT VERIFIED.';
+  }
+ });
+ list.appendChild(btn);
+}
+})();</script></body></html>

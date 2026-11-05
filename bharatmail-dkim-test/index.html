@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-6+Yd6cVVQxWTk0t3tVy6YcO//dElI442vVrGrDSjWt0=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-V/SxBiPk3tDDqlmvDLOqs2R+HXdatOubp5xzFSlP7Zs=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -15,6 +15,7 @@ button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[
 <main><header><strong>BharathLink Mail</strong><small>Real received-email · DKIM domain signature TEST</small></header>
 <section><div class="notice"><b>TEST ONLY:</b> Checks DKIM and limited exact-domain DMARC, plus local From/Subject cautions. Stored email text/HTML is inspected only after you tap Scan; attachments are never scanned. It does <b>not</b> verify a person, bank, organization, payment or safety.</div></section>
 <section><h2>Try scam-warning examples</h2><p class="hint">Fictional Hindi/Hinglish and misleading-link samples. Offline, no sign-in or real email needed.</p><a href="./scam-demo.html" rel="noreferrer">Open the offline scam-warning demo</a></section>
+<section><h2>Attachment metadata warning demo</h2><p class="hint">Fictional filenames and MIME types only; no file uploaded, downloaded or opened.</p><a href="./attachment-demo.html" rel="noreferrer">Open attachment warning demo</a></section>
 <section id="login"><h1>Sign in to BharathLink-20-TEST</h1><p class="hint">Use the existing TEST-project account, not your separate BharathLink Demo account. Login is sent directly to Supabase HTTPS; tokens are held only in memory on this page.</p>
 <label for="email">TEST account email</label><input type="email" id="email" inputmode="email" autocomplete="username" required>
 <label for="password">Password (or choose email OTP)</label><input type="password" id="password" autocomplete="current-password">
@@ -25,6 +26,7 @@ button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[
 <p id="status" role="status" aria-live="polite"></p>
 <p class="hint foot">On-demand tests may show DKIM and limited DMARC. SPF not checked. Limited content scan is on-demand; attachments unchecked. No warning is proof of safety. Person, organization and payment NOT VERIFIED.</p></main>
 <script src="./trust-engine.js" integrity="sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=" crossorigin="anonymous"></script>
+<script src="./attachment-metadata.js" integrity="sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=" crossorigin="anonymous"></script>
 <script>(()=>{'use strict';
 const BASE='https://fsdusofbpwdrdvgexxyw.supabase.co';
 const PUB='sb_publishable_BMNUqIpIRRyjF2vutvi__w_3BGQQQ7Z';
@@ -240,6 +242,58 @@ function makeMail(row){
       ' Safety and sender identity NOT VERIFIED.';
   }finally{scanBtn.disabled=false;}
  });
+
+ const attachmentBtn=document.createElement('button');attachmentBtn.type='button';attachmentBtn.className='alt';
+ attachmentBtn.textContent='Inspect attachment metadata (no download)';
+ const attachmentStatus=document.createElement('div');attachmentStatus.className='result';
+ attachmentStatus.setAttribute('role','status');
+ attachmentStatus.textContent='Attachment metadata NOT CHECKED. File contents and malware never scanned.';
+ attachmentBtn.addEventListener('click',async()=>{
+  if(attachmentBtn.disabled)return;attachmentBtn.disabled=true;
+  attachmentStatus.className='result';
+  attachmentStatus.textContent='Checking only owner-visible stored attachment filename, MIME and size metadata…';
+  try{
+   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(row.id))
+    throw Error('Invalid email ID.');
+   if(!window.BharatMailAttachmentMetadata||
+      typeof window.BharatMailAttachmentMetadata.scan!=='function')
+    throw Error('Local attachment metadata checker unavailable.');
+   // Verify this inbound email is still visible to the JWT-authenticated
+   // owner before checking its separately RLS-protected attachment metadata.
+   const ownerQuery='/rest/v1/bharatmail_external_messages?select=id,direction,from_address&id=eq.'+
+     encodeURIComponent(row.id)+'&direction=eq.inbound&limit=1';
+   const owned=await request(ownerQuery,'GET',undefined,true);
+   if(!Array.isArray(owned)||owned.length!==1||owned[0]?.id!==row.id||
+      owned[0]?.direction!=='inbound'||owned[0]?.from_address!==row.from_address)
+    throw Error('Email ownership unavailable. No attachment metadata checked.');
+   // Intentionally exclude storage_path, provider_attachment_id, raw file,
+   // signed URLs, encryption keys, or any file-byte access.
+   const query='/rest/v1/bharatmail_external_attachments?select=external_message_id,direction,filename,content_type,size_bytes&external_message_id=eq.'+
+     encodeURIComponent(row.id)+'&direction=eq.inbound&limit=21';
+   const records=await request(query,'GET',undefined,true);
+   if(!Array.isArray(records)||records.length>21||
+     records.some(record=>!record||record.external_message_id!==row.id||record.direction!=='inbound'))
+    throw Error('Attachment metadata binding failed. No safety conclusion.');
+   const result=window.BharatMailAttachmentMetadata.scan(records);
+   if(result?.coverage!=='metadata_only'||result.fileBytesInspected!==false||
+      result.malwareScanned!==false||result.isAttachmentSafe!==false||
+      result.isMalwareProven!==false||result.senderIdentityVerified!==false)
+    throw Error('Untrusted metadata scanner result.');
+   if(records.length===0){
+    attachmentStatus.textContent='No attachment metadata records stored for this email. This does NOT prove that the original email had no attachments. File bytes and malware NOT SCANNED.';
+   }else{
+    const notes=result.reasons.slice(0,7).map(x=>String(x.reason)).join(' ');
+    attachmentStatus.className='result'+(result.reasons.length?' warn':'');
+    attachmentStatus.textContent=
+      'ATTACHMENT METADATA ONLY: '+result.metadataEntriesInspected+' record(s) reviewed.'+
+      (notes?' CAUTION: '+notes:' No metadata warning signals detected.')+
+      ' Metadata can be forged or incomplete. File bytes, malware, sender and payment NOT VERIFIED; not safe to open based on this result.';
+   }
+  }catch(_){
+   attachmentStatus.className='result warn';
+   attachmentStatus.textContent='Attachment metadata could not be verified under this account. No file downloaded. Safety and malware NOT VERIFIED.';
+  }finally{attachmentBtn.disabled=false;}
+ });
  const btn=document.createElement('button');btn.type='button';btn.textContent='Check DKIM domain signature';
  const result=document.createElement('div');result.className='result';result.textContent='Sender identity: Not verified';result.setAttribute('role','status');
  btn.addEventListener('click',async()=>{
@@ -283,7 +337,7 @@ function makeMail(row){
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
- section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,btn,result);return section;
+ section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,btn,result);return section;
 }
 async function listMail(){
  setStatus('Loading owned TEST inbox…');
