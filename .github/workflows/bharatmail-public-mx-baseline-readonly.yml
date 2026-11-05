@@ -1,0 +1,42 @@
+name: BharathMail trusted receiver — read-only public MX baseline (NO DEPLOY)
+
+on:
+  push:
+    branches:
+      - blmail-trusted-receiver-dns-readonly-20261105
+    paths:
+      - 'scripts/bharatmail-public-mx-baseline-readonly.mjs'
+      - 'tests/bharatmail-public-mx-baseline-readonly.test.mjs'
+      - '.github/workflows/bharatmail-public-mx-baseline-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-mx-observation-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Unit tests (only stub DNS responses)
+        run: |
+          set -euo pipefail
+          node --check scripts/bharatmail-public-mx-baseline-readonly.mjs
+          node --test tests/bharatmail-public-mx-baseline-readonly.test.mjs
+      - name: Observe public MX and NS via DNS resolver (NO RECORD CHANGES)
+        run: |
+          set -euo pipefail
+          node scripts/bharatmail-public-mx-baseline-readonly.mjs | tee /tmp/bharatmail-public-dns-baseline.json
+          grep -Fq '"status": "OBSERVED_NOT_AUTHENTICATED"' /tmp/bharatmail-public-dns-baseline.json
+          grep -Fq '"spf": "NOT_CHECKED"' /tmp/bharatmail-public-dns-baseline.json
+          grep -Fq '"change_mx_authorized": false' /tmp/bharatmail-public-dns-baseline.json
+      - name: Confirm production/Android guards unchanged
+        run: |
+          set -euo pipefail
+          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' supabase/functions/bl-mail-auth-attest/index.ts
+          grep -Fq '"release_decision": "HOLD"' docs/security-release-readiness.json
+          ! grep -REn '(wrangler deploy|supabase functions deploy|assembleDebug|upload-artifact|dns record.*create)' scripts/bharatmail-public-mx-baseline-readonly.mjs .github/workflows/bharatmail-public-mx-baseline-readonly.yml
