@@ -32,6 +32,23 @@ test('inline UI JavaScript remains parseable', () => {
     if (code.trim()) new Script(code);
   }
 });
+test('unauthenticated visitors can view ONLY offline walkthrough, not authenticated trust search', () => {
+  assert.match(html, /Button\('Preview Trust Verify \(no login\)'/);
+  assert.match(html, /re: \^\\\/trust-verify-preview/);
+  assert.match(html, /stage: 'public-preview'/);
+  assert.match(html, /route\.stage !== stage && route\.stage !== 'public-preview'/);
+  assert.match(html, /re: \^\\\/trust-verify\$/);
+  assert.match(html, /stage: 'app',\s+view: \(\) => Views\.trustVerify\(\)/);
+  const start = html.indexOf('  trustVerifyPreview() {');
+  const end = html.indexOf('  /* ----- Consumer Trust Verify: read-only, four fail-closed gates ----- */', start);
+  assert.ok(start > 0 && end > start);
+  const view = html.slice(start, end);
+  assert.match(view, /CrossChannelTrust\.assess\('', \[\]\)/);
+  assert.doesNotMatch(view, /EntityDirectory\.|Supabase\.|fetch\(|E2EEBackend\.|Mail\.|Payments\./);
+  assert.match(view, /Offline interface preview only/);
+  assert.match(view, /HOLD|verdict\.decision/);
+});
+
 test('trust-check home entry and route present', () => {
   assert.match(html, /service\('trust','\/trust-verify'/);
   assert.match(html, /\/trust-verify\$\/.*Views\.trustVerify/);
