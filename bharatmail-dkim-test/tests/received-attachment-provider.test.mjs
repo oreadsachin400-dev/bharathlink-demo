@@ -133,7 +133,7 @@ test('Pagination, 21 sentinel, and giant provider-size metadata are marked incom
  ]});
  assert.equal(huge.status,'partial');assert.equal(huge.items[0].size_bytes,null);
 });
-test('Client public configuration, provider key and origin are fixed and no new write endpoints exist',()=>{
+test('Client public configuration, provider key and origin are fixed and no new write endpoints exist',async()=>{
  const m=mock({envOverride:{SUPABASE_URL:'https://another-project.supabase.co'}});
  const r=await m.handler(message());
  assert.equal(r.status,503);
