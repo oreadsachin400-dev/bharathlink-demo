@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-575m9JaYlqVf619fVrM+93SdnwJCzv2TEgF3CjI57gs=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-5vmganIFSxBITd5kNQtVhilCLoBcHZpDRyNZBk7pfo0=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -301,6 +301,64 @@ function makeMail(row){
    attachmentStatus.textContent='Received attachment metadata unavailable or session invalid. No file downloaded. File safety and malware NOT VERIFIED.';
   }finally{attachmentBtn.disabled=false;}
  });
+ const snapshotBtn=document.createElement('button');snapshotBtn.type='button';snapshotBtn.className='alt';
+ snapshotBtn.textContent='Save attachment metadata securely (TEST)';
+ const snapshotStatus=document.createElement('div');snapshotStatus.className='result';
+ snapshotStatus.setAttribute('role','status');
+ snapshotStatus.textContent='Metadata snapshot NOT SAVED. Saves only after you tap, never downloads a file.';
+ snapshotBtn.addEventListener('click',async()=>{
+  if(snapshotBtn.disabled)return;snapshotBtn.disabled=true;
+  snapshotStatus.className='result';
+  snapshotStatus.textContent='Checking owner access and provider metadata before any database save…';
+  try{
+   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(row.id))
+    throw Error('Invalid internal message ID.');
+   if(!window.BharatMailAttachmentMetadata||
+      typeof window.BharatMailAttachmentMetadata.scan!=='function')
+    throw Error('Metadata-only engine missing.');
+   const evidence=await request(
+    '/functions/v1/bharatmail-attachment-snapshot-test','POST',
+    {message_id:row.id},true
+   );
+   if(!evidence||evidence.source!=='resend_receiving_attachments_api'||
+      evidence.coverage!=='metadata_only'||
+      !['metadata_available','no_metadata_from_provider','partial'].includes(evidence.status)||
+      !['saved_snapshot','not_saved'].includes(evidence.persistence)||
+      evidence.files_downloaded!==false||evidence.malware_scanned!==false||
+      evidence.is_file_safe!==false||evidence.is_malware_proven!==false||
+      evidence.sender_identity!=='not_verified'||
+      evidence.organization_authority!=='not_verified'||
+      evidence.verified_sender_badge!==false||
+      typeof evidence.truncated!=='boolean'||!Array.isArray(evidence.items)||
+      evidence.items.length>20||
+      evidence.items.some(x=>!x||typeof x.filename!=='string'||
+        typeof x.content_type!=='string'||
+        !(x.size_bytes===null||Number.isSafeInteger(x.size_bytes))))
+    throw Error('Untrusted snapshot result.');
+   if(evidence.persistence==='saved_snapshot'&&
+      (evidence.status!=='metadata_available'||evidence.truncated||
+       evidence.items.length<1||typeof evidence.captured_at!=='string'))
+    throw Error('Snapshot not independently confirmed.');
+   const risk=window.BharatMailAttachmentMetadata.scan(evidence.items);
+   if(!risk||risk.coverage!=='metadata_only'||risk.fileBytesInspected!==false||
+      risk.malwareScanned!==false||risk.isAttachmentSafe!==false||
+      risk.isMalwareProven!==false||risk.senderIdentityVerified!==false)
+    throw Error('Untrusted metadata warning engine.');
+   const notes=risk.reasons.slice(0,5).map(x=>String(x.reason)).join(' ');
+   const saved=evidence.persistence==='saved_snapshot';
+   snapshotStatus.className='result'+(!saved||risk.reasons.length?' warn':'');
+   snapshotStatus.textContent=
+      (saved?'METADATA SNAPSHOT SAVED: ':'NOT SAVED: ')+risk.metadataEntriesInspected+
+      ' metadata item(s).'+
+      (saved?' Owner-only database copy confirmed; retained until the email is deleted.':
+       ' No durable copy confirmed; provider metadata may be absent, incomplete or storage unavailable.')+
+      (notes?' CAUTION: '+notes:'')+
+      ' Attachment bytes, malware and sender identity NOT VERIFIED. No file was downloaded; no warning proves safety.';
+  }catch(_){
+   snapshotStatus.className='result warn';
+   snapshotStatus.textContent='METADATA NOT SAVED or unavailable under this account. No file downloaded; malware and file safety NOT VERIFIED.';
+  }finally{snapshotBtn.disabled=false;}
+ });
  const btn=document.createElement('button');btn.type='button';btn.textContent='Check DKIM domain signature';
  const result=document.createElement('div');result.className='result';result.textContent='Sender identity: Not verified';result.setAttribute('role','status');
  btn.addEventListener('click',async()=>{
@@ -344,7 +402,7 @@ function makeMail(row){
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
- section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,btn,result);return section;
+ section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,snapshotBtn,snapshotStatus,btn,result);return section;
 }
 async function listMail(){
  setStatus('Loading owned TEST inbox…');
