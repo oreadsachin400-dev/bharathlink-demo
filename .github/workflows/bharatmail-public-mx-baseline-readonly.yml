@@ -42,4 +42,4 @@ jobs:
           grep -Fq 'permissions:' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
           grep -Fq 'contents: read' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
           ! grep -E '(^|[[:space:]])(wrangler[[:space:]]+deploy|supabase[[:space:]]+functions[[:space:]]+deploy|assembleDebug)' scripts/bharatmail-public-mx-baseline-readonly.mjs
-          ! grep -Fq 'uses: actions/upload-artifact' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
+          ! grep -Eq '^[[:space:]]*-[[:space:]]+uses:[[:space:]]+actions/upload-artifact' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
