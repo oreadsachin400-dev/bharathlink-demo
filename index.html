@@ -2119,6 +2119,7 @@ function defaultState() {
     mail: { messages: [], seeded: false },
     payments: { requests: [] },
     profileMedia: {
+      ownerScope: null, // auth:user-id or local:account-id; never share unknown legacy photos
       photoData: null,
       photoUpdatedAt: null,
       status: null // { text, photoData, createdAt, expiresAt }; local MVP foundation
@@ -2139,7 +2140,8 @@ const Store = {
     // Backward-compatible local profile-media slice. Profile photo/status are
     // device-local in this MVP and never create a verification claim.
     if (!this.state.profileMedia || typeof this.state.profileMedia !== 'object')
-      this.state.profileMedia = { photoData: null, photoUpdatedAt: null, status: null };
+      this.state.profileMedia = { ownerScope: null, photoData: null, photoUpdatedAt: null, status: null };
+    if (!Object.prototype.hasOwnProperty.call(this.state.profileMedia, 'ownerScope')) this.state.profileMedia.ownerScope = null;
     if (!Object.prototype.hasOwnProperty.call(this.state.profileMedia, 'photoData')) this.state.profileMedia.photoData = null;
     if (!Object.prototype.hasOwnProperty.call(this.state.profileMedia, 'photoUpdatedAt')) this.state.profileMedia.photoUpdatedAt = null;
     if (!Object.prototype.hasOwnProperty.call(this.state.profileMedia, 'status')) this.state.profileMedia.status = null;
@@ -2163,8 +2165,26 @@ const Store = {
    ===================================================================== */
 const ProfileMedia = {
   STATUS_TTL_MS: 24 * 60 * 60 * 1000,
+  ownerScope() {
+    // A profile photo is *not* a verified identity. It must be associated
+    // with the active auth UID (or the current local-only demo account).
+    if (Supabase.accessToken) {
+      const uid = Supabase.authSubject();
+      return /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(uid)
+        ? 'auth:' + uid : '';
+    }
+    const localId = Store.state?.account?.accountId || Store.state?.account?.id;
+    return localId ? 'local:' + String(localId) : '';
+  },
+  isOwned() {
+    const scope = this.ownerScope();
+    return !!scope && Store.state?.profileMedia?.ownerScope === scope;
+  },
+  ownedPhoto() {
+    return this.isOwned() ? String(Store.state?.profileMedia?.photoData || '') : '';
+  },
   activeStatus() {
-    const st = Store.state?.profileMedia?.status || null;
+    const st = this.isOwned() ? (Store.state?.profileMedia?.status || null) : null;
     return st && Number(st.expiresAt) > Date.now() ? st : null;
   },
   statusTimeLeft() {
@@ -2195,15 +2215,30 @@ const ProfileMedia = {
       return canvas.toDataURL('image/jpeg', quality);
     } finally { URL.revokeObjectURL(url); }
   },
-  setPhoto(data) { Store.update(st => { st.profileMedia.photoData = data || null; st.profileMedia.photoUpdatedAt = data ? Date.now() : null; }); },
-  clearPhoto() { this.setPhoto(null); },
+  setPhoto(data) {
+    const scope = this.ownerScope();
+    if (!scope) throw new Error('Account identity unavailable. Sign in before adding a profile photo.');
+    Store.update(st => {
+      if (st.profileMedia.ownerScope !== scope)
+        st.profileMedia = { ownerScope: scope, photoData: null, photoUpdatedAt: null, status: null };
+      st.profileMedia.photoData = data || null;
+      st.profileMedia.photoUpdatedAt = data ? Date.now() : null;
+    });
+  },
+  clearPhoto() { if (this.isOwned()) this.setPhoto(null); },
   setStatus({ text = '', photoData = null } = {}) {
+    const scope = this.ownerScope();
+    if (!scope) throw new Error('Account identity unavailable. Sign in before posting a status.');
     const clean = String(text || '').replace(/\r\n/g, '\n').trim().slice(0, 220);
     if (!clean && !photoData) throw new Error('Write a status or choose a photo.');
     const now = Date.now();
-    Store.update(st => { st.profileMedia.status = { text: clean, photoData: photoData || null, createdAt: now, expiresAt: now + this.STATUS_TTL_MS }; });
+    Store.update(st => {
+      if (st.profileMedia.ownerScope !== scope)
+        st.profileMedia = { ownerScope: scope, photoData: null, photoUpdatedAt: null, status: null };
+      st.profileMedia.status = { text: clean, photoData: photoData || null, createdAt: now, expiresAt: now + this.STATUS_TTL_MS };
+    });
   },
-  clearStatus() { Store.update(st => { st.profileMedia.status = null; }); }
+  clearStatus() { if (this.isOwned()) Store.update(st => { st.profileMedia.status = null; }); }
 };
 
 /* =====================================================================
@@ -2237,6 +2272,14 @@ const Supabase = {
       try{
         Mail.remote=[];Mail.composeSeed=null;Mail.lastRefreshAt=0;Mail.refreshPromise=null;
       }catch(_){}
+    }
+    const scope='auth:'+uid;
+    if(Store.state?.profileMedia?.ownerScope!==scope){
+      // Legacy photo/status with no reliable owner MUST NOT appear under this
+      // signed-in profile or get uploaded to its remote media record.
+      Store.update(st=>{
+        st.profileMedia={ownerScope:scope,photoData:null,photoUpdatedAt:null,status:null};
+      });
     }
     try{localStorage.setItem(this.AUTH_LOCAL_SCOPE_KEY,uid);}catch(_){}
     return changed;
@@ -3366,17 +3409,39 @@ const ProfilePresence = {
     this._syncPromise = (async () => {
       const remote = await this.own();
       if (remote === null) return; // migration absent or unavailable: fail soft
-      const localPhoto = Store.state?.profileMedia?.photoData || '';
-      const localStatus = ProfileMedia.activeStatus();
-      if (localPhoto && !remote.photo_path) await this.publishPhoto(localPhoto);
-      else if (!localPhoto && remote.photo_path) {
-        const d = await this.objectDataUrl(remote.photo_path).catch(() => '');
-        if (d) Store.update(st => { st.profileMedia.photoData = d; st.profileMedia.photoUpdatedAt = Date.now(); });
+      const scope=ProfileMedia.ownerScope();
+      if (!scope.startsWith('auth:')) return;
+      const ownerId=scope.slice(5);
+      const localPhoto=ProfileMedia.ownedPhoto();
+      const localStatus=ProfileMedia.activeStatus();
+      // Never sync an unbound local photo into a different authenticated account.
+      if (localPhoto && !remote.photo_path && ProfileMedia.ownerScope()===scope)
+        await this.publishPhoto(localPhoto);
+      else if (!localPhoto && typeof remote.photo_path==='string' &&
+               remote.photo_path.startsWith(ownerId+'/profile/')) {
+        const d=await this.objectDataUrl(remote.photo_path).catch(()=>'');
+        if (d && ProfileMedia.ownerScope()===scope)
+          Store.update(st=>{
+            if(st.profileMedia.ownerScope!==scope)return;
+            st.profileMedia.photoData=d;st.profileMedia.photoUpdatedAt=Date.now();
+          });
       }
-      if (localStatus && !remote.status_active) await this.publishStatus(localStatus);
-      else if (!localStatus && remote.status_active) {
-        const d = remote.status_photo_path ? await this.objectDataUrl(remote.status_photo_path).catch(() => '') : '';
-        Store.update(st => { st.profileMedia.status = { text: remote.status_text || '', photoData: d || null, createdAt: Date.parse(remote.status_created_at) || Date.now(), expiresAt: Date.parse(remote.status_expires_at) || (Date.now() + ProfileMedia.STATUS_TTL_MS) }; });
+      if (localStatus && !remote.status_active && ProfileMedia.ownerScope()===scope)
+        await this.publishStatus(localStatus);
+      else if (!localStatus && remote.status_active &&
+               (!remote.status_photo_path ||
+                String(remote.status_photo_path).startsWith(ownerId+'/status/'))) {
+        const d=remote.status_photo_path
+          ? await this.objectDataUrl(remote.status_photo_path).catch(()=>'') : '';
+        if(ProfileMedia.ownerScope()===scope)
+          Store.update(st=>{
+            if(st.profileMedia.ownerScope!==scope)return;
+            st.profileMedia.status={
+              text:remote.status_text||'',photoData:d||null,
+              createdAt:Date.parse(remote.status_created_at)||Date.now(),
+              expiresAt:Date.parse(remote.status_expires_at)||(Date.now()+ProfileMedia.STATUS_TTL_MS)
+            };
+          });
       }
       this._syncDone = true;
     })().catch(() => {}).finally(() => { this._syncPromise = null; });
@@ -4931,7 +4996,7 @@ function Avatar(name, extra = '') {
 }
 function ProfileAvatar(name, extra = '') {
   const c = Util.hash53(String(name || '')) % 5;
-  const photo = Store.state?.profileMedia?.photoData || '';
+  const photo = ProfileMedia.ownedPhoto();
   const ring = !!ProfileMedia.activeStatus();
   const classes = `avatar avatar--c${c} ${extra} ${photo ? 'avatar--photo' : ''} ${ring ? 'avatar--status-ring' : ''}`.trim();
   const attrs = { class: classes, 'aria-hidden': 'true' };
@@ -7040,7 +7105,7 @@ const Views = {
       photoInput,
       Button(s.profileMedia?.photoData ? 'Change photo' : 'Add profile photo', { variant: 'secondary', onClick: () => photoInput.click() }),
       Button('Add status', { variant: 'secondary', onClick: openStatusComposer }),
-      s.profileMedia?.photoData ? Button('Remove photo', { variant: 'ghost', onClick: async () => { if (confirm('Remove your profile photo?')) { ProfileMedia.clearPhoto(); try { await ProfilePresence.clearPhoto(); } catch (_) {} App.render(); } } }) : null);
+      ProfileMedia.ownedPhoto() ? Button('Remove photo', { variant: 'ghost', onClick: async () => { if (confirm('Remove your profile photo?')) { ProfileMedia.clearPhoto(); try { await ProfilePresence.clearPhoto(); } catch (_) {} App.render(); } } }) : null);
 
     const viewersButton = h('button', { type: 'button', class: 'btn btn--ghost', style: 'width:auto;min-width:0;padding:8px 0;margin-top:4px;text-align:left;justify-content:flex-start' }, 'Seen by …');
     const openStatusViewers = async () => {
