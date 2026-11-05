@@ -1,7 +1,7 @@
 name: BharatMail TEST local content-risk regression (NO DEPLOY)
 on:
   push:
-    branches: [main]
+    branches: [main, blmail-attachment-metadata-v7-20261105]
     paths:
       - 'bharatmail-dkim-test/**'
       - '.github/workflows/bharatmail-content-risk-test.yml'
@@ -20,4 +20,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test SRI/CSP, RLS client boundary and synthetic content warnings
-        run: node --test bharatmail-dkim-test/tests/content-caution.test.mjs
+        run: node --test bharatmail-dkim-test/tests/*.test.mjs
