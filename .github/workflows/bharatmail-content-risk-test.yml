@@ -1,7 +1,7 @@
 name: BharatMail TEST local content-risk regression (NO DEPLOY)
 on:
   push:
-    branches: [main]
+    branches: [main, blmail-company-domain-reference-20261105]
     paths:
       - 'bharatmail-dkim-test/**'
       - '.github/workflows/bharatmail-content-risk-test.yml'
