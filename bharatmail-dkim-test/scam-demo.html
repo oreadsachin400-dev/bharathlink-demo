@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; style-src &#x27;sha256-BCF3Jko9mUeaR+ycl5ksfuRo/yAv+d767mn2NRAuwPg=&#x27;; script-src &#x27;sha256-/Rlj8V9EPnFH7LmvPB6LXO6qzOny7NDrD9Apic5vCmI=&#x27; &#x27;sha256-/QsMSrlhP/96SopVnp4oNlm+wqw44aHHZ0S9GSuNaG8=&#x27;">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; style-src &#x27;sha256-BCF3Jko9mUeaR+ycl5ksfuRo/yAv+d767mn2NRAuwPg=&#x27;; script-src &#x27;sha256-CyLmllJZdLF/aE2w0ed7+AcOs+ZgI6zQf+poEfwJlsM=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;">
 <title>BharathMail | Offline Scam Warning Demo</title><style>:root{color-scheme:light;--navy:#192966;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--warn:#805500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Arial,sans-serif}
 main{max-width:650px;margin:0 auto;padding:0 14px 38px}
@@ -15,15 +15,15 @@ button:focus-visible,a:focus-visible{outline:3px solid #d59f25;outline-offset:3p
 .output.warn{background:#fff4dd;color:var(--warn)}.note{border-left:4px solid #d59f25;background:#fff8e8;padding:12px;border-radius:8px}a{color:var(--navy)}
 </style></head><body>
 <main><header><strong>BharathMail Security</strong><span>Offline scam warning DEMO • TEST only</span></header>
-<section><h1>Try 7 fictional email examples</h1>
+<section><h1>Try 12 fictional email examples</h1>
 <p class="note"><b>SIMULATION ONLY:</b> These are invented messages, not your inbox. No login, email sending, external lookup, or email-content upload. No actual sender, authority, payment or message is verified.</p>
-<p class="sub">Choose an example to see what the current limited Hindi/Hinglish and link-warning rules detect. A warning is not proof of fraud, and no warning does not mean safe.</p>
+<p class="sub">Choose an example to see limited Hindi/Hinglish, link, and published company-domain reference cautions. A warning is not proof of fraud, and no warning does not mean safe.</p>
 <div id="samples" class="samples" aria-label="Fictional test examples"></div>
 <div id="result" class="output" role="status" aria-live="polite">Select a fictional sample to inspect locally. Sender identity is NOT VERIFIED.</div>
 </section>
 <section><h2>What this does not check</h2><p class="sub">Real email messages, SPF, DKIM, DMARC, legal identity, payment account ownership, actual link safety, attachments and malware are not examined in this demo.</p>
 <a href="./">Return to BharathMail Security TEST</a></section>
-</main><script src="./trust-engine.js" integrity="sha256-/QsMSrlhP/96SopVnp4oNlm+wqw44aHHZ0S9GSuNaG8=" crossorigin="anonymous"></script>
+</main><script src="./trust-engine.js" integrity="sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=" crossorigin="anonymous"></script>
 <script>(()=>{'use strict';
 const SAMPLE=Object.freeze([
  Object.freeze({id:'hindi-otp',label:'Hindi: OTP request',from:'help@example.com',subject:'केवाईसी अपडेट',body:'अपना ओटीपी भेजो',reason:'SECRET_REQUEST'}),
@@ -32,6 +32,11 @@ const SAMPLE=Object.freeze([
  Object.freeze({id:'hidden-link',label:'HTML: misleading link destination',from:'billing@example.com',subject:'Invoice notice',body:'Please see below',html_body:'<a href="https://bad.example/collect">https://bank.example/account</a>',reason:'HTML_LINK_DESTINATION_MISMATCH'}),
  Object.freeze({id:'bare-label',label:'HTML: bank website label hides the real link',from:'billing@example.com',subject:'Statement',body:'See link',html_body:'<a href="https://evil.example/collect">bank.example</a>',reason:'HTML_LINK_DESTINATION_MISMATCH'}),
  Object.freeze({id:'redirect',label:'Link: cross-domain redirect hidden in URL',from:'alerts@example.com',subject:'Account notice',body:'See link',html_body:'<a href="https://trusted.example/go?next=https%3A%2F%2Fevil.example%2Fpay">Continue</a>',reason:'CROSS_DOMAIN_REDIRECT_PARAMETER'}),
+ Object.freeze({id:'icici-reference',label:'ICICI: published email-domain reference (NOT sender verified)',from:'help@icici.bank.in',subject:'ICICI Bank service update',body:'Hello',absent:'ORG_REFERENCE_MISMATCH',expectReference:'published_domain_reference'}),
+ Object.freeze({id:'icici-lookalike',label:'ICICI: lookalike icic.com domain',from:'help@icic.com',subject:'ICICI Bank service update',body:'Hello',reason:'ORG_REFERENCE_MISMATCH',expectReference:'possible_lookalike'}),
+ Object.freeze({id:'reliance-reference',label:'Reliance: published ril.com domain reference',from:'jobs@ril.com',subject:'Reliance Industries recruitment',body:'Hello',absent:'ORG_REFERENCE_MISMATCH',expectReference:'published_domain_reference'}),
+ Object.freeze({id:'reliance-lookalike',label:'Reliance: unlisted reliance-support.com domain',from:'jobs@reliance-support.com',subject:'Reliance Industries recruitment',body:'Hello',reason:'ORG_REFERENCE_MISMATCH',expectReference:'possible_lookalike'}),
+ Object.freeze({id:'reliance-spoof-reference',label:'Reliance: documented ril.vc impersonation warning',from:'jobs@ril.vc',subject:'Reliance Industries recruitment',body:'Hello',reason:'ORG_REFERENCE_MISMATCH',expectReference:'possible_lookalike'}),
  Object.freeze({id:'safety-advice',label:'Hinglish: safety advice (control)',from:'help@example.com',subject:'Safety reminder',body:'Kisi ko OTP mat bhejna',absent:'SECRET_REQUEST'})
 ]);
 const list=document.getElementById('samples'),answer=document.getElementById('result');
@@ -45,15 +50,27 @@ function inspectExample(example){
     found.domainAuthentication!=='not_checked'||found.identityVerification!=='not_verified'||
     found.organizationAuthority!=='not_verified'||found.paymentRequestVerification!=='not_verified')
    throw Error('Untrusted result; identity verification is unavailable.');
+  if(typeof engine.organizationReference!=='function')throw Error('Domain reference unavailable.');
+  const reference=engine.organizationReference({from:example.from,subject:example.subject});
+  if(reference.isSenderVerified!==false||reference.isOrganizationVerified!==false||
+     reference.domainAuthentication!=='not_checked'||
+     reference.organizationVerification!=='not_verified')throw Error('Untrusted company-domain result.');
+  if(example.expectReference && reference.status!==example.expectReference)
+    throw Error('Domain reference result unexpected.');
   const codes=found.reasons.map(x=>x.code);
   const asExpected=example.reason?codes.includes(example.reason):!codes.includes(example.absent);
   const explanation=found.reasons.map(x=>x.reason).slice(0,5).join(' ');
   const summary=example.reason?
     (asExpected?'DEMO CAUTION DETECTED. ':'DEMO PATTERN NOT DETECTED. '):
-    (asExpected?'No OTP solicitation warning for this safety reminder. ':'Unexpected warning on safety reminder. ');
+    example.absent==='SECRET_REQUEST'?
+      (asExpected?'Safety advice did not trigger OTP request warning. ':'Unexpected OTP warning. '):
+      (asExpected?'PUBLISHED DOMAIN REFERENCE ONLY — NOT AUTHENTICATED. ':'Unexpected domain reference warning. ');
   answer.textContent=
     'FICTIONAL SAMPLE ONLY: '+example.label+'\n'+summary+
     (explanation||'No caution signals from the limited rule set.')+
+    '\nOrganization reference: '+(reference.organization||'No reviewed reference')+
+    ' / '+reference.status+'. Published domain matches are NOT message authentication. '+
+    '\nDomain authentication: NOT CHECKED. Organization, individual sender authority and payment: NOT VERIFIED. '+
     '\nNOT VERIFIED: sender identity, organization, and payment. '+
     'These rules do not prove fraud or safety; attachments and real emails are not inspected here.';
   if(found.reasons.length)answer.className='output warn';
