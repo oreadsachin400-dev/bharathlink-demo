@@ -199,3 +199,19 @@ test('New TEST endpoint preserves server-only keys, ownership and no file-downlo
  assert.doesNotMatch(code,/\/attachments\/[^\n]+\/[a-z0-9]+\/download/);
  assert.doesNotMatch(code,/\b(?:download_url|storage_path|provider_attachment_id)\s*:\s*raw\./);
 });
+
+test('Snapshot UI only displays saved after verified owner-bound snapshot result',()=>{
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(html,/snapshotBtn\.addEventListener\('click',async\(\)=>\{/);
+ assert.match(html,/snapshotBtn\.textContent='Save attachment metadata securely \(TEST\)'/);
+ assert.match(html,/\/functions\/v1\/bharatmail-attachment-snapshot-test/);
+ assert.match(html,/evidence\.persistence==='saved_snapshot'/);
+ assert.match(html,/evidence\.files_downloaded!==false/);
+ assert.match(html,/evidence\.malware_scanned!==false/);
+ assert.match(html,/METADATA SNAPSHOT SAVED: /);
+ assert.match(html,/Owner-only database copy confirmed/);
+ assert.match(html,/NOT SAVED: /);
+ assert.match(html,/No durable copy confirmed/);
+ assert.match(html,/Attachment bytes, malware and sender identity NOT VERIFIED/);
+ assert.doesNotMatch(html,/Snapshot SAFE|Attachment verified safe|Files confirmed clean/);
+});
