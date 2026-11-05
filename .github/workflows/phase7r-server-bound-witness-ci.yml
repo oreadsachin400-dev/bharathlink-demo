@@ -6,6 +6,9 @@ on:
     paths:
       - recovery-gate/server-bound-witness-writer.mjs
       - tests/phase7r-server-bound-witness.test.mjs
+      - tests/phase7r-witness-file-custody.test.mjs
+      - recovery-gate/witness-checkpoint-cas.mjs
+      - tests/helpers/phase7q-synthetic-store.mjs
       - .github/workflows/phase7r-server-bound-witness-ci.yml
   pull_request:
     branches:
@@ -13,6 +16,9 @@ on:
     paths:
       - recovery-gate/server-bound-witness-writer.mjs
       - tests/phase7r-server-bound-witness.test.mjs
+      - tests/phase7r-witness-file-custody.test.mjs
+      - recovery-gate/witness-checkpoint-cas.mjs
+      - tests/helpers/phase7q-synthetic-store.mjs
       - .github/workflows/phase7r-server-bound-witness-ci.yml
   workflow_dispatch:
 permissions:
@@ -29,7 +35,7 @@ jobs:
       - name: Server-bound witness policy, durable CAS, and Phase 7I-Q regression suite
         run: |
           set -euo pipefail
-          node --test tests/phase7r-server-bound-witness.test.mjs tests/phase7q-persistent-witness-cas.test.mjs tests/phase7p-witness-log-consistency.test.mjs tests/phase7o-external-witness.test.mjs tests/phase7n-owner-hash-ingress.test.mjs tests/phase7m-verified-ledger-bridge.test.mjs tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+          node --test tests/phase7r-witness-file-custody.test.mjs tests/phase7r-server-bound-witness.test.mjs tests/phase7q-persistent-witness-cas.test.mjs tests/phase7p-witness-log-consistency.test.mjs tests/phase7o-external-witness.test.mjs tests/phase7n-owner-hash-ingress.test.mjs tests/phase7m-verified-ledger-bridge.test.mjs tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
       - name: Prevent live deployment or device activation
         run: |
           set -euo pipefail
