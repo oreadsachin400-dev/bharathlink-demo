@@ -34,9 +34,12 @@ jobs:
           grep -Fq '"status": "OBSERVED_NOT_AUTHENTICATED"' /tmp/bharatmail-public-dns-baseline.json
           grep -Fq '"spf": "NOT_CHECKED"' /tmp/bharatmail-public-dns-baseline.json
           grep -Fq '"change_mx_authorized": false' /tmp/bharatmail-public-dns-baseline.json
-      - name: Confirm production/Android guards unchanged
+      - name: Confirm source-only read boundary (NO_DEPLOY)
         run: |
           set -euo pipefail
-          grep -Fq 'const MAIL_AUTH_RELEASED=false; // hard HOLD' supabase/functions/bl-mail-auth-attest/index.ts
-          grep -Fq '"release_decision": "HOLD"' docs/security-release-readiness.json
-          ! grep -REn '(wrangler deploy|supabase functions deploy|assembleDebug|upload-artifact|dns record.*create)' scripts/bharatmail-public-mx-baseline-readonly.mjs .github/workflows/bharatmail-public-mx-baseline-readonly.yml
+          test ! -e supabase/functions/bl-mail-auth-attest/index.ts
+          grep -Fq 'deployment_authorized:false,change_mx_authorized:false' scripts/bharatmail-public-mx-baseline-readonly.mjs
+          grep -Fq 'permissions:' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
+          grep -Fq 'contents: read' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
+          ! grep -E '(^|[[:space:]])(wrangler[[:space:]]+deploy|supabase[[:space:]]+functions[[:space:]]+deploy|assembleDebug)' scripts/bharatmail-public-mx-baseline-readonly.mjs
+          ! grep -Fq 'uses: actions/upload-artifact' .github/workflows/bharatmail-public-mx-baseline-readonly.yml
