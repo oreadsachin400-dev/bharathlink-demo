@@ -1,0 +1,82 @@
+name: BharathLink Phase 7L — disposable atomic review ledger (NO DEPLOY)
+on:
+  push:
+    branches:
+      - bharathlink-phase7l-review-ledger-race-ci
+    paths:
+      - sql/staged/TEST-phase7l-review-evidence-ledger-v1.sql
+      - tests/fixtures/phase7l-*
+      - tests/phase7l-*
+      - .github/workflows/phase7l-review-ledger-race-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  static-no-activation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Phase7L, Phase7K, Phase7J and Phase7I source/crypto tests
+        run: |
+          set -euo pipefail
+          node --test tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Confirm no live deploy, approval or APK mutation
+        run: |
+          set -euo pipefail
+          ! grep -Ei '(CREATE OR REPLACE FUNCTION public|GRANT EXECUTE|INSERT INTO public.messaging_devices|UPDATE public.messaging_devices|deviceApproved.*,true)' sql/staged/TEST-phase7l-review-evidence-ledger-v1.sql
+          echo 'PASS: private review ledger only, no real-device activation'
+
+  disposable-postgres-review-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7l_disposable_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7l_disposable_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install PostgreSQL client if needed
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y postgresql-client
+          fi
+      - name: Seed synthetic governance intent and sessions (disposable only)
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7l-disposable-governance.sql
+      - name: Install staged private evidence ledger (disposable only)
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-phase7l-review-evidence-ledger-v1.sql
+      - name: Test replay, expiry, session, veto, immutability and no external access
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7l-ledger-denials.sql
+      - name: Race two independent SQL clients for same review receipt
+        run: node tests/phase7l-racing-receipt.mjs
+      - name: Assert no device was ever registered
+        run: |
+          set -euo pipefail
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM public.messaging_devices')" = "0"
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM bl20_review_ledger_v1_private.receipts')" = "2"
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM bl20_review_ledger_v1_private.events')" = "2"
+          echo 'PASS: one record for each independently staged synthetic intent, zero trusted devices'
