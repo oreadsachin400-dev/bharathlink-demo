@@ -42,7 +42,7 @@ test('body and HTML are fetched only when user explicitly taps the Scan control,
  assert.match(html,/records\[0\]\?\.from_address!==row\.from_address/);
  assert.match(html,/window\.BharatMailTrustEngine\.inspect/);
  assert.match(html,/if\(!risk\|\|risk\.isVerified!==false\|\|risk\.isFakeProven!==false/);
- assert.match(html,/section\.append\(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,snapshotBtn,snapshotStatus,btn,result\)/);
+ assert.match(html,/section\.append\(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,attachmentBtn,attachmentStatus,snapshotBtn,snapshotStatus,removeBtn,removeStatus,btn,result\)/);
  assert.doesNotMatch(html,/(?:service_role|SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage|innerHTML\s*=|document\.write\()/);
 });
 test('content-risk engine remains local and never grants verified or safe status',()=>{
