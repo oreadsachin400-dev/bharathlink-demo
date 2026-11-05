@@ -9,6 +9,14 @@ on:
       - tests/phase7j-trust-posture.test.mjs
       - sql/audit/TEST-first-device-trust-posture-READ-ONLY.sql
       - .github/workflows/phase7j-trust-posture-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7i-first-device-hard-stop-ci
+    paths:
+      - recovery-gate/live-trust-posture.mjs
+      - tests/phase7j-trust-posture.test.mjs
+      - sql/audit/TEST-first-device-trust-posture-READ-ONLY.sql
+      - .github/workflows/phase7j-trust-posture-ci.yml
   workflow_dispatch:
 
 permissions:
