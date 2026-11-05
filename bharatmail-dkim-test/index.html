@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-V/SxBiPk3tDDqlmvDLOqs2R+HXdatOubp5xzFSlP7Zs=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-PRDpsd2VyTYJUO3MoQbjIainr76Z/DP4cBOmMDSHXIE=&#x27; &#x27;sha256-b00l5FdKuvArDYIErT36FRSSoyFuKNXPzB+Pq402RGo=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -244,54 +244,61 @@ function makeMail(row){
  });
 
  const attachmentBtn=document.createElement('button');attachmentBtn.type='button';attachmentBtn.className='alt';
- attachmentBtn.textContent='Inspect attachment metadata (no download)';
+ attachmentBtn.textContent='Check received attachment metadata (no download)';
  const attachmentStatus=document.createElement('div');attachmentStatus.className='result';
  attachmentStatus.setAttribute('role','status');
  attachmentStatus.textContent='Attachment metadata NOT CHECKED. File contents and malware never scanned.';
  attachmentBtn.addEventListener('click',async()=>{
   if(attachmentBtn.disabled)return;attachmentBtn.disabled=true;
   attachmentStatus.className='result';
-  attachmentStatus.textContent='Checking only owner-visible stored attachment filename, MIME and size metadata…';
+  attachmentStatus.textContent='Requesting only attachment metadata through owner-verified TEST provider gateway…';
   try{
    if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(row.id))
     throw Error('Invalid email ID.');
    if(!window.BharatMailAttachmentMetadata||
       typeof window.BharatMailAttachmentMetadata.scan!=='function')
     throw Error('Local attachment metadata checker unavailable.');
-   // Verify this inbound email is still visible to the JWT-authenticated
-   // owner before checking its separately RLS-protected attachment metadata.
-   const ownerQuery='/rest/v1/bharatmail_external_messages?select=id,direction,from_address&id=eq.'+
-     encodeURIComponent(row.id)+'&direction=eq.inbound&limit=1';
-   const owned=await request(ownerQuery,'GET',undefined,true);
-   if(!Array.isArray(owned)||owned.length!==1||owned[0]?.id!==row.id||
-      owned[0]?.direction!=='inbound'||owned[0]?.from_address!==row.from_address)
-    throw Error('Email ownership unavailable. No attachment metadata checked.');
-   // Intentionally exclude storage_path, provider_attachment_id, raw file,
-   // signed URLs, encryption keys, or any file-byte access.
-   const query='/rest/v1/bharatmail_external_attachments?select=external_message_id,direction,filename,content_type,size_bytes&external_message_id=eq.'+
-     encodeURIComponent(row.id)+'&direction=eq.inbound&limit=21';
-   const records=await request(query,'GET',undefined,true);
-   if(!Array.isArray(records)||records.length>21||
-     records.some(record=>!record||record.external_message_id!==row.id||record.direction!=='inbound'))
-    throw Error('Attachment metadata binding failed. No safety conclusion.');
-   const result=window.BharatMailAttachmentMetadata.scan(records);
-   if(result?.coverage!=='metadata_only'||result.fileBytesInspected!==false||
-      result.malwareScanned!==false||result.isAttachmentSafe!==false||
-      result.isMalwareProven!==false||result.senderIdentityVerified!==false)
-    throw Error('Untrusted metadata scanner result.');
-   if(records.length===0){
-    attachmentStatus.textContent='No attachment metadata records stored for this email. This does NOT prove that the original email had no attachments. File bytes and malware NOT SCANNED.';
+   // The TEST gateway independently validates the JWT and RLS ownership
+   // before calling Resend. The browser NEVER receives an attachment URL,
+   // provider attachment ID, provider API key, file bytes or storage path.
+   const evidence=await request(
+     '/functions/v1/bharatmail-attachment-metadata-test','POST',
+     {message_id:row.id},true
+   );
+   if(!evidence||evidence.source!=='resend_receiving_attachments_api'||
+      evidence.coverage!=='metadata_only'||
+      !['metadata_available','no_metadata_from_provider','partial'].includes(evidence.status)||
+      evidence.files_downloaded!==false||evidence.malware_scanned!==false||
+      evidence.is_file_safe!==false||evidence.is_malware_proven!==false||
+      evidence.sender_identity!=='not_verified'||
+      evidence.organization_authority!=='not_verified'||
+      evidence.verified_sender_badge!==false||
+      typeof evidence.truncated!=='boolean'||
+      !Array.isArray(evidence.items)||evidence.items.length>20||
+      evidence.items.some(x=>!x||typeof x!=='object'||
+        typeof x.filename!=='string'||typeof x.content_type!=='string'||
+        !(x.size_bytes===null||Number.isSafeInteger(x.size_bytes))) )
+    throw Error('Untrusted provider metadata result.');
+   const risk=window.BharatMailAttachmentMetadata.scan(evidence.items);
+   if(risk?.coverage!=='metadata_only'||risk.fileBytesInspected!==false||
+      risk.malwareScanned!==false||risk.isAttachmentSafe!==false||
+      risk.isMalwareProven!==false||risk.senderIdentityVerified!==false)
+    throw Error('Untrusted local metadata scan.');
+   if(evidence.status==='no_metadata_from_provider'){
+    attachmentStatus.textContent='Resend returned no attachment metadata for this stored email. This does NOT prove the original message had no attachments. File bytes and malware NOT SCANNED.';
    }else{
-    const notes=result.reasons.slice(0,7).map(x=>String(x.reason)).join(' ');
-    attachmentStatus.className='result'+(result.reasons.length?' warn':'');
+    const notes=risk.reasons.slice(0,7).map(x=>String(x.reason)).join(' ');
+    const partial=evidence.status==='partial'||evidence.truncated;
+    attachmentStatus.className='result'+(partial||risk.reasons.length?' warn':'');
     attachmentStatus.textContent=
-      'ATTACHMENT METADATA ONLY: '+result.metadataEntriesInspected+' record(s) reviewed.'+
-      (notes?' CAUTION: '+notes:' No metadata warning signals detected.')+
-      ' Metadata can be forged or incomplete. File bytes, malware, sender and payment NOT VERIFIED; not safe to open based on this result.';
+      'PROVIDER ATTACHMENT METADATA ONLY: '+risk.metadataEntriesInspected+' record(s) checked.'+
+      (partial?' INCOMPLETE provider metadata; not all attachments may be represented.':'')+
+      (notes?' CAUTION: '+notes:' No warning signals in available metadata.')+
+      ' File bytes, malware, sender, organization and payment NOT VERIFIED. No result means safe to open.';
    }
   }catch(_){
    attachmentStatus.className='result warn';
-   attachmentStatus.textContent='Attachment metadata could not be verified under this account. No file downloaded. Safety and malware NOT VERIFIED.';
+   attachmentStatus.textContent='Received attachment metadata unavailable or session invalid. No file downloaded. File safety and malware NOT VERIFIED.';
   }finally{attachmentBtn.disabled=false;}
  });
  const btn=document.createElement('button');btn.type='button';btn.textContent='Check DKIM domain signature';
