@@ -7103,7 +7103,7 @@ const Views = {
 
     const profileActions = h('div', { class: 'profile-actions' },
       photoInput,
-      Button(s.profileMedia?.photoData ? 'Change photo' : 'Add profile photo', { variant: 'secondary', onClick: () => photoInput.click() }),
+      Button(ProfileMedia.ownedPhoto() ? 'Change photo' : 'Add profile photo', { variant: 'secondary', onClick: () => photoInput.click() }),
       Button('Add status', { variant: 'secondary', onClick: openStatusComposer }),
       ProfileMedia.ownedPhoto() ? Button('Remove photo', { variant: 'ghost', onClick: async () => { if (confirm('Remove your profile photo?')) { ProfileMedia.clearPhoto(); try { await ProfilePresence.clearPhoto(); } catch (_) {} App.render(); } } }) : null);
 
