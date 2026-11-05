@@ -6046,7 +6046,10 @@ const Views = {
         h('ul', { class: 'eco__spokes', 'aria-label': 'Services connected to your identity' },
           [['phone', 'Calls'], ['chat', 'Messages'], ['mail', 'Mail'], ['rupee', 'Pay']].map(([ic, l]) => h('li', null, Icon(ic), l)))),
       h('p', { class: 'welcome__lede' }, 'Calling, messaging, mail and payments, all anchored to your mobile number and one trusted identity.'),
-      h('div', { class: 'welcome__actions' }, Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
+      h('div', { class: 'welcome__actions' },
+        Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') }),
+        Button('Preview Trust Verify (no login)', { variant: 'secondary', onClick: () => Router.go('/trust-verify-preview') })
+      ),
       h('p', { class: 'welcome__note' }, 'Backend-connected prototype. Verification statuses come only from protected server-controlled fields; real provider APIs are not connected yet.'));
   },
 
@@ -6638,6 +6641,37 @@ const Views = {
     return node;
   },
 
+
+  /* ----- Public, offline-only Trust Verify walkthrough (no account or network) ----- */
+  trustVerifyPreview() {
+    const verdict = CrossChannelTrust.assess('', []);
+    return Screen({
+      title: 'Trust Verify · Preview',
+      back: '/welcome',
+      children: [
+        Notice('dev', 'Offline interface preview only. No sign-in, identity verification, backend lookup, encryption-key access, or payment is performed.'),
+        Section('Example scenario',
+          h('p', {class: 'lede'}, 'A caller claims to represent a bank and asks you to send ₹50,000. Is the request authorised?'),
+          h('p', {class: 'hint'}, 'No issuer, caller, beneficiary or request-authority evidence has been supplied in this preview.')
+        ),
+        Section('Four evidence gates',
+          h('dl', {class: 'kv'},
+            KvRow('WHO', verdict.who.label),
+            KvRow('SAME WHO', verdict.sameWho.label),
+            KvRow('WHERE', verdict.where.label),
+            KvRow('AUTHORITY', verdict.authority.label)
+          ),
+          Notice('warn', verdict.decision)
+        ),
+        Section('What this does and does not prove',
+          h('p', {class: 'hint'}, 'WHO needs independently verified live caller evidence. A published official number alone is not proof the caller controls that number.'),
+          h('p', {class: 'hint'}, 'SAME WHO requires cryptographic continuity across channels. WHERE requires payment-provider ownership evidence. AUTHORITY requires a signed, scoped, unexpired issuer approval for this exact request.'),
+          h('p', {class: 'hint'}, 'A no-match is not evidence of a fake person. This preview intentionally does not check real phone numbers or read chats or mail.')
+        ),
+        Button('Back to welcome', {variant:'secondary', onClick:()=>Router.go('/welcome')})
+      ]
+    });
+  },
 
   /* ----- Consumer Trust Verify: read-only, four fail-closed gates ----- */
   trustVerify() {
@@ -12435,6 +12469,7 @@ const Views = {
    App.render redirects to the right screen for the account's stage.
    ===================================================================== */
 const ROUTES = [
+  { re: /^\/trust-verify-preview$/, stage: 'public-preview', view: () => Views.trustVerifyPreview() },
   { re: /^\/welcome$/,           stage: 'auth',    view: () => Views.welcome() },
   { re: /^\/mobile$/,            stage: 'auth',    view: () => Views.mobile('signup') },
   { re: /^\/otp$/,               stage: 'auth',    view: () => Views.otp('signup') },
@@ -12511,7 +12546,7 @@ const App = {
     Lifecycle.run();
     const path = Router.current(), stage = this.stage();
     const route = ROUTES.find(r => r.re.test(path));
-    if (!route || route.stage !== stage) return Router.go(this.defaultRoute(), { replace: true });
+    if (!route || (route.stage !== stage && route.stage !== 'public-preview')) return Router.go(this.defaultRoute(), { replace: true });
     if(stage==='app'&&LockSecurity.appLockEnabled()&&!LockSecurity._appUnlocked){
       this.root.replaceChildren(LockSecurity.appGate());
       document.title='Locked | BharathLink';
