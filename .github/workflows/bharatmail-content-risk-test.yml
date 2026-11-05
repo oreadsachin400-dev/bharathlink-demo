@@ -6,6 +6,7 @@ on:
       - 'bharatmail-dkim-test/**'
       - 'supabase/functions/bharatmail-attachment-metadata-test/**'
       - 'supabase/functions/bharatmail-attachment-snapshot-test/**'
+      - 'supabase/functions/bharatmail-inbound-webhook/**'
       - 'supabase/sql/bharatmail_received_attachment_snapshots_v1.sql'
       - '.github/workflows/bharatmail-content-risk-test.yml'
   workflow_dispatch:
