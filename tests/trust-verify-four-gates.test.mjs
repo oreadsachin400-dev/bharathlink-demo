@@ -34,10 +34,10 @@ test('inline UI JavaScript remains parseable', () => {
 });
 test('unauthenticated visitors can view ONLY offline walkthrough, not authenticated trust search', () => {
   assert.match(html, /Button\('Preview Trust Verify \(no login\)'/);
-  assert.match(html, /re: \^\\\/trust-verify-preview/);
+  assert.ok(html.includes("re: /^\\/trust-verify-preview$/"));
   assert.match(html, /stage: 'public-preview'/);
   assert.match(html, /route\.stage !== stage && route\.stage !== 'public-preview'/);
-  assert.match(html, /re: \^\\\/trust-verify\$/);
+  assert.ok(html.includes("re: /^\\/trust-verify$/"));
   assert.match(html, /stage: 'app',\s+view: \(\) => Views\.trustVerify\(\)/);
   const start = html.indexOf('  trustVerifyPreview() {');
   const end = html.indexOf('  /* ----- Consumer Trust Verify: read-only, four fail-closed gates ----- */', start);
