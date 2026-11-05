@@ -129,9 +129,14 @@ export function createServerBoundWitnessWriter(policy){
     publicJwk:configured.jwk
   })]]);
   try{
+   // Snapshot request data before any awaited WebCrypto operations; otherwise
+   // a mutating caller can change event bytes during signature/checkpoint work.
+   const checkpoint=Object.freeze({...c});
+   const eventSnapshot=Object.freeze(events.map(e=>
+     Object.freeze({...e})));
    return await persistCheckedWitnessCheckpoint({
      independentStorePath:configured.path,
-     candidateCheckpoint:c,events,
+     candidateCheckpoint:checkpoint,events:eventSnapshot,
      checkpointSignatureBase64Url:signature,
      witnessRegistry,nowMs
    });
