@@ -1,0 +1,90 @@
+name: BharathLink Phase 7M — signed review to ledger (DISPOSABLE ONLY)
+on:
+  push:
+    branches:
+      - bharathlink-phase7m-signed-review-to-ledger-ci
+    paths:
+      - recovery-gate/verified-ledger-bridge.mjs
+      - tests/phase7m-*
+      - tests/helpers/phase7m-synthetic-fixture.mjs
+      - .github/workflows/phase7m-review-bridge-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7l-review-ledger-race-ci
+    paths:
+      - recovery-gate/verified-ledger-bridge.mjs
+      - tests/phase7m-*
+      - tests/helpers/phase7m-synthetic-fixture.mjs
+      - .github/workflows/phase7m-review-bridge-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-crypto-and-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run new verified-ledger bridge and existing Phase 7I through 7L suites
+        run: |
+          set -euo pipefail
+          node --test tests/phase7m-verified-ledger-bridge.test.mjs tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Assert bridge has no activation or data mutation path
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'deviceApproved:[[:space:]]*true|canActivate:[[:space:]]*true|e2eeReady:[[:space:]]*true' recovery-gate/verified-ledger-bridge.mjs
+          ! grep -Eq 'supabase[.]|fetch[(]|INSERT INTO|UPDATE public[.]|generateKey[(]' recovery-gate/verified-ledger-bridge.mjs
+          echo 'PASS: offline signed-review evidence only; zero live integration'
+
+  disposable-signed-review-psql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7m_synthetic_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7m_synthetic_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql client
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y postgresql-client
+          fi
+      - name: Populate disposable synthetic session and governance rows
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7l-disposable-governance.sql
+      - name: Install private append-only ledger in ephemeral PostgreSQL
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-phase7l-review-evidence-ledger-v1.sql
+      - name: Verify synthetic P-256 review proof then stage once in private ledger
+        run: node tests/phase7m-pg-verification-bridge.mjs
+      - name: Race two independent SQL clients for separate synthetic intent
+        run: node tests/phase7l-racing-receipt.mjs
+      - name: Verify zero trusted devices and two append-only receipts
+        run: |
+          set -euo pipefail
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM public.messaging_devices')" = "0"
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM bl20_review_ledger_v1_private.receipts')" = "2"
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM bl20_review_ledger_v1_private.events')" = "2"
+          echo 'PASS: two signed/review-only synthetic receipts, no trusted devices'
