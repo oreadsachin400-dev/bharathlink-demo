@@ -147,7 +147,7 @@ test('independent reviewer role, consent conflicts, revocation and scope enforce
 });
 test('signatures bind full account, session, challenge, device, keys, nonce and reviewer',async()=>{
  for(const mutate of [
-    f=>{f.trustedCase.userId=ids.r1;f.trustedSession.userId=ids.r1;},
+    f=>{f.trustedCase.userId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';f.trustedSession.userId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';},
     f=>{f.trustedCase.sessionId=ids.r1;f.trustedSession.sessionId=ids.r1;},
     f=>{f.trustedCase.challengeId=ids.r2;},
     f=>{f.trustedCase.deviceId=ids.r2;},
