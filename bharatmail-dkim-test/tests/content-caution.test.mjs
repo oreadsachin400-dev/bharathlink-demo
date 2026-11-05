@@ -42,7 +42,7 @@ test('body and HTML are fetched only when user explicitly taps the Scan control,
  assert.match(html,/records\[0\]\?\.from_address!==row\.from_address/);
  assert.match(html,/window\.BharatMailTrustEngine\.inspect/);
  assert.match(html,/if\(!risk\|\|risk\.isVerified!==false\|\|risk\.isFakeProven!==false/);
- assert.match(html,/section\.append\(subject,from,when,caution,scanBtn,scanStatus,copyBtn,copyStatus,btn,result\)/);
+ assert.match(html,/section\.append\(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,btn,result\)/);
  assert.doesNotMatch(html,/(?:service_role|SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage|innerHTML\s*=|document\.write\()/);
 });
 test('content-risk engine remains local and never grants verified or safe status',()=>{
@@ -134,7 +134,7 @@ test('Anti-scam guidance in Hindi, Hinglish and English is not an OTP solicitati
  assert.ok(!codes(r).includes('URGENT_PAYMENT'));
 });
 test('Local-only bilingual analysis never upgrades a sender, bank or payment',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v5-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v6-2026-11-05');
  const source=engineBytes.toString('utf8');
  assert.match(source,/function bilingualSignals\(text,header\)/);
  assert.doesNotMatch(source,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
@@ -160,7 +160,7 @@ test('Public demo is synthetic, offline, hash-pinned, and keeps mail inbox isola
  assert.doesNotMatch(demo,/\bfetch\s*\(|\bXMLHttpRequest\b|localStorage|sessionStorage|innerHTML\s*=|<textarea|<input\b|<form\b/);
  assert.doesNotThrow(()=>new Script(script));
 });
-test('All seven fictional cases exercise exact caution behavior without verifying identity',()=>{
+test('All twelve fictional cases exercise exact caution behavior without verifying identity',()=>{
  const cases=[
   ['help@example.com','केवाईसी अपडेट','अपना ओटीपी भेजो','SECRET_REQUEST'],
   ['help@example.com','Payment notice','Turant 500 rupaye bhejo','URGENT_PAYMENT'],
@@ -210,7 +210,7 @@ test('Amount-specific Hindi/Hinglish money requests are cautiously distinguished
  }
 });
 test('Risk-engine version and CSP/SRI remain mutually pinned in real and offline demo pages',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v5-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v6-2026-11-05');
  const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
  const hash=sha(engineBytes);
  for(const source of [html,demo]){
@@ -256,7 +256,7 @@ test('Redirect query parameters flag cross-domain and unsafe destinations, but n
  assert.doesNotMatch(engineBytes.toString('utf8'),/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
 });
 test('Scam detector v4 retains CSP/SRI pins on actual inbox and offline demo',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v5-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v6-2026-11-05');
  const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
  for(const page of [html,demo]){
   assert.ok(page.includes('integrity="sha256-'+sha(engineBytes)+'"'));
@@ -266,7 +266,7 @@ test('Scam detector v4 retains CSP/SRI pins on actual inbox and offline demo',()
 
 test('Offline demo includes both new link-phishing scenarios without accessing the real mailbox',()=>{
  const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
- assert.match(demo,/Try 7 fictional email examples/);
+ assert.match(demo,/Try 12 fictional email examples/);
  assert.match(demo,/id:'bare-label'/);
  assert.match(demo,/id:'redirect'/);
  assert.match(demo,/reason:'CROSS_DOMAIN_REDIRECT_PARAMETER'/);
@@ -320,4 +320,83 @@ test('No warning is not safe and report rejects forged trust, unknown codes, dup
   {...r,reasons:[{code:'UNSAFE_IMPORTED_PERSONAL_VALUE',severity:'high',reason:'Secret'}]},
   {...r,reasons:[{code:'SECRET_REQUEST',severity:'high'},{code:'SECRET_REQUEST',severity:'high'}]}
  ]) assert.throws(()=>engine.redactedReport(forged));
+});
+
+test('Reviewed organization domain references are exact and NEVER authenticate emails or people',()=>{
+ const items=[
+  ['customer.care@icici.bank.in','ICICI Bank','icici_bank','current'],
+  ['customer.care@icicibank.com','ICICI Bank','icici_bank','previously_published'],
+  ['jobs@ril.com','Reliance Industries','reliance_industries','corporate']
+ ];
+ for(const [from,subject,key,kind] of items){
+  const r=engine.organizationReference({from,subject});
+  assert.equal(r.status,'published_domain_reference',from);
+  assert.equal(r.organizationKey,key);
+  assert.equal(r.referenceKind,kind);
+  assert.equal(r.isSenderVerified,false);
+  assert.equal(r.isOrganizationVerified,false);
+  assert.equal(r.isFraudProven,false);
+  assert.equal(r.domainAuthentication,'not_checked');
+  assert.equal(r.organizationVerification,'not_verified');
+  assert.equal(r.senderMailboxAuthorization,'not_verified');
+  assert.equal(r.individualRoleAuthorization,'not_verified');
+  assert.equal(r.paymentBeneficiaryVerification,'not_verified');
+  const scan=inspect(from,subject,'Hello');
+  assert.ok(!codes(scan).includes('ORG_REFERENCE_MISMATCH'),from);
+  assert.equal(scan.domainAuthentication,'not_checked');
+  assert.equal(scan.isVerified,false);
+ }
+});
+test('ICICI / Reliance lookalikes, public mailbox claims and unlisted subdomains are caution only',()=>{
+ const samples=[
+  ['support@icic.com','ICICI Bank notice','possible_lookalike','ORG_REFERENCE_MISMATCH'],
+  ['support@icici-verify.com','ICICI Bank notice','possible_lookalike','ORG_REFERENCE_MISMATCH'],
+  ['support@icic1.bank.in','ICICI Bank notice','possible_lookalike','ORG_REFERENCE_MISMATCH'],
+  ['alerts@bank.icici.bank.in','ICICI Bank','unlisted_subdomain','ORG_REFERENCE_UNLISTED_SUBDOMAIN'],
+  ['jobs@reliance-support.com','Reliance Industries recruitment','possible_lookalike','ORG_REFERENCE_MISMATCH'],
+  ['jobs@ril.vc','Reliance Industries recruitment','possible_lookalike','ORG_REFERENCE_MISMATCH'],
+  ['jobs@ril.com.attacker.example','Any news','possible_lookalike','ORG_REFERENCE_MISMATCH'],
+  ['notify@gmail.com','ICICI Bank notice','brand_claim_mismatch','ORG_REFERENCE_MISMATCH'],
+  ['a@ril.com','ICICI Bank notice','brand_claim_mismatch','ORG_REFERENCE_MISMATCH']
+ ];
+ for(const [from,subject,status,signal] of samples){
+  const r=engine.organizationReference({from,subject});
+  assert.equal(r.status,status,from);
+  assert.equal(r.isFraudProven,false,from);
+  const scan=inspect(from,subject,'No payment is requested.');
+  assert.ok(codes(scan).includes(signal),from);
+  assert.equal(scan.isVerified,false);
+  assert.equal(scan.isFakeProven,false);
+  assert.equal(scan.organizationAuthority,'not_verified');
+  assert.equal(scan.paymentRequestVerification,'not_verified');
+  // Report is allowlisted; must not leak source from address or subject.
+  const report=engine.redactedReport(scan);
+  assert.ok(report.includes(signal),from);
+  assert.ok(!report.includes(from),from);
+ }
+});
+test('Unknown domain and incidental unverified mail never receive fake Verified status',()=>{
+ const r=engine.organizationReference({from:'alerts@example.com',subject:'Monthly report'});
+ assert.equal(r.status,'not_listed');
+ assert.equal(r.organization,null);
+ assert.equal(r.listedDomain,null);
+ assert.equal(r.isSenderVerified,false);
+ assert.equal(r.senderMailboxAuthorization,'not_verified');
+ assert.equal(engine.inspect({source:'external',from:'alerts@example.com',subject:'Monthly report',body:'Hi'}).status,'unverified');
+ assert.doesNotMatch(engineBytes.toString('utf8'),/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
+});
+test('TEST inbox reference status and 12 synthetic cases are separately CSP/SRI pinned',()=>{
+ assert.match(html,/organizationReference\(\{\s*from:row\.from_address,subject:row\.subject/);
+ assert.match(html,/Message authentication: NOT CHECKED by this reference/);
+ assert.match(html,/Organization and sender authority: NOT VERIFIED/);
+ assert.doesNotMatch(html,/\b(?:Verified Sender|isSenderVerified:true)\b/);
+ const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
+ for(const id of ['icici-reference','icici-lookalike','reliance-reference','reliance-lookalike','reliance-spoof-reference'])
+  assert.ok(demo.includes("id:'"+id+"'"),id);
+ const script=demo.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+ const csp=demo.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1];
+ assert.ok(csp.includes('&#x27;sha256-'+sha(script)+'&#x27;'));
+ assert.ok(csp.includes('&#x27;sha256-'+sha(engineBytes)+'&#x27;'));
+ assert.ok(demo.includes('integrity="sha256-'+sha(engineBytes)+'"'));
+ assert.doesNotThrow(()=>new Script(script));
 });

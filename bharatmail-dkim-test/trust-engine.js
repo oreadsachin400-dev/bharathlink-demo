@@ -11,7 +11,7 @@
   if (root) root.BharatMailTrustEngine = api;
 })(typeof window !== 'undefined' ? window : null, function () {
   'use strict';
-  const VERSION = 'bharathmail-trust-local-v5-2026-11-05';
+  const VERSION = 'bharathmail-trust-local-v6-2026-11-05';
   const MAX_SUBJECT = 300;
   const MAX_BODY = 12000;
   const PUBLIC_INBOX = new Set([
@@ -199,7 +199,71 @@
       pay:parts.some(p=>(payment.test(p)||amount.test(p)&&sendVerb.test(p))&&affirmative(p))};
   }
 
-  const REPORT_CODES=new Set(["AUTHORITY_CLAIM_PUBLIC_MAIL","CROSS_DOMAIN_REDIRECT_PARAMETER","DISGUISED_LINK","HTML_LINK_DESTINATION_MISMATCH","IDN_SENDER","INCOMPLETE_HTML_SCAN","INCOMPLETE_LINK_SCAN","INCOMPLETE_TEXT_SCAN","INSECURE_LINK","MALFORMED_FROM","PAYMENT_REQUEST","PAYMENT_SOLICITATION","POSSIBLE_LOOKALIKE_DOMAIN","REPLY_TO_DIFFERS","SECRET_REQUEST","SENSITIVE_LINK_REQUEST","SHORTENED_LINK","UNSAFE_HTML_LINK","UNSAFE_REDIRECT_PARAMETER","UNUSUAL_LINK","URGENT_PAYMENT"]);
+
+  // Reference list backed by public first-party pages, not a live issuer.
+  // Domain equality cannot prove control of a sender's mailbox.
+  const ORGS=Object.freeze([
+    Object.freeze({key:'icici_bank',name:'ICICI Bank',refs:Object.freeze([
+      Object.freeze({domain:'icici.bank.in',kind:'current'}),
+      Object.freeze({domain:'icicibank.com',kind:'previously_published'})
+    ]),sources:Object.freeze([
+      'https://www.icici.bank.in/customer-care',
+      'https://www.icici.bank.in/contact-us'
+    ])}),
+    Object.freeze({key:'reliance_industries',name:'Reliance Industries',refs:Object.freeze([
+      Object.freeze({domain:'ril.com',kind:'corporate'})
+    ]),sources:Object.freeze([
+      'https://www.ril.com/fraud-alert',
+      'https://www.ril.com/careers/search-apply/fraud-alert'
+    ])})
+  ]);
+  const REFERENCE_REVIEWED='2026-11-05';
+  function closeTo(label,word) {
+    if(!label||label.length>48)return false;
+    if(label===word||label.startsWith(word+'-'))return true;
+    if(Math.abs(label.length-word.length)>1)return false;
+    let i=0,j=0,edits=0;
+    while(i<label.length&&j<word.length){
+      if(label[i]===word[j]){i++;j++;continue;}
+      if(++edits>1)return false;
+      if(label.length>word.length)i++;
+      else if(label.length<word.length)j++;
+      else{i++;j++;}
+    }
+    return edits+label.length-i+word.length-j<=1;
+  }
+  function organizationReference(input) {
+    const m=input&&typeof input==='object'?input:{};
+    const p=sender(m.from),domain=p.valid?p.domain:'';
+    const words=(p.displayName+' '+safeText(m.subject,MAX_SUBJECT)).normalize('NFKC');
+    const icici=/\bicici(?:\s+bank)?\b/i.test(words),ril=/\b(?:reliance(?:\s+industries)?|ril)\b/i.test(words);
+    const claim=icici!==ril?(icici?'icici_bank':'reliance_industries'):null;
+    let exact=null,match=null;
+    for(const org of ORGS){const r=org.refs.find(x=>x.domain===domain);if(r){exact=org;match=r;break;}}
+    const subdomain=ORGS.find(org=>org.refs.some(x=>domain.endsWith('.'+x.domain)));
+    const first=domain.split('.')[0]||'';
+    const resembles=closeTo(first,'icici')||closeTo(first,'icicibank')?'icici_bank':
+      closeTo(first,'reliance')||closeTo(first,'ril')?'reliance_industries':null;
+    let status='not_listed',key=null,kind=null,listed=null;
+    if(!p.valid)status='invalid_sender';
+    else if(exact&&claim&&claim!==exact.key){status='brand_claim_mismatch';key=claim;}
+    else if(exact){status='published_domain_reference';key=exact.key;kind=match.kind;listed=match.domain;}
+    else if(subdomain){status='unlisted_subdomain';key=subdomain.key;}
+    else if(resembles){status='possible_lookalike';key=resembles;}
+    else if(claim){status='brand_claim_mismatch';key=claim;}
+    const known=ORGS.find(x=>x.key===key);
+    return Object.freeze({
+      status,organizationKey:key,organization:known?known.name:null,
+      listedDomain:listed,referenceKind:kind,reviewedOn:REFERENCE_REVIEWED,
+      referenceSources:known?known.sources:Object.freeze([]),
+      domainAuthentication:'not_checked',organizationVerification:'not_verified',
+      senderMailboxAuthorization:'not_verified',individualRoleAuthorization:'not_verified',
+      paymentBeneficiaryVerification:'not_verified',
+      isSenderVerified:false,isOrganizationVerified:false,isFraudProven:false
+    });
+  }
+
+  const REPORT_CODES=new Set(["AUTHORITY_CLAIM_PUBLIC_MAIL","CROSS_DOMAIN_REDIRECT_PARAMETER","DISGUISED_LINK","HTML_LINK_DESTINATION_MISMATCH","IDN_SENDER","INCOMPLETE_HTML_SCAN","INCOMPLETE_LINK_SCAN","INCOMPLETE_TEXT_SCAN","INSECURE_LINK","MALFORMED_FROM","ORG_REFERENCE_MISMATCH","ORG_REFERENCE_UNLISTED_SUBDOMAIN","PAYMENT_REQUEST","PAYMENT_SOLICITATION","POSSIBLE_LOOKALIKE_DOMAIN","REPLY_TO_DIFFERS","SECRET_REQUEST","SENSITIVE_LINK_REQUEST","SHORTENED_LINK","UNSAFE_HTML_LINK","UNSAFE_REDIRECT_PARAMETER","UNUSUAL_LINK","URGENT_PAYMENT"]);
   // Only signal codes. Never export sender, subject, raw reasons, email text,
   // recipient, URLs, JWT, identifiers or any caller-controlled free text.
   function redactedReport(r){
@@ -245,6 +309,13 @@
     const html = external ? htmlSignals(m.html_body) : {text:'',links:[],partial:false,unparsed:false};
     const content = (subject + '\n' + body + '\n' + html.text).toLowerCase();
     const reasons = [];
+    const org=organizationReference({from:m.from,subject});
+    if(external&&['brand_claim_mismatch','possible_lookalike'].includes(org.status))
+      add(reasons,'ORG_REFERENCE_MISMATCH','medium',
+        'Sender domain does not match this published organization-domain reference. Spelling alone cannot prove fraud.');
+    if(external&&org.status==='unlisted_subdomain')
+      add(reasons,'ORG_REFERENCE_UNLISTED_SUBDOMAIN','medium',
+        'Unlisted subdomain is not automatically an authorized company sender. Verify independently.');
     const local = bilingualSignals(content,visibleSender.displayName+' '+subject);
     if(external && local.official && visibleSender.valid && PUBLIC_INBOX.has(visibleSender.domain))
       add(reasons,'AUTHORITY_CLAIM_PUBLIC_MAIL','high','Public mailbox claims government, police or bank authority; verify independently.');
@@ -368,5 +439,5 @@
       isFakeProven: false
     });
   }
-  return Object.freeze({VERSION, inspect, redactedReport});
+  return Object.freeze({VERSION, inspect, redactedReport, organizationReference});
 });
