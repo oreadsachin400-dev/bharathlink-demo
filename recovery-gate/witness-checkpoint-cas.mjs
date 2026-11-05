@@ -7,6 +7,8 @@
  */
 import {DatabaseSync} from 'node:sqlite';
 import {createHash} from 'node:crypto';
+import {lstatSync,realpathSync} from 'node:fs';
+import {dirname,resolve} from 'node:path';
 import {verifyWitnessCheckpointConsistency,TEST_PROJECT}
   from './witness-log-consistency.mjs';
 
@@ -22,6 +24,31 @@ const success=()=>Object.freeze({
   checkpointPersisted:true,deviceApproved:false,deviceTrusted:false,
   e2eeReady:false,enrollmentCommitted:false,canActivate:false
 });
+/**
+ * Offline local-file permission guard, NOT a third-party trust authority.
+ * Refuses linked, symlinked, group-accessible or foreign-owned stores and
+ * requires the immediate parent directory to be private to this process.
+ * Owners/superusers with write or DDL access still bypass this control.
+ * Validation and sqlite open are separate syscalls (TOCTOU); production must
+ * use a properly isolated witness service with audited custody, not paths.
+ */
+export function inspectLocalWitnessFile(independentStorePath){
+  if(typeof independentStorePath!=='string'||!independentStorePath)
+    return false;
+  if(typeof process.getuid!=='function')return false;
+  try{
+    const file=resolve(independentStorePath);
+    const parent=dirname(file);
+    if(file!==independentStorePath||
+       realpathSync(file)!==file||realpathSync(parent)!==parent)return false;
+    const st=lstatSync(file),dir=lstatSync(parent),uid=process.getuid();
+    return st.isFile()&&dir.isDirectory()&&
+      !st.isSymbolicLink()&&!dir.isSymbolicLink()&&
+      st.nlink===1&&st.uid===uid&&dir.uid===uid&&
+      (st.mode&0o077)===0&&(dir.mode&0o077)===0;
+  }catch{return false;}
+}
+
 /** Caller-supplied record and witnessRegistry are NOT trusted by themselves. */
 export async function persistCheckedWitnessCheckpoint({
   independentStorePath, candidateCheckpoint, events,
@@ -30,6 +57,8 @@ export async function persistCheckedWitnessCheckpoint({
 }={}){
   if(typeof independentStorePath!=='string'||independentStorePath.length<1)
     return fail('MISSING_INDEPENDENT_STORE_CONFIGURATION');
+  if(!inspectLocalWitnessFile(independentStorePath))
+    return fail('UNSAFE_OR_UNOWNED_WITNESS_STORE');
   if(!candidateCheckpoint||typeof candidateCheckpoint!=='object'||
      candidateCheckpoint.projectId!==TEST_PROJECT||
      !ID.test(candidateCheckpoint.logId||'')||

@@ -1,0 +1,44 @@
+name: BharathLink Phase 7R — server-bound witness policy (OFFLINE ONLY)
+on:
+  push:
+    branches:
+      - bharathlink-phase7r-server-bound-witness-policy-ci
+    paths:
+      - recovery-gate/server-bound-witness-writer.mjs
+      - tests/phase7r-server-bound-witness.test.mjs
+      - tests/phase7r-witness-file-custody.test.mjs
+      - recovery-gate/witness-checkpoint-cas.mjs
+      - tests/helpers/phase7q-synthetic-store.mjs
+      - .github/workflows/phase7r-server-bound-witness-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7q-witness-durable-cas-ci
+    paths:
+      - recovery-gate/server-bound-witness-writer.mjs
+      - tests/phase7r-server-bound-witness.test.mjs
+      - tests/phase7r-witness-file-custody.test.mjs
+      - recovery-gate/witness-checkpoint-cas.mjs
+      - tests/helpers/phase7q-synthetic-store.mjs
+      - .github/workflows/phase7r-server-bound-witness-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-pinned-witness-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Server-bound witness policy, durable CAS, and Phase 7I-Q regression suite
+        run: |
+          set -euo pipefail
+          node --test tests/phase7r-witness-file-custody.test.mjs tests/phase7r-server-bound-witness.test.mjs tests/phase7q-persistent-witness-cas.test.mjs tests/phase7p-witness-log-consistency.test.mjs tests/phase7o-external-witness.test.mjs tests/phase7n-owner-hash-ingress.test.mjs tests/phase7m-verified-ledger-bridge.test.mjs tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Prevent live deployment or device activation
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'deviceApproved:[[:space:]]*true|canActivate:[[:space:]]*true|e2eeReady:[[:space:]]*true' recovery-gate/server-bound-witness-writer.mjs
+          ! grep -Eq 'fetch[(]|INSERT INTO public[.]|UPDATE public[.]|supabase[.]|service_role' recovery-gate/server-bound-witness-writer.mjs
+          echo 'PASS: synthetic server-bound witness policy; no live issuer, API, APK, database or enrollment'
