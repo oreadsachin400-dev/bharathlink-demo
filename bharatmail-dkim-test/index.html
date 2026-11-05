@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-ak529QLtlndQetfqNaoLnb2+EBe93i3vg28GLLPXjP4=&#x27; &#x27;sha256-/QsMSrlhP/96SopVnp4oNlm+wqw44aHHZ0S9GSuNaG8=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-6+Yd6cVVQxWTk0t3tVy6YcO//dElI442vVrGrDSjWt0=&#x27; &#x27;sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -24,7 +24,7 @@ button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[
 <p class="hint">Only inbound emails visible under your own Supabase account RLS are listed. Email contents and attachments are not shown.</p><p class="notice"><b>Secure inbox routing:</b> Only replies addressed to a registered <code>reply+…@bharathlink.com</code> route can enter this TEST inbox. A direct email to <code>mail@bharathlink.com</code> or another general address may be received but held as <b>pending routing</b>; it is not proof of fraud. To run a fresh DKIM test, first send a new one-recipient email from the BharathLink-20-TEST app to your Gmail, then tap <b>Reply</b> in Gmail (not Compose/Forward). Check that the recipient begins with <code>reply+</code> before sending, and then tap <b>Refresh inbox</b> here. Do not share the complete reply token.</p><div id="mail-list"></div></section>
 <p id="status" role="status" aria-live="polite"></p>
 <p class="hint foot">On-demand tests may show DKIM and limited DMARC. SPF not checked. Limited content scan is on-demand; attachments unchecked. No warning is proof of safety. Person, organization and payment NOT VERIFIED.</p></main>
-<script src="./trust-engine.js" integrity="sha256-/QsMSrlhP/96SopVnp4oNlm+wqw44aHHZ0S9GSuNaG8=" crossorigin="anonymous"></script>
+<script src="./trust-engine.js" integrity="sha256-kJ5ZbS4vfvK/94cHk/zc3nu33MxRauXlkRxv85cOhfc=" crossorigin="anonymous"></script>
 <script>(()=>{'use strict';
 const BASE='https://fsdusofbpwdrdvgexxyw.supabase.co';
 const PUB='sb_publishable_BMNUqIpIRRyjF2vutvi__w_3BGQQQ7Z';
@@ -145,6 +145,33 @@ function makeMail(row){
  caution.textContent=risk.caution?
   'HEADER-ONLY CAUTION: '+risk.notes.join(' ')+' Sender identity NOT VERIFIED. Body and attachments not scanned.':
   'Header-only preview: no warning from sender/subject alone. Body, links and attachments NOT reviewed. Sender identity NOT VERIFIED.';
+ const orgNotice=document.createElement('div');orgNotice.className='result';
+ orgNotice.setAttribute('role','note');
+ // Static domain reference is NOT evidence that this message came from a company.
+ // Do not infer a Verified badge from the From address or untrusted subject.
+ try{
+  const org=window.BharatMailTrustEngine?.organizationReference({
+   from:row.from_address,subject:row.subject
+  });
+  if(!org||org.isSenderVerified!==false||org.isOrganizationVerified!==false||
+     org.domainAuthentication!=='not_checked'||org.senderMailboxAuthorization!=='not_verified')
+    throw Error('No trusted domain reference result');
+  if(org.status==='published_domain_reference'){
+   orgNotice.textContent=org.organization+' — published domain reference match ('+
+     org.listedDomain+'). Message authentication: NOT CHECKED by this reference. '+
+     'Organization and sender authority: NOT VERIFIED.';
+  }else if(['possible_lookalike','brand_claim_mismatch','unlisted_subdomain'].includes(org.status)){
+   orgNotice.className='result warn';
+   orgNotice.textContent='COMPANY DOMAIN CAUTION: '+org.organization+
+     ' reference does not authorize this sender domain. Possible impersonation '+
+     'or unlisted subdomain; NOT proof of fraud. Organization/sender: NOT VERIFIED.';
+  }else{
+   orgNotice.hidden=true;
+  }
+ }catch(_){
+  orgNotice.className='result warn';
+  orgNotice.textContent='Organization-domain reference unavailable. Sender identity NOT VERIFIED.';
+ }
  const when=document.createElement('p');when.className='date';const stamp=Date.parse(row.created_at);
  when.textContent=Number.isFinite(stamp)?new Date(stamp).toLocaleString():'Date unavailable';
 
@@ -256,7 +283,7 @@ function makeMail(row){
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
- section.append(subject,from,when,caution,scanBtn,scanStatus,copyBtn,copyStatus,btn,result);return section;
+ section.append(subject,from,when,caution,orgNotice,scanBtn,scanStatus,copyBtn,copyStatus,btn,result);return section;
 }
 async function listMail(){
  setStatus('Loading owned TEST inbox…');
