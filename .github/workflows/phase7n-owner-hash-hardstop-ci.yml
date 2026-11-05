@@ -1,0 +1,94 @@
+name: BharathLink Phase 7N — owner hash bypass HARD STOP (DISPOSABLE ONLY)
+on:
+  push:
+    branches:
+      - bharathlink-phase7n-owner-hash-bypass-hardstop-ci
+    paths:
+      - sql/staged/TEST-phase7n-close-unverified-hash-ingress.sql
+      - tests/phase7n-*
+      - tests/fixtures/phase7n-*
+      - .github/workflows/phase7n-owner-hash-hardstop-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7m-signed-review-to-ledger-ci
+    paths:
+      - sql/staged/TEST-phase7n-close-unverified-hash-ingress.sql
+      - tests/phase7n-*
+      - tests/fixtures/phase7n-*
+      - .github/workflows/phase7n-owner-hash-hardstop-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  source-and-crypto-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prior Phase 7I-M plus new hard-stop source regressions
+        run: |
+          set -euo pipefail
+          node --test tests/phase7n-owner-hash-ingress.test.mjs tests/phase7m-verified-ledger-bridge.test.mjs tests/phase7l-ledger-contract.test.mjs tests/phase7k-dual-review-evidence.test.mjs tests/phase7j-trust-posture.test.mjs tests/phase7i-first-device-hold-contract.test.mjs
+      - name: Confirm no production mutation or device approval
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'GRANT EXECUTE|SECURITY DEFINER|INSERT INTO public[.]messaging_devices|deviceApproved.*true' sql/staged/TEST-phase7n-close-unverified-hash-ingress.sql
+          echo 'PASS Phase7N: disposable hard stop only; no production activation'
+
+  disposable-postgres-hardstop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: phase7n_disposable_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: phase7n_disposable_ci_only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql client
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y postgresql-client
+          fi
+      - name: Seed synthetic Phase7G governance (disposable)
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7l-disposable-governance.sql
+      - name: Install legacy Phase7L private evidence ledger
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-phase7l-review-evidence-ledger-v1.sql
+      - name: Verify synthetic dual P-256 proof and preserve one prior receipt
+        run: node tests/phase7m-pg-verification-bridge.mjs
+      - name: Apply Phase7N hard-stop replacement (disposable only)
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/staged/TEST-phase7n-close-unverified-hash-ingress.sql
+      - name: Verify owner function, direct INSERT, immutability and role denials
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/fixtures/phase7n-owner-ingress-denials.sql
+      - name: Race two privileged SQL clients after hard stop (both must fail)
+        run: node tests/phase7n-concurrent-owner-hardstop.mjs
+      - name: Confirm original receipt remains and zero devices exist
+        run: |
+          set -euo pipefail
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM bl20_review_ledger_v1_private.receipts')" = "1"
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM bl20_review_ledger_v1_private.events')" = "1"
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM public.messaging_devices')" = "0"
+          echo 'PASS Phase7N: source hash-only bypass sealed, historical receipt untouched, zero devices'
