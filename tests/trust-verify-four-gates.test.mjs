@@ -51,6 +51,10 @@ test('incorrect and partial phone numbers are not verified', () => {
 test('organisation name not accepted as caller phone proof', () => {
   assert.equal(trust.assess('Example Bank', [good], now).who.status, 'not_established');
 });
+test('embedded sender names with phone digits are rejected', () => {
+  assert.equal(trust.assess('Example Bank 9876543210', [good], now).who.status, 'not_established');
+  assert.equal(trust.assess('bank@example.com9876543210', [good], now).who.status, 'not_established');
+});
 test('pending/expired/undated/corrupt proof refuses verified label', () => {
   for (const row of [
     {...good, verification_status: 'pending'},
