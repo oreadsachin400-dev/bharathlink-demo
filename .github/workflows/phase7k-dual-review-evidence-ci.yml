@@ -7,6 +7,13 @@ on:
       - recovery-gate/dual-review-evidence.mjs
       - tests/phase7k-dual-review-evidence.test.mjs
       - .github/workflows/phase7k-dual-review-evidence-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7j-trust-readiness-audit-ci
+    paths:
+      - recovery-gate/dual-review-evidence.mjs
+      - tests/phase7k-dual-review-evidence.test.mjs
+      - .github/workflows/phase7k-dual-review-evidence-ci.yml
   workflow_dispatch:
 permissions:
   contents: read
