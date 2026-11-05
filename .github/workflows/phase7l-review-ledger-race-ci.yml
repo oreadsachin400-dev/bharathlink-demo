@@ -8,6 +8,14 @@ on:
       - tests/fixtures/phase7l-*
       - tests/phase7l-*
       - .github/workflows/phase7l-review-ledger-race-ci.yml
+  pull_request:
+    branches:
+      - bharathlink-phase7k-dual-review-crypto-ci
+    paths:
+      - sql/staged/TEST-phase7l-review-evidence-ledger-v1.sql
+      - tests/fixtures/phase7l-*
+      - tests/phase7l-*
+      - .github/workflows/phase7l-review-ledger-race-ci.yml
   workflow_dispatch:
 permissions:
   contents: read
