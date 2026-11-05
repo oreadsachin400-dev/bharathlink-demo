@@ -11,7 +11,7 @@
   if (root) root.BharatMailTrustEngine = api;
 })(typeof window !== 'undefined' ? window : null, function () {
   'use strict';
-  const VERSION = 'bharathmail-trust-local-v4-2026-11-05';
+  const VERSION = 'bharathmail-trust-local-v5-2026-11-05';
   const MAX_SUBJECT = 300;
   const MAX_BODY = 12000;
   const PUBLIC_INBOX = new Set([
@@ -198,6 +198,44 @@
       secret:parts.some(p=>secret.test(p)&&action.test(p)&&!noSecret.test(p)),
       pay:parts.some(p=>(payment.test(p)||amount.test(p)&&sendVerb.test(p))&&affirmative(p))};
   }
+
+  const REPORT_CODES=new Set(["AUTHORITY_CLAIM_PUBLIC_MAIL","CROSS_DOMAIN_REDIRECT_PARAMETER","DISGUISED_LINK","HTML_LINK_DESTINATION_MISMATCH","IDN_SENDER","INCOMPLETE_HTML_SCAN","INCOMPLETE_LINK_SCAN","INCOMPLETE_TEXT_SCAN","INSECURE_LINK","MALFORMED_FROM","PAYMENT_REQUEST","PAYMENT_SOLICITATION","POSSIBLE_LOOKALIKE_DOMAIN","REPLY_TO_DIFFERS","SECRET_REQUEST","SENSITIVE_LINK_REQUEST","SHORTENED_LINK","UNSAFE_HTML_LINK","UNSAFE_REDIRECT_PARAMETER","UNUSUAL_LINK","URGENT_PAYMENT"]);
+  // Only signal codes. Never export sender, subject, raw reasons, email text,
+  // recipient, URLs, JWT, identifiers or any caller-controlled free text.
+  function redactedReport(r){
+    if(!r||typeof r!=='object'||r.version!==VERSION||r.source!=='internet'||
+       r.scanCoverage!=='bounded_heuristics_only'||
+       !['suspicious','caution','unverified'].includes(r.status)||
+       r.isVerified!==false||r.isFakeProven!==false||
+       r.identityVerification!=='not_verified'||
+       r.organizationAuthority!=='not_verified'||
+       r.paymentRequestVerification!=='not_verified'||
+       r.domainAuthentication!=='not_checked'||
+       !Array.isArray(r.reasons)||r.reasons.length>8)
+      throw Error('Untrusted or incompatible local scan result.');
+    const codes=[];
+    for(const item of r.reasons){
+      if(!item||!REPORT_CODES.has(item.code)||
+         !['high','medium','info'].includes(item.severity)||
+         codes.includes(item.code))
+        throw Error('Unknown security signal; report blocked.');
+      codes.push(item.code);
+    }
+    return [
+      'BHARATMAIL TEST — REDACTED LOCAL CAUTION REPORT',
+      'Scanner: '+VERSION,
+      'Result: '+r.status.toUpperCase(),
+      'Warning codes: '+(codes.join(', ')||'NONE_DETECTED_IN_LIMITED_SCAN'),
+      'Coverage: BOUNDED_HEURISTICS_ONLY',
+      'Domain authentication: NOT CHECKED BY LOCAL SCAN',
+      'Sender identity: NOT VERIFIED',
+      'Organization authority: NOT VERIFIED',
+      'Payment beneficiary: NOT VERIFIED',
+      'Attachments and malware: NOT SCANNED',
+      'Warnings do not prove fraud. No warning does not mean safe.',
+      'No sender, subject, body, recipient, URLs, message IDs or tokens included.'
+    ].join('\n');
+  }
   function inspect(mail) {
     const m = (mail && typeof mail === 'object') ? mail : {};
     const external = String(m.source || '').toLowerCase() === 'external';
@@ -330,5 +368,5 @@
       isFakeProven: false
     });
   }
-  return Object.freeze({VERSION, inspect});
+  return Object.freeze({VERSION, inspect, redactedReport});
 });
