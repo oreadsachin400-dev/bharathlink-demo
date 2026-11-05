@@ -1810,6 +1810,50 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 .bl-endpoint-danger{border:1px solid #7a3f45;background:#321b21;color:#ffd3d7;border-radius:12px;padding:10px;font-size:.78rem;line-height:1.45}
 @media(max-width:390px){.bl-directory-endpoint{grid-template-columns:1fr}.bl-directory-endpoint-verified{justify-self:start}.bl-owned-endpoint{grid-template-columns:1fr}.bl-owned-endpoint__action{justify-self:start}}
 
+
+/* Read-only Trust Verify preview: scoped high-contrast mobile presentation. */
+.bl-trust-preview .section{
+  background:#162548;
+  border:1px solid #40577e;
+  border-radius:18px;
+  padding:18px 16px;
+  color:#f8fafc;
+}
+.bl-trust-preview .section-title{
+  color:#ffffff;
+  font-size:1.1rem;
+  line-height:1.4;
+}
+.bl-trust-preview .section .lede{color:#f2f6ff}
+.bl-trust-preview .section .hint{color:#d3def0}
+.bl-trust-preview .kv{padding:0 0 8px}
+.bl-trust-preview .kv__row{
+  display:grid;
+  grid-template-columns:minmax(84px,.38fr) minmax(0,1fr);
+  align-items:start;
+  gap:12px;
+  border-bottom:1px solid #445779;
+}
+.bl-trust-preview .kv dt{
+  color:#cfddf4;
+  max-width:none;
+  font-weight:750;
+  font-size:.9rem;
+}
+.bl-trust-preview .kv dd{
+  color:#ffffff;
+  display:block;
+  text-align:left;
+  font-size:.94rem;
+  font-weight:650;
+  line-height:1.48;
+}
+.bl-trust-preview .section .notice{margin-top:16px}
+@media(max-width:375px){
+  .bl-trust-preview .section{padding:16px 12px}
+  .bl-trust-preview .kv__row{grid-template-columns:minmax(76px,.35fr) minmax(0,1fr);gap:9px}
+}
+
 </style>
 <meta name="bharathlink-build" content="v40-verified-directory-number-search-2026-09-29">
   <!-- phase1d-real-user-chat-2026-09-21 -->
@@ -6645,7 +6689,7 @@ const Views = {
   /* ----- Public, offline-only Trust Verify walkthrough (no account or network) ----- */
   trustVerifyPreview() {
     const verdict = CrossChannelTrust.assess('', []);
-    return Screen({
+    const node = Screen({
       title: 'Trust Verify · Preview',
       back: '/welcome',
       children: [
@@ -6671,6 +6715,8 @@ const Views = {
         Button('Back to welcome', {variant:'secondary', onClick:()=>Router.go('/welcome')})
       ]
     });
+    node.classList.add('bl-trust-preview');
+    return node;
   },
 
   /* ----- Consumer Trust Verify: read-only, four fail-closed gates ----- */
