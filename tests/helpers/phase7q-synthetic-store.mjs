@@ -1,6 +1,7 @@
 /** Ephemeral local fixture, not a deployable witness bootstrap service. */
 import {DatabaseSync} from 'node:sqlite';
 import {webcrypto} from 'node:crypto';
+import {chmodSync} from 'node:fs';
 import {canonicalCheckpoint,chainNextHead,TEST_PROJECT}
   from '../../recovery-gate/witness-log-consistency.mjs';
 const subtle=webcrypto.subtle;
@@ -38,6 +39,8 @@ export function bootstrapSyntheticStore(path){
   initial.projectId,initial.logId,initial.witnessKeyId,
   initial.sequence,initial.headSha256,1);
  db.close();
+ // Disposable test-only store now reflects least-privilege file custody.
+ chmodSync(path,0o600);
 }
 export function readSyntheticStore(path){
  const db=new DatabaseSync(path,{create:false,readOnly:true});
