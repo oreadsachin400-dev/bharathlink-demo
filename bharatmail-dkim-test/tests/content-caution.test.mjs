@@ -42,7 +42,7 @@ test('body and HTML are fetched only when user explicitly taps the Scan control,
  assert.match(html,/records\[0\]\?\.from_address!==row\.from_address/);
  assert.match(html,/window\.BharatMailTrustEngine\.inspect/);
  assert.match(html,/if\(!risk\|\|risk\.isVerified!==false\|\|risk\.isFakeProven!==false/);
- assert.match(html,/section\.append\(subject,from,when,caution,scanBtn,scanStatus,btn,result\)/);
+ assert.match(html,/section\.append\(subject,from,when,caution,scanBtn,scanStatus,copyBtn,copyStatus,btn,result\)/);
  assert.doesNotMatch(html,/(?:service_role|SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage|innerHTML\s*=|document\.write\()/);
 });
 test('content-risk engine remains local and never grants verified or safe status',()=>{
@@ -134,7 +134,7 @@ test('Anti-scam guidance in Hindi, Hinglish and English is not an OTP solicitati
  assert.ok(!codes(r).includes('URGENT_PAYMENT'));
 });
 test('Local-only bilingual analysis never upgrades a sender, bank or payment',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v4-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v5-2026-11-05');
  const source=engineBytes.toString('utf8');
  assert.match(source,/function bilingualSignals\(text,header\)/);
  assert.doesNotMatch(source,/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
@@ -210,7 +210,7 @@ test('Amount-specific Hindi/Hinglish money requests are cautiously distinguished
  }
 });
 test('Risk-engine version and CSP/SRI remain mutually pinned in real and offline demo pages',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v4-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v5-2026-11-05');
  const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
  const hash=sha(engineBytes);
  for(const source of [html,demo]){
@@ -256,7 +256,7 @@ test('Redirect query parameters flag cross-domain and unsafe destinations, but n
  assert.doesNotMatch(engineBytes.toString('utf8'),/\b(?:fetch|XMLHttpRequest|sendBeacon)\s*\(/);
 });
 test('Scam detector v4 retains CSP/SRI pins on actual inbox and offline demo',()=>{
- assert.equal(engine.VERSION,'bharathmail-trust-local-v4-2026-11-05');
+ assert.equal(engine.VERSION,'bharathmail-trust-local-v5-2026-11-05');
  const demo=readFileSync(new URL('../scam-demo.html',import.meta.url),'utf8');
  for(const page of [html,demo]){
   assert.ok(page.includes('integrity="sha256-'+sha(engineBytes)+'"'));
@@ -276,4 +276,48 @@ test('Offline demo includes both new link-phishing scenarios without accessing t
  const csp=demo.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
  assert.ok(csp.includes('&#x27;sha256-'+sha(script)+'&#x27;'));
  assert.doesNotThrow(()=>new Script(script));
+});
+
+test('Redacted copy control is disabled until owner-only local scan finishes',()=>{
+ assert.match(html,/copyBtn\.textContent='Copy redacted security report'/);
+ assert.match(html,/copyBtn\.disabled=true/);
+ assert.match(html,/copyBtn\.addEventListener\('click',async\(\)=>\{/);
+ assert.match(html,/navigator\.clipboard\.writeText\(reportForCopy\)/);
+ assert.match(html,/reportForCopy='';copyBtn\.disabled=true/);
+ assert.match(html,/BharatMailTrustEngine\.redactedReport\(risk\)/);
+ assert.match(html,/reportForCopy=redacted;copyBtn\.disabled=false/);
+ assert.doesNotMatch(html,/(?:service_role|SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage|innerHTML\s*=|document\.write\()/);
+});
+test('Redacted report exports only allowlisted warning codes, never private mail content',()=>{
+ const r=inspect('privateperson+123@secret-domain.example','Invoice SENT INV-78149',
+   'Urgent send ₹250 to https://private.example/token-AUTH-4938');
+ const redacted=engine.redactedReport(r);
+ assert.match(redacted,/BHARATMAIL TEST/);
+ assert.match(redacted,/URGENT_PAYMENT/);
+ assert.match(redacted,/Domain authentication: NOT CHECKED BY LOCAL SCAN/);
+ assert.match(redacted,/Attachments and malware: NOT SCANNED/);
+ for(const value of [
+  'privateperson','secret-domain.example','Invoice SENT','INV-78149',
+  'private.example','AUTH-4938','₹250','250','token-'
+ ]) assert.ok(!redacted.includes(value),'Private mail text leaked: '+value);
+});
+test('No warning is not safe and report rejects forged trust, unknown codes, duplicate signals',()=>{
+ const clean=inspect('example@gmail.com','Re: Isolation','Fresh check');
+ const noWarnings=engine.redactedReport(clean);
+ assert.match(noWarnings,/NONE_DETECTED_IN_LIMITED_SCAN/);
+ assert.match(noWarnings,/No warning does not mean safe/);
+ const r=inspect('a@example.com','KYC','Apna OTP bhejo');
+ for(const forged of [
+  {...r,version:'old'},
+  {...r,source:'fake'},
+  {...r,isVerified:true},
+  {...r,isFakeProven:true},
+  {...r,domainAuthentication:'pass'},
+  {...r,identityVerification:'verified'},
+  {...r,organizationAuthority:'verified'},
+  {...r,paymentRequestVerification:'verified'},
+  {...r,scanCoverage:'all_checked'},
+  {...r,reasons:[{code:'UNSAFE_IMPORTED_PERSONAL_VALUE',severity:'high',reason:'Secret'}]},
+  {...r,reasons:[{code:'SECRET_REQUEST',severity:'high'},{code:'SECRET_REQUEST',severity:'high'}]}
+ ]) assert.throws(()=>engine.redactedReport(forged));
 });
