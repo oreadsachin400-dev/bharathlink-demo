@@ -5955,7 +5955,9 @@ const DirectoryQuickSearch = ({context='general', compact=false}={}) => {
 /* Consumer trust gates: only exact server-verified directory endpoints; never infer payment safety. */
 const CrossChannelTrust = {
   phone(input) {
-    const digits = String(input ?? '').replace(/\D/g, '');
+    const raw = String(input ?? '').trim();
+    if (!raw || !/^\+?[\d()\s.-]+$/.test(raw)) return '';
+    const digits = raw.replace(/\D/g, '');
     if (digits.length === 10) return digits;
     if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
     return '';
