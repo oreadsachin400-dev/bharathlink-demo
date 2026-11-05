@@ -1810,6 +1810,50 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 .bl-endpoint-danger{border:1px solid #7a3f45;background:#321b21;color:#ffd3d7;border-radius:12px;padding:10px;font-size:.78rem;line-height:1.45}
 @media(max-width:390px){.bl-directory-endpoint{grid-template-columns:1fr}.bl-directory-endpoint-verified{justify-self:start}.bl-owned-endpoint{grid-template-columns:1fr}.bl-owned-endpoint__action{justify-self:start}}
 
+
+/* Read-only Trust Verify preview: scoped high-contrast mobile presentation. */
+.bl-trust-preview .section{
+  background:#162548;
+  border:1px solid #40577e;
+  border-radius:18px;
+  padding:18px 16px;
+  color:#f8fafc;
+}
+.bl-trust-preview .section-title{
+  color:#ffffff;
+  font-size:1.1rem;
+  line-height:1.4;
+}
+.bl-trust-preview .section .lede{color:#f2f6ff}
+.bl-trust-preview .section .hint{color:#d3def0}
+.bl-trust-preview .kv{padding:0 0 8px}
+.bl-trust-preview .kv__row{
+  display:grid;
+  grid-template-columns:minmax(84px,.38fr) minmax(0,1fr);
+  align-items:start;
+  gap:12px;
+  border-bottom:1px solid #445779;
+}
+.bl-trust-preview .kv dt{
+  color:#cfddf4;
+  max-width:none;
+  font-weight:750;
+  font-size:.9rem;
+}
+.bl-trust-preview .kv dd{
+  color:#ffffff;
+  display:block;
+  text-align:left;
+  font-size:.94rem;
+  font-weight:650;
+  line-height:1.48;
+}
+.bl-trust-preview .section .notice{margin-top:16px}
+@media(max-width:375px){
+  .bl-trust-preview .section{padding:16px 12px}
+  .bl-trust-preview .kv__row{grid-template-columns:minmax(76px,.35fr) minmax(0,1fr);gap:9px}
+}
+
 </style>
 <meta name="bharathlink-build" content="v40-verified-directory-number-search-2026-09-29">
   <!-- phase1d-real-user-chat-2026-09-21 -->
@@ -5951,6 +5995,73 @@ const DirectoryQuickSearch = ({context='general', compact=false}={}) => {
   );
 };
 
+
+/* Consumer trust gates: only exact server-verified directory endpoints; never infer payment safety. */
+const CrossChannelTrust = {
+  phone(input) {
+    const raw = String(input ?? '').trim();
+    if (!raw || !/^\+?[\d()\s.-]+$/.test(raw)) return '';
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 10) return digits;
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    return '';
+  },
+  exactVerifiedEndpoint(query, row, now = Date.now()) {
+    if (!row || typeof row !== 'object' || !row.entity_id) return false;
+    if (row.match_type !== 'exact_endpoint' || row.verification_status !== 'verified') return false;
+    if (!['mobile', 'phone', 'calling', 'telephone'].includes(String(row.matched_endpoint_type || '').toLowerCase())) return false;
+    const verifiedAt = Date.parse(row.verified_at || '');
+    if (!Number.isFinite(verifiedAt) || verifiedAt > now) return false;
+    if (row.verification_expires_at != null) {
+      const expiresAt = Date.parse(row.verification_expires_at);
+      if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
+    }
+    const sought = this.phone(query);
+    return !!sought && sought === this.phone(row.matched_endpoint_display_value);
+  },
+  assess(query, rows, now = Date.now()) {
+    const phone = this.phone(query);
+    const exact = phone && Array.isArray(rows)
+      ? rows.filter(row => this.exactVerifiedEndpoint(phone, row, now)) : [];
+    const distinctEntities = new Set(exact.map(row => String(row.entity_id)));
+    let who = {
+      status: 'not_established',
+      label: 'Not established — no exact verified official number match',
+      detail: 'No match is not proof of a fake number. Check official sources independently.'
+    };
+    if (distinctEntities.size > 1) {
+      who = {
+        status: 'ambiguous',
+        label: 'Ambiguous — more than one organisation lists this endpoint',
+        detail: 'Do not treat this as a verified caller. Contact the organisation independently.'
+      };
+    } else if (distinctEntities.size === 1) {
+      const row = exact[0];
+      who = {
+        status: 'endpoint_listed',
+        label: 'Official directory endpoint listed',
+        detail: 'Listed organisation: ' + String(row.display_name || row.legal_name || 'Unnamed organisation') + '. This does not authenticate the live caller.'
+      };
+    }
+    return {
+      who,
+      sameWho: {
+        status: 'not_established',
+        label: 'Not established — no cryptographic call/chat/email continuity proof'
+      },
+      where: {
+        status: 'not_established',
+        label: 'Not established — no bank/PSP-confirmed beneficiary ownership'
+      },
+      authority: {
+        status: 'not_established',
+        label: 'Not established — no issuer-authorised exact-request permission'
+      },
+      decision: 'HOLD — do not approve a payment or disclose secrets based on this check.'
+    };
+  }
+};
+
 const Views = {
   _callHistorySent: new Set(),
   _callHistoryInFlight: new Set(),
@@ -5979,7 +6090,10 @@ const Views = {
         h('ul', { class: 'eco__spokes', 'aria-label': 'Services connected to your identity' },
           [['phone', 'Calls'], ['chat', 'Messages'], ['mail', 'Mail'], ['rupee', 'Pay']].map(([ic, l]) => h('li', null, Icon(ic), l)))),
       h('p', { class: 'welcome__lede' }, 'Calling, messaging, mail and payments, all anchored to your mobile number and one trusted identity.'),
-      h('div', { class: 'welcome__actions' }, Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') })),
+      h('div', { class: 'welcome__actions' },
+        Button('Get started', { variant: 'marigold', onClick: () => Router.go('/mobile') }),
+        Button('Preview Trust Verify (no login)', { variant: 'secondary', onClick: () => Router.go('/trust-verify-preview') })
+      ),
       h('p', { class: 'welcome__note' }, 'Backend-connected prototype. Verification statuses come only from protected server-controlled fields; real provider APIs are not connected yet.'));
   },
 
@@ -6366,6 +6480,7 @@ const Views = {
       service('chats','/chats','chat','Messaging','End-to-end encrypted chats and groups','Open messages',msgCount),
       service('mail','/mail','mail','BharathMail','Identity-aware secure mailbox','Open mailbox',mailCount),
       service('pay','/pay','rupee','UPI / Pay','Review identity before handing off payment','Open payments',payCount),
+      service('trust','/trust-verify','id','Trust Verify','WHO · SAME WHO · WHERE · AUTHORITY','Open trust check'),
       service('identity','/identity','id','Identity','Display name, verified legal name and permanent IDs','Open identity')
     );
 
@@ -6568,6 +6683,113 @@ const Views = {
 
     setTimeout(()=>{loadActivity().catch(()=>{activityState.textContent='Some live activity could not be loaded.';});},0);
     return node;
+  },
+
+
+  /* ----- Public, offline-only Trust Verify walkthrough (no account or network) ----- */
+  trustVerifyPreview() {
+    const verdict = CrossChannelTrust.assess('', []);
+    const node = Screen({
+      title: 'Trust Verify · Preview',
+      back: '/welcome',
+      children: [
+        Notice('dev', 'Offline interface preview only. No sign-in, identity verification, backend lookup, encryption-key access, or payment is performed.'),
+        Section('Example scenario',
+          h('p', {class: 'lede'}, 'A caller claims to represent a bank and asks you to send ₹50,000. Is the request authorised?'),
+          h('p', {class: 'hint'}, 'No issuer, caller, beneficiary or request-authority evidence has been supplied in this preview.')
+        ),
+        Section('Four evidence gates',
+          h('dl', {class: 'kv'},
+            KvRow('WHO', verdict.who.label),
+            KvRow('SAME WHO', verdict.sameWho.label),
+            KvRow('WHERE', verdict.where.label),
+            KvRow('AUTHORITY', verdict.authority.label)
+          ),
+          Notice('warn', verdict.decision)
+        ),
+        Section('What this does and does not prove',
+          h('p', {class: 'hint'}, 'WHO needs independently verified live caller evidence. A published official number alone is not proof the caller controls that number.'),
+          h('p', {class: 'hint'}, 'SAME WHO requires cryptographic continuity across channels. WHERE requires payment-provider ownership evidence. AUTHORITY requires a signed, scoped, unexpired issuer approval for this exact request.'),
+          h('p', {class: 'hint'}, 'A no-match is not evidence of a fake person. This preview intentionally does not check real phone numbers or read chats or mail.')
+        ),
+        Button('Back to welcome', {variant:'secondary', onClick:()=>Router.go('/welcome')})
+      ]
+    });
+    node.classList.add('bl-trust-preview');
+    return node;
+  },
+
+  /* ----- Consumer Trust Verify: read-only, four fail-closed gates ----- */
+  trustVerify() {
+    const input = h('input', {
+      class: 'input', id: 'trust-verify-phone', type: 'tel', inputmode: 'tel',
+      autocomplete: 'off', placeholder: 'Official caller number, e.g. +91 98765 43210',
+      'aria-label': 'Phone number to check in verified directory'
+    });
+    const status = h('p', {class: 'hint', 'aria-live': 'polite'},
+      'No live number checked. No identity or payment authorization verified.');
+    const results = h('div', {'aria-live': 'polite'});
+    const render = verdict => {
+      results.replaceChildren(
+        Section('Four checks — evidence status',
+          h('dl', {class: 'kv'},
+            KvRow('WHO', verdict.who.label),
+            KvRow('SAME WHO', verdict.sameWho.label),
+            KvRow('WHERE', verdict.where.label),
+            KvRow('AUTHORITY', verdict.authority.label)
+          ),
+          h('p', {class: 'hint'}, verdict.who.detail),
+          Notice('warn', verdict.decision)
+        )
+      );
+    };
+    render(CrossChannelTrust.assess('', []));
+    const checkBtn = Button('Check exact number (read-only)', {onClick: async () => {
+      const term = CrossChannelTrust.phone(input.value);
+      render(CrossChannelTrust.assess('', []));
+      if (!term) {
+        status.textContent = 'Enter an exact Indian 10-digit number, optionally prefixed by +91. Organisation-name search is available in the directory.';
+        return;
+      }
+      if (!Supabase.accessToken) {
+        status.textContent = 'Sign in to the intended BharathLink TEST account to search verified official contacts.';
+        return;
+      }
+      checkBtn.disabled = true;
+      status.textContent = 'Looking up exact official directory endpoints…';
+      try {
+        const rows = await EntityDirectory.directorySearch(term);
+        const verdict = CrossChannelTrust.assess(term, rows);
+        render(verdict);
+        status.textContent = verdict.who.status === 'endpoint_listed'
+          ? 'Directory listing found. Live caller, cross-channel identity, payment owner and authority are NOT authenticated.'
+          : verdict.who.status === 'ambiguous'
+            ? 'Conflicting directory entries. Contact the organisation independently.'
+            : 'No exact verified official number match. This does not prove fraud.';
+      } catch (ex) {
+        render(CrossChannelTrust.assess('', []));
+        status.textContent = 'Directory check unavailable: ' + String(ex?.message || 'Network or server error') + '. Nothing was verified.';
+      } finally {
+        checkBtn.disabled = false;
+      }
+    }});
+    return Screen({
+      title: 'Trust Verify · TEST', back: '/home', nav: 'home', children: [
+        Notice('dev', 'Read-only TEST. A verified directory listing does not prove the real caller, guarantee safety or authorise a transfer.'),
+        Section('Check the caller number',
+          h('div', {class:'field'}, h('label', {for:'trust-verify-phone'}, 'Exact phone number'), input),
+          checkBtn,
+          status,
+          Button('Search official organisation / department', {variant:'secondary',onClick:()=>Router.go('/entities')})
+        ),
+        results,
+        Section('Safe payment rule',
+          h('p', {class:'hint'},
+            'Do not approve a payment or share an OTP, PIN or sensitive data just because a number or organisation appears in a directory. SAME WHO needs cryptographic cross-channel proof; WHERE needs bank/PSP evidence; AUTHORITY needs issuer-approved exact-request scope.'),
+          h('p', {class:'hint'}, 'No encrypted messages are read, no payment is initiated, and no external AI provider is called by this check.')
+        )
+      ]
+    });
   },
 
   /* ----- AI Trust Engine: local explainable phase ----- */
@@ -12293,6 +12515,7 @@ const Views = {
    App.render redirects to the right screen for the account's stage.
    ===================================================================== */
 const ROUTES = [
+  { re: /^\/trust-verify-preview$/, stage: 'public-preview', view: () => Views.trustVerifyPreview() },
   { re: /^\/welcome$/,           stage: 'auth',    view: () => Views.welcome() },
   { re: /^\/mobile$/,            stage: 'auth',    view: () => Views.mobile('signup') },
   { re: /^\/otp$/,               stage: 'auth',    view: () => Views.otp('signup') },
@@ -12300,6 +12523,7 @@ const ROUTES = [
   { re: /^\/onboard\/identity$/, stage: 'onboard', view: () => Views.onboardIdentity() },
   { re: /^\/onboard\/ids$/,      stage: 'onboard', view: () => Views.onboardIds() },
   { re: /^\/home$/,              stage: 'app',     view: () => Views.home() },
+  { re: /^\/trust-verify$/,      stage: 'app',     view: () => Views.trustVerify() },
   { re: /^\/trust-ai$/,          stage: 'app',     view: () => Views.trustAi() },
   { re: /^\/identity$/,          stage: 'app',     view: () => Views.identity() },
   { re: /^\/entities\/([0-9a-f-]{36})\/contacts$/, stage: 'app', view: id => Views.entityContacts(id) },
@@ -12368,7 +12592,7 @@ const App = {
     Lifecycle.run();
     const path = Router.current(), stage = this.stage();
     const route = ROUTES.find(r => r.re.test(path));
-    if (!route || route.stage !== stage) return Router.go(this.defaultRoute(), { replace: true });
+    if (!route || (route.stage !== stage && route.stage !== 'public-preview')) return Router.go(this.defaultRoute(), { replace: true });
     if(stage==='app'&&LockSecurity.appLockEnabled()&&!LockSecurity._appUnlocked){
       this.root.replaceChildren(LockSecurity.appGate());
       document.title='Locked | BharathLink';
