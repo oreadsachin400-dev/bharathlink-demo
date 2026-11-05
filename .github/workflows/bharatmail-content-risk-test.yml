@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'bharatmail-dkim-test/**'
+      - 'index.html'
+      - 'tests/**'
       - 'supabase/sql/bharatmail_owner_received_inbox_delete_v1.sql'
       - 'supabase/sql/bharatmail_received_delete_stored_file_guard_v1.sql'
       - 'supabase/functions/bharatmail-attachment-metadata-test/**'
@@ -31,3 +33,5 @@ jobs:
           node-version: '22'
       - name: Test SRI/CSP, RLS client boundary and synthetic content warnings
         run: node --test bharatmail-dkim-test/tests/*.test.mjs
+      - name: Test root app profile account isolation
+        run: node --test tests/*.test.mjs
