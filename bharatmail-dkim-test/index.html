@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-E4wM5PIjd10vL9bO4DvSXT6TzZP0/uNoFWoKE8esGdc=&#x27; &#x27;sha256-CWAwxvJ7oUfA3q6bbTyIEiMH6U2tOEIbJsEK6D7gdpM=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;; object-src &#x27;none&#x27;; style-src &#x27;sha256-TZ2RZF9BOmSBxulfnQDO7W3iMgcLKcogybImlMw3AuA=&#x27;; script-src &#x27;sha256-ak529QLtlndQetfqNaoLnb2+EBe93i3vg28GLLPXjP4=&#x27; &#x27;sha256-/QsMSrlhP/96SopVnp4oNlm+wqw44aHHZ0S9GSuNaG8=&#x27;; connect-src https://fsdusofbpwdrdvgexxyw.supabase.co; img-src data:; frame-src &#x27;none&#x27;">
 <title>BharathLink Mail | DKIM Domain Diagnostic TEST</title><style>:root{color-scheme:light;--ink:#192966;--gold:#e7ac48;--bg:#f3f5fa;--line:#dce2ee;--text:#1d2840;--sub:#525f78;--success:#096948;--warn:#7b5100}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Arial,sans-serif;-webkit-text-size-adjust:100%}
 main{width:min(100%,600px);margin:0 auto;padding:0 15px 52px}header{background:var(--ink);color:#fff;padding:24px 20px 21px;border-radius:0 0 18px 18px}
@@ -24,7 +24,7 @@ button.alt{color:var(--ink);background:white;border:1px solid var(--ink)}button[
 <p class="hint">Only inbound emails visible under your own Supabase account RLS are listed. Email contents and attachments are not shown.</p><p class="notice"><b>Secure inbox routing:</b> Only replies addressed to a registered <code>reply+…@bharathlink.com</code> route can enter this TEST inbox. A direct email to <code>mail@bharathlink.com</code> or another general address may be received but held as <b>pending routing</b>; it is not proof of fraud. To run a fresh DKIM test, first send a new one-recipient email from the BharathLink-20-TEST app to your Gmail, then tap <b>Reply</b> in Gmail (not Compose/Forward). Check that the recipient begins with <code>reply+</code> before sending, and then tap <b>Refresh inbox</b> here. Do not share the complete reply token.</p><div id="mail-list"></div></section>
 <p id="status" role="status" aria-live="polite"></p>
 <p class="hint foot">On-demand tests may show DKIM and limited DMARC. SPF not checked. Limited content scan is on-demand; attachments unchecked. No warning is proof of safety. Person, organization and payment NOT VERIFIED.</p></main>
-<script src="./trust-engine.js" integrity="sha256-CWAwxvJ7oUfA3q6bbTyIEiMH6U2tOEIbJsEK6D7gdpM=" crossorigin="anonymous"></script>
+<script src="./trust-engine.js" integrity="sha256-/QsMSrlhP/96SopVnp4oNlm+wqw44aHHZ0S9GSuNaG8=" crossorigin="anonymous"></script>
 <script>(()=>{'use strict';
 const BASE='https://fsdusofbpwdrdvgexxyw.supabase.co';
 const PUB='sb_publishable_BMNUqIpIRRyjF2vutvi__w_3BGQQQ7Z';
@@ -152,8 +152,26 @@ function makeMail(row){
  scanBtn.textContent='Scan stored text & HTML links (locally)';
  const scanStatus=document.createElement('div');scanStatus.className='result';
  scanStatus.setAttribute('role','status');scanStatus.textContent='Content scan not run. Attachments remain unchecked.';
+ const copyBtn=document.createElement('button');copyBtn.type='button';copyBtn.className='alt';
+ copyBtn.textContent='Copy redacted security report';copyBtn.disabled=true;
+ const copyStatus=document.createElement('div');copyStatus.className='hint';
+ copyStatus.setAttribute('role','status');copyStatus.textContent='Scan an email before copying a report.';
+ let reportForCopy='';
+ // User-initiated clipboard only. No network upload or raw message export.
+ copyBtn.addEventListener('click',async()=>{
+  if(copyBtn.disabled||!reportForCopy)return;
+  if(!navigator.clipboard||typeof navigator.clipboard.writeText!=='function'){
+   copyStatus.textContent='Clipboard unavailable; nothing copied.';return;
+  }
+  try{
+   await navigator.clipboard.writeText(reportForCopy);
+   copyStatus.textContent='Copied warning codes and limitations only. No email content included.';
+  }catch(_){copyStatus.textContent='Browser blocked copying; no report shared.';}
+ });
  scanBtn.addEventListener('click',async()=>{
   if(scanBtn.disabled)return;scanBtn.disabled=true;
+  reportForCopy='';copyBtn.disabled=true;
+  copyStatus.textContent='Report unavailable until this local scan completes.';
   scanStatus.className='result';scanStatus.textContent='Locally checking stored email text and HTML links…';
   try{
    if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(row.id))
@@ -178,6 +196,13 @@ function makeMail(row){
    if(!risk||risk.isVerified!==false||risk.isFakeProven!==false||
       risk.identityVerification!=='not_verified')
     throw Error('Untrusted risk result; fail closed.');
+   if(typeof window.BharatMailTrustEngine.redactedReport!=='function')
+    throw Error('Redacted report unavailable.');
+   const redacted=window.BharatMailTrustEngine.redactedReport(risk);
+   if(typeof redacted!=='string'||!redacted.startsWith('BHARATMAIL TEST'))
+    throw Error('Untrusted redacted report.');
+   reportForCopy=redacted;copyBtn.disabled=false;
+   copyStatus.textContent='Redacted report ready. Copy only if you choose.';
    const notes=risk.reasons.slice(0,6).map(x=>String(x.reason||'')).filter(Boolean);
    scanStatus.className='result'+(notes.length?' warn':'');
    scanStatus.textContent=notes.length?
@@ -231,7 +256,7 @@ function makeMail(row){
   }catch(e){result.className='result warn';result.textContent=(e instanceof Error?e.message:'Evidence unavailable.')+' No sender identity verified.';}
   finally{btn.disabled=false;}
  });
- section.append(subject,from,when,caution,scanBtn,scanStatus,btn,result);return section;
+ section.append(subject,from,when,caution,scanBtn,scanStatus,copyBtn,copyStatus,btn,result);return section;
 }
 async function listMail(){
  setStatus('Loading owned TEST inbox…');
