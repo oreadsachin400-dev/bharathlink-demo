@@ -1,9 +1,10 @@
 name: BharatMail TEST local content-risk regression (NO DEPLOY)
 on:
   push:
-    branches: [main]
+    branches: [main, blmail-real-attachment-metadata-readonly-20261105]
     paths:
       - 'bharatmail-dkim-test/**'
+      - 'supabase/functions/bharatmail-attachment-metadata-test/**'
       - '.github/workflows/bharatmail-content-risk-test.yml'
   workflow_dispatch:
 permissions:
