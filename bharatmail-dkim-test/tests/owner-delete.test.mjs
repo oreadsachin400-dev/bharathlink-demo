@@ -59,3 +59,17 @@ test('CSP inline-script hash independently matches changed UI',()=>{
  const sha=createHash('sha256').update(inline).digest('base64');
  assert.ok(content.includes('script-src &#x27;sha256-'+sha+'&#x27;'));
 });
+
+test('Private stored-file guard fails closed before FK cascade and leaves no storage bytes orphaned',()=>{
+ const guard=readFileSync(new URL('../../supabase/sql/bharatmail_received_delete_stored_file_guard_v1.sql',import.meta.url),'utf8');
+ assert.match(guard,/create schema if not exists bharatmail_private/);
+ assert.match(guard,/revoke all on schema bharatmail_private from public, anon, authenticated/);
+ assert.match(guard,/security definer/);
+ assert.match(guard,/set search_path=pg_catalog/);
+ assert.match(guard,/public\.bharatmail_external_attachments a/);
+ assert.match(guard,/a\.external_message_id=old\.id/);
+ assert.match(guard,/raise exception 'stored_file_cleanup_required'/);
+ assert.match(guard,/before delete on public\.bharatmail_external_messages/);
+ assert.match(guard,/revoke all on function bharatmail_private\.prevent_inbox_delete_with_stored_files\(\)/);
+ assert.doesNotMatch(guard,/delete from storage\.objects/i);
+});
