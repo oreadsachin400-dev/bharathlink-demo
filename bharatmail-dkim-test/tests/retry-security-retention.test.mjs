@@ -184,3 +184,34 @@ test('Worker has no file access, header token exposure or arbitrary endpoint dep
  assert.doesNotMatch(source,/req\.json\(\)|req\.text\(\)/);
  assert.doesNotMatch(source,/console\.(log|debug)\(/);
 });
+
+test('Cron scheduler contains no static credentials and signs one-time request using Vault',()=>{
+ const sql=readFileSync(new URL('../../supabase/sql/bharatmail_attachment_retry_scheduler_v1.sql',import.meta.url),'utf8');
+ assert.match(sql,/perform public\.bharatmail_retry_enqueue\(\)/);
+ assert.match(sql,/vault\.decrypted_secrets/);
+ assert.match(sql,/extensions\.hmac\(/);
+ assert.match(sql,/gen_random_uuid\(\)::text/);
+ assert.match(sql,/x-bl-retry-signature/);
+ assert.match(sql,/timeout_milliseconds:=25000/);
+ assert.match(sql,/revoke all on function public\.bharatmail_retry_schedule_tick\(\) from public, anon, authenticated, service_role/);
+ assert.doesNotMatch(sql,/whsec_[A-Za-z0-9]+|sb_secret_[A-Za-z0-9]+|Bearer [A-Za-z0-9._-]{15,}/);
+});
+test('Cron job only schedules TEST retry every 5 minutes and does not affect mail routing',()=>{
+ const sql=readFileSync(new URL('../../supabase/sql/bharatmail_attachment_retry_cron_v1.sql',import.meta.url),'utf8');
+ assert.match(sql,/cron\.schedule\(/);
+ assert.match(sql,/'blmail-attachment-retry-v1'/);
+ assert.match(sql,/'\*\/5 \* \* \* \*'/);
+ assert.match(sql,/select public\.bharatmail_retry_schedule_tick\(\)/);
+ assert.doesNotMatch(sql,/delete from|alter table bharatmail_external_messages|insert into bharatmail_external_messages/i);
+});
+test('Snapshot retention preserves original until parent email deletion; retry metadata expires separately',()=>{
+ const base=readFileSync(new URL('../../supabase/sql/bharatmail_received_attachment_snapshots_v1.sql',import.meta.url),'utf8');
+ const retry=readFileSync(new URL('../../supabase/sql/bharatmail_attachment_retry_queue_v1.sql',import.meta.url),'utf8');
+ assert.match(base,/foreign key \(external_message_id, owner_user_id\)/);
+ assert.match(base,/on delete cascade/i);
+ assert.doesNotMatch(retry,/delete from public\.bharatmail_received_attachment_snapshots/);
+ assert.match(retry,/delete from public\.bharatmail_attachment_retry_jobs/);
+ assert.match(retry,/interval '7 days'/);
+ assert.match(retry,/delete from public\.bharatmail_attachment_retry_nonces/);
+ assert.match(retry,/interval '1 day'/);
+});
