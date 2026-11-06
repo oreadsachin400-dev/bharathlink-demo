@@ -1,0 +1,32 @@
+name: Security Shield TEST checks
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'security-shield.js'
+      - 'tests/security-shield.test.mjs'
+      - '.github/workflows/security-shield-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-security-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regression tests
+        run: node --test tests/security-shield.test.mjs
+      - name: Static inline JavaScript parse
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs'), vm=require('node:vm');
+          const html=fs.readFileSync('index.html','utf8');
+          const match=html.match(/<script>\s*([\s\S]*?)<\/script>/);
+          if(!match)throw new Error('Inline application script missing');
+          new vm.Script(match[1]);
+          console.log('Inline app syntax OK');
+          NODE
