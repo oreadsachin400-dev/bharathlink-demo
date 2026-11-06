@@ -1,5 +1,8 @@
 name: Security Shield TEST checks
 on:
+  push:
+    branches:
+      - 'feature/security-shield-test-2026-11-06'
   pull_request:
     paths:
       - 'index.html'
