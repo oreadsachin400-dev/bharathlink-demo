@@ -16,8 +16,9 @@ jobs:
           fetch-depth: 1
       - name: Bundle current repository files
         run: |
-          tar --exclude=.git --exclude=source-backup.tar.gz -czf source-backup.tar.gz .
-          tar -tzf source-backup.tar.gz >/dev/null
+          tar --exclude=.git -czf "$RUNNER_TEMP/source-backup.tar.gz" .
+          tar -tzf "$RUNNER_TEMP/source-backup.tar.gz" >/dev/null
+          cp "$RUNNER_TEMP/source-backup.tar.gz" source-backup.tar.gz
       - name: Upload repository snapshot
         uses: actions/upload-artifact@v4
         with:
