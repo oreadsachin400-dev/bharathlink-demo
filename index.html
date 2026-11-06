@@ -12,7 +12,7 @@
     Phase 1B should move JS/CSS to separate files and drop 'unsafe-inline'.
   - frame-ancestors cannot be set from a meta tag; send it as an HTTP header when deploying.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob: data:; connect-src https://lhaiwfdzynssgxmtlytl.supabase.co wss://lhaiwfdzynssgxmtlytl.supabase.co; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'none'; worker-src 'self';"> 
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob: data:; connect-src https://lhaiwfdzynssgxmtlytl.supabase.co wss://lhaiwfdzynssgxmtlytl.supabase.co; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'none'; worker-src 'self';"> 
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#14205A">
 <meta name="description" content="BharathLink: one verified identity for calling, messaging, mail and payments. Phase 1A prototype.">
@@ -1882,6 +1882,7 @@ html,body{max-width:100%;overflow-x:hidden!important;background:#050b19!importan
 <noscript><p>BharathLink needs JavaScript to run.</p></noscript>
 <div id="app"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="./security-shield.js"></script>
 <script>
 /* BharathLink_Manage_Channels_20260929 */
 (function () {
@@ -6560,6 +6561,11 @@ const Views = {
       services,
       warning,
       aiTrustCard,
+      h('div',{class:'bl-ai-home',role:'button',tabindex:'0',onClick:()=>Router.go('/security-shield'),onKeydown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();Router.go('/security-shield');}}},
+        h('div',{class:'bl-ai-home-top'},h('span',{class:'bl-ai-home-icon'},'🛡'),
+          h('span',{class:'bl-ai-home-copy'},h('span',{class:'bl-ai-home-title'},'Security Shield · TEST'),
+            h('span',{class:'bl-ai-home-sub'},'Offline URL and message risk checks; manual and private.')),
+          h('span',{class:'bl-ai-home-link'},'Open ›'))),
       h('div',{class:'bl-home-sectionhead'},h('strong',null,'CROSS-LAYER ACTIVITY'),h('span',null,'Latest 4 activity layers')),
       activityBox,
       activityState
@@ -6655,6 +6661,43 @@ const Views = {
     node.classList.add('bl-ai-screen');
     setTimeout(()=>load(),0);
     return node;
+  },
+
+  /* ----- Security Shield TEST: explicit local-only checks ----- */
+  securityShield() {
+    const engine=window.BharatLinkSecurityShield;
+    const urlInput=h('input',{class:'input',type:'url',placeholder:'https://example.com',maxlength:'2048','aria-label':'URL to inspect',autocomplete:'off',spellcheck:'false'});
+    const msgInput=h('textarea',{class:'input',rows:'4',maxlength:'4000',placeholder:'Paste suspicious message text','aria-label':'Message to inspect',autocomplete:'off',spellcheck:'false'});
+    const resultBox=h('div',{class:'bl-ai-signal-list',role:'status','aria-live':'polite'});
+    const show=(result)=>{
+      resultBox.replaceChildren(h('div',{class:'bl-ai-signal'},
+        h('div',{class:'bl-ai-signal-head'},
+          h('span',{class:'bl-ai-severity '+(result.level==='high'?'high':result.level==='medium'?'medium':'info')},result.level==='unknown'?'unverified':result.level),
+          h('strong',{class:'bl-ai-signal-title'},result.title)),
+        ...result.reasons.map(t=>h('p',{class:'bl-ai-signal-reason'},t)),
+        ...result.actions.map(t=>h('p',{class:'bl-ai-signal-action'},t)),
+        h('p',{class:'bl-ai-signal-source'},'Offline heuristics only · No website reputation or identity verification · Not a safety guarantee')));
+    };
+    const check=kind=>{
+      if(!engine){resultBox.replaceChildren(Notice('warn','Local scanner unavailable.'));return;}
+      show(kind==='link'?engine.inspectUrl(urlInput.value):engine.inspectMessage(msgInput.value));
+    };
+    return Screen({title:'Security Shield · TEST',back:'/home',nav:'home',children:[
+      h('div',{class:'bl-ai-intro'},h('strong',null,'BharatLink Security Shield'),
+        h('p',null,'You choose what to check. These rules identify warning signs, not confirmed fraud.'),
+        h('div',{class:'bl-ai-privacy'},'Privacy: Input stays on this screen. No upload, automatic WhatsApp reading, notification access, spyware inspection or external AI.')),
+      Section('Suspicious Link Detection',urlInput,Button('Check link locally',{variant:'secondary',onClick:()=>check('link')}),
+        h('p',{class:'hint'},'This scanner does not open the URL or check live threat databases.')),
+      Section('Suspicious Message Detection',msgInput,Button('Check message locally',{variant:'secondary',onClick:()=>check('message')}),
+        h('p',{class:'hint'},'Only check content you have permission to access. No message history is imported.')),
+      resultBox,
+      Section('Verified Identity',h('p',{class:'hint'},'Look up existing BharatLink organization records. No match does not mean fake; verified does not mean safe.'),
+        Button('Open Verified Directory',{variant:'secondary',onClick:()=>Router.go('/entities')})),
+      Section('Account Compromise Protection',h('p',{class:'hint'},'Review BharatLink App Lock and Chat Lock. For WhatsApp, check Linked Devices inside WhatsApp itself. BharatLink cannot read WhatsApp sessions.'),
+        Button('Open App Lock Settings',{variant:'secondary',onClick:()=>Router.go('/identity')})),
+      Section('Device Privacy Checklist',h('p',{class:'hint'},'On Android manually review Settings → Apps → Special app access, notification access, accessibility services, device administrators, and Google Play Protect. No automatic device scan is performed.')),
+      h('p',{class:'bl-ai-rule'},'WHO · SAME WHO · WHERE · AUTHORITY. Verify suspicious requests using independently trusted channels.')
+    ]});
   },
 
   /* ----- Profile / Digital Identity dashboard ----- */
@@ -12301,6 +12344,7 @@ const ROUTES = [
   { re: /^\/onboard\/ids$/,      stage: 'onboard', view: () => Views.onboardIds() },
   { re: /^\/home$/,              stage: 'app',     view: () => Views.home() },
   { re: /^\/trust-ai$/,          stage: 'app',     view: () => Views.trustAi() },
+  { re: /^\/security-shield$/,   stage: 'app',     view: () => Views.securityShield() },
   { re: /^\/identity$/,          stage: 'app',     view: () => Views.identity() },
   { re: /^\/entities\/([0-9a-f-]{36})\/contacts$/, stage: 'app', view: id => Views.entityContacts(id) },
   { re: /^\/entities$/,          stage: 'app',     view: () => Views.entities() },
