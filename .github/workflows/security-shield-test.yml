@@ -33,3 +33,16 @@ jobs:
           new vm.Script(match[1]);
           console.log('Inline app syntax OK');
           NODE
+      - name: Package TEST site (no deploy)
+        run: |
+          mkdir -p dist
+          cp index.html security-shield.js bharatmail-sw.js dist/
+          test -s dist/index.html
+          test -s dist/security-shield.js
+      - name: Upload consolidated TEST ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BharatLink-Security-Shield-TEST-Netlify-ready
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
