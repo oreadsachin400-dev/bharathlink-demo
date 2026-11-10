@@ -45,6 +45,7 @@ test('same-scope reminder route accepted',async()=>{
 test('external and ambiguous reminder destinations fail closed',async()=>{
   for(const value of [
     'https://evil.example/', '//evil.example/path', 'javascript:alert(1)',
+    'https://login:password@bharathlink-20-test.netlify.app/app/#/home',
     'data:text/html,hi', '../#/mail', '/other/#/mail',
     './?token=1#/mail', './#/login', './#//evil.example',
     '#/mail?to=outside@example.org', './#/mail/../../../evil',
