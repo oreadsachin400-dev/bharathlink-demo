@@ -2826,7 +2826,7 @@ const E2EEV2DeviceTest = {
   DB: 'bharathlink-e2ee-v2-device-test', STORE: 'devices', RECORD_VERSION: 2,
   RPC: 'register_e2ee_v2_device',
   RPC_PARAMS: Object.freeze(['p_device_id', 'p_signing_public_key', 'p_curve25519_public_key']),
-  result: null, running: false, autoRan: false,
+  result: null, running: false,
   b64(buf) { let s = ''; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b); return btoa(s); },
   hex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); },
   uuid() {
@@ -12248,7 +12248,9 @@ const Views = {
   /* ----- E2EE V2 device registration test (test build only) ----- */
   e2eeV2Test() {
     const T = E2EEV2DeviceTest, r = T.result;
-    if (!r && !T.running && !T.autoRan) { T.autoRan = true; setTimeout(() => T.run(), 0); }
+    // Diagnostic registration writes a temporary server row. Never auto-run it.
+    const mayRunDiagnostic = location.origin === 'https://bharathlink-20-test.netlify.app'
+      && CONFIG.SUPABASE_URL === 'https://fsdusofbpwdrdvgexxyw.supabase.co';
     const badge = st => st === 'pass' ? ToneBadge('verified', 'PASS') : st === 'fail' ? ToneBadge('failed', 'FAIL')
       : st === 'pending' ? ToneBadge('pending', 'Running\u2026') : st === 'skip' ? ToneBadge('none', 'Skipped') : ToneBadge('none', 'Not run');
     const overall = !r ? null : T.running ? 'pending' : (r.auth === 'pass' && r.keys === 'pass' && r.rpc === 'pass' ? 'pass' : 'fail');
@@ -12262,7 +12264,8 @@ const Views = {
     ] : [];
     return Screen({ title: 'E2EE V2 device test', back: '/identity', nav: 'identity', children: [
       Notice('dev', [h('strong', null, 'Test build only. '),
-        'Checks your current sign-in, local key generation and the V2 device registration RPC. These are temporary WebCrypto test keys for backend plumbing only, not production V2 keys, and there is no Double Ratchet here. Private keys never leave this device. V1 messaging is not changed.']),
+        'Runs only after you click the button and confirm. It registers a temporary diagnostic device on the server, not a trusted messaging device. Forgetting local keys does NOT revoke the server registration. No Double Ratchet is activated. V1 messaging is unchanged.']),
+      !mayRunDiagnostic ? Notice('warn', 'SECURITY HOLD: This page is not bound to both the official BharathLink TEST origin and TEST Supabase backend. V2 diagnostic registration is disabled.') : null,
       h('dl', { class: 'kv paycard section', 'aria-live': 'polite' },
         KvRow('Authenticated user', badge(r?.auth)),
         KvRow('Local key generation', badge(r?.keys)),
@@ -12273,7 +12276,11 @@ const Views = {
         h('dl', { class: 'kv paycard' }, details),
         r.notes.length ? h('div', { class: 'stack section' }, r.notes.map(n => h('p', { class: 'hint' }, n))) : null) : null,
       h('div', { class: 'btn-row section' },
-        Button(T.running ? 'Running\u2026' : 'Run test again', { disabled: T.running, onClick: () => T.run() }),
+        Button(T.running ? 'Running\u2026' : 'Run V2 device registration test', { disabled: T.running || !mayRunDiagnostic, onClick: () => {
+          if (!mayRunDiagnostic) return;
+          if (!window.confirm('This TEST operation will register a temporary diagnostic E2EE V2 device in the official TEST backend. It is NOT trusted device approval. The server record remains if local keys are forgotten. Continue?')) return;
+          void T.run();
+        } }),
         Button('Forget local test device', { variant: 'ghost', disabled: T.running || !r?.deviceId, onClick: async () => {
           if (!window.confirm('Delete the local test device and its test keys from this browser? Its server registration stays until revoked.')) return;
           try { await T.forget(); Toast.show('Local test device deleted.'); } catch (e) { Toast.show(e.message || 'Could not delete the local test device.'); }
