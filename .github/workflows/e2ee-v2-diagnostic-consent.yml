@@ -1,0 +1,27 @@
+name: BharathLink E2EE V2 diagnostic consent (OFFLINE ONLY)
+on:
+  push:
+    branches:
+      - security/e2ee-v2-diagnostic-consent-20261110
+    paths:
+      - 'index.html'
+      - 'tests/e2ee-v2-diagnostic-consent.test.mjs'
+      - '.github/workflows/e2ee-v2-diagnostic-consent.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/e2ee-v2-diagnostic-consent.test.mjs'
+      - '.github/workflows/e2ee-v2-diagnostic-consent.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-safety-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Test manual consent, official TEST backend pin, and zero auto-registration
+        run: node --test tests/e2ee-v2-diagnostic-consent.test.mjs
