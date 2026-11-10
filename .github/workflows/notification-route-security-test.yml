@@ -7,6 +7,7 @@ on:
       - 'bharatmail-sw.js'
       - 'index.html'
       - 'tests/notification-route-guard.test.mjs'
+      - 'tests/test-backend-source-identity.test.mjs'
       - 'scripts/check-test-backend-source.mjs'
       - '.github/workflows/notification-route-security-test.yml'
   pull_request:
@@ -14,6 +15,7 @@ on:
       - 'bharatmail-sw.js'
       - 'index.html'
       - 'tests/notification-route-guard.test.mjs'
+      - 'tests/test-backend-source-identity.test.mjs'
       - 'scripts/check-test-backend-source.mjs'
       - '.github/workflows/notification-route-security-test.yml'
 permissions:
@@ -42,5 +44,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+      - name: Unit-test API and WSS source identity gate with synthetic fixtures
+        run: node --test tests/test-backend-source-identity.test.mjs
       - name: Reject candidate source bound to wrong Supabase backend
         run: node scripts/check-test-backend-source.mjs
