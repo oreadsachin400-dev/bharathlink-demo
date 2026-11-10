@@ -2826,7 +2826,7 @@ const E2EEV2DeviceTest = {
   DB: 'bharathlink-e2ee-v2-device-test', STORE: 'devices', RECORD_VERSION: 2,
   RPC: 'register_e2ee_v2_device',
   RPC_PARAMS: Object.freeze(['p_device_id', 'p_signing_public_key', 'p_curve25519_public_key']),
-  result: null, running: false, autoRan: false,
+  result: null, running: false,
   b64(buf) { let s = ''; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b); return btoa(s); },
   hex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); },
   uuid() {
@@ -2884,14 +2884,12 @@ const E2EEV2DeviceTest = {
     return payload;
   },
   async callRpc(name, body, allowRefresh = true) {
-    const go = () => fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${name}`, { method: 'POST', headers: Supabase.headers(), body: JSON.stringify(body) });
-    let res = await go();
-    if (res.status === 401 && allowRefresh && Supabase.refreshToken) { await Supabase.refreshAccessToken(); res = await go(); }
-    const text = await res.text(); let data = null;
-    try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
-    return { ok: res.ok, status: res.status, data };
+    // SECURITY HOLD: prevent unsigned legacy test-device registration even
+    // if a future route accidentally invokes this method.
+    // This diagnostic can test local WebCrypto only, not E2EE enrollment.
+    throw new Error('SECURITY HOLD: unsigned legacy V2 registration disabled');
   },
-  extractId(d, depth = 0) {
+    extractId(d, depth = 0) {
     if (depth > 3 || d == null) return null;
     if (Array.isArray(d)) return this.extractId(d[0], depth + 1);
     if (typeof d === 'string') return d;
@@ -2908,6 +2906,9 @@ const E2EEV2DeviceTest = {
       .filter(Boolean).join(' | ');
   },
   async run() {
+    // Direct method callers cannot override the UI's TEST origin/backend gate.
+    if (location.origin !== 'https://bharathlink-20-test.netlify.app' ||
+        CONFIG.SUPABASE_URL !== 'https://fsdusofbpwdrdvgexxyw.supabase.co') return;
     if (this.running) return;
     this.running = true;
     const r = this.result = { auth: 'pending', keys: 'pending', rpc: 'pending', userId: null, deviceId: null, returnedId: null,
@@ -2935,26 +2936,11 @@ const E2EEV2DeviceTest = {
         if (local.signing.alg !== 'Ed25519') r.notes.push('This browser has no WebCrypto Ed25519, so the signing test key is ECDSA P-256.');
       } catch (e) { r.keys = 'fail'; r.notes.push(`Local key generation: ${e.message}`); return; }
 
-      try {
-        const payload = this.buildPayload(local);
-        r.sentParams = Object.keys(payload);
-        const res = await this.callRpc(this.RPC, payload);
-        if (res.ok) r.returnedId = this.extractId(res.data);
-        else {
-          r.server = this.describe(res);
-          const dup = res.data && res.data.code === '23505';
-          if (dup && local.verifiedReturnedId && local.verifiedReturnedId.toLowerCase() === local.deviceId.toLowerCase()) {
-            r.returnedId = local.verifiedReturnedId;
-            r.notes.push(`Already registered: an earlier run on this device verified the returned ID (${new Date(local.registeredAt).toLocaleString()}). The server rejected re-registration as a duplicate.`);
-          } else throw new Error(r.server);
-        }
-        if (!r.returnedId) throw new Error('The RPC succeeded but returned no device ID.');
-        if (r.returnedId.toLowerCase() !== local.deviceId.toLowerCase())
-          throw new Error(`Returned device ID ${r.returnedId} does not match the local device ID.`);
-        local.registeredAt = local.registeredAt || Date.now(); local.verifiedReturnedId = r.returnedId;
-        await this.putLocal(r.userId, local);
-        r.rpc = 'pass';
-      } catch (e) { r.rpc = 'fail'; r.notes.push(`V2 device registration RPC: ${e.message}`); }
+      // Registered backend device identity is intentionally out of scope:
+      // never call the unsigned legacy register_e2ee_v2_device RPC.
+      r.rpc = 'skip';
+      r.notes.push('SECURITY HOLD: legacy V2 server registration disabled; only local diagnostic keys were checked.');
+
     } finally {
       for (const k of ['auth', 'keys', 'rpc']) if (r[k] === 'pending') r[k] = 'skip';
       this.running = false; this.refresh();
@@ -12248,10 +12234,12 @@ const Views = {
   /* ----- E2EE V2 device registration test (test build only) ----- */
   e2eeV2Test() {
     const T = E2EEV2DeviceTest, r = T.result;
-    if (!r && !T.running && !T.autoRan) { T.autoRan = true; setTimeout(() => T.run(), 0); }
+    // Explicitly user-initiated, local-only crypto diagnostic; no server registration.
+    const mayRunDiagnostic = location.origin === 'https://bharathlink-20-test.netlify.app'
+      && CONFIG.SUPABASE_URL === 'https://fsdusofbpwdrdvgexxyw.supabase.co';
     const badge = st => st === 'pass' ? ToneBadge('verified', 'PASS') : st === 'fail' ? ToneBadge('failed', 'FAIL')
       : st === 'pending' ? ToneBadge('pending', 'Running\u2026') : st === 'skip' ? ToneBadge('none', 'Skipped') : ToneBadge('none', 'Not run');
-    const overall = !r ? null : T.running ? 'pending' : (r.auth === 'pass' && r.keys === 'pass' && r.rpc === 'pass' ? 'pass' : 'fail');
+    const overall = !r ? null : T.running ? 'pending' : (r.auth === 'pass' && r.keys === 'pass' ? 'pass' : 'fail');
     const details = r ? [
       r.userId ? KvRow('User ID', r.userId) : null,
       r.returnedId ? KvRow('Returned device ID', r.returnedId) : null,
@@ -12262,20 +12250,25 @@ const Views = {
     ] : [];
     return Screen({ title: 'E2EE V2 device test', back: '/identity', nav: 'identity', children: [
       Notice('dev', [h('strong', null, 'Test build only. '),
-        'Checks your current sign-in, local key generation and the V2 device registration RPC. These are temporary WebCrypto test keys for backend plumbing only, not production V2 keys, and there is no Double Ratchet here. Private keys never leave this device. V1 messaging is not changed.']),
+        'After your explicit confirmation, only local WebCrypto test keys are checked. No legacy V2 device registration request will be sent; trusted device approval remains disabled. This is not Double Ratchet or messaging identity verification. V1 messaging is unchanged.']),
+      !mayRunDiagnostic ? Notice('warn', 'SECURITY HOLD: This page is not bound to both the official BharathLink TEST origin and TEST Supabase backend. Local V2 diagnostic is disabled.') : null,
       h('dl', { class: 'kv paycard section', 'aria-live': 'polite' },
         KvRow('Authenticated user', badge(r?.auth)),
         KvRow('Local key generation', badge(r?.keys)),
-        KvRow('V2 device registration RPC', badge(r?.rpc)),
+        KvRow('Legacy V2 server registration (blocked)', badge(r?.rpc)),
         KvRow('Device ID', r?.deviceId || '\u2014'),
         KvRow('Overall', badge(overall))),
       r && (details.some(Boolean) || r.notes.length) ? Section('Details',
         h('dl', { class: 'kv paycard' }, details),
         r.notes.length ? h('div', { class: 'stack section' }, r.notes.map(n => h('p', { class: 'hint' }, n))) : null) : null,
       h('div', { class: 'btn-row section' },
-        Button(T.running ? 'Running\u2026' : 'Run test again', { disabled: T.running, onClick: () => T.run() }),
+        Button(T.running ? 'Running\u2026' : 'Run local V2 key test', { disabled: T.running || !mayRunDiagnostic, onClick: () => {
+          if (!mayRunDiagnostic) return;
+          if (!window.confirm('This diagnostic will create/reuse separate local test keys on this device. No legacy server registration or trusted-device approval will occur. Continue?')) return;
+          void T.run();
+        } }),
         Button('Forget local test device', { variant: 'ghost', disabled: T.running || !r?.deviceId, onClick: async () => {
-          if (!window.confirm('Delete the local test device and its test keys from this browser? Its server registration stays until revoked.')) return;
+          if (!window.confirm('Delete ONLY the separate local V2 diagnostic test keys from this browser? Normal messaging keys are not affected.')) return;
           try { await T.forget(); Toast.show('Local test device deleted.'); } catch (e) { Toast.show(e.message || 'Could not delete the local test device.'); }
         } }))
     ] });
