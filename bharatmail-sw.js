@@ -15,7 +15,8 @@ function safeNotificationUrl(raw, fallback = './#/home') {
   }
   try {
     const url = new URL(raw, scope);
-    if (url.origin !== scope.origin || url.pathname !== scope.pathname ||
+    if (url.username !== '' || url.password !== '' ||
+        url.origin !== scope.origin || url.pathname !== scope.pathname ||
         url.search !== '' || !SAFE_NOTIFICATION_HASH.test(url.hash)) {
       return safeFallback;
     }
