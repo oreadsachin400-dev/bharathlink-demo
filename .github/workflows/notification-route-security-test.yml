@@ -9,6 +9,7 @@ on:
       - 'tests/notification-route-guard.test.mjs'
       - 'tests/test-backend-source-identity.test.mjs'
       - 'scripts/check-test-backend-source.mjs'
+      - 'scripts/probe-live-test-source.mjs'
       - '.github/workflows/notification-route-security-test.yml'
   pull_request:
     paths:
@@ -17,6 +18,7 @@ on:
       - 'tests/notification-route-guard.test.mjs'
       - 'tests/test-backend-source-identity.test.mjs'
       - 'scripts/check-test-backend-source.mjs'
+      - 'scripts/probe-live-test-source.mjs'
       - '.github/workflows/notification-route-security-test.yml'
 permissions:
   contents: read
@@ -48,3 +50,16 @@ jobs:
         run: node --test tests/test-backend-source-identity.test.mjs
       - name: Reject candidate source bound to wrong Supabase backend
         run: node scripts/check-test-backend-source.mjs
+
+  read-only-public-test-origin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BHARATHLINK_EXPECTED_TEST_PROJECT: fsdusofbpwdrdvgexxyw
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Read-only check served TEST root HTML and report SHA256 (NO DEPLOY)
+        run: node scripts/probe-live-test-source.mjs
