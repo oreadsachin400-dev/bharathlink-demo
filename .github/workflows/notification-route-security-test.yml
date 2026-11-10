@@ -1,0 +1,65 @@
+name: BharathLink notification safety and TEST backend source identity (NO DEPLOY)
+on:
+  push:
+    branches:
+      - security/test-sw-notification-origin-gate-20261110
+    paths:
+      - 'bharatmail-sw.js'
+      - 'index.html'
+      - 'tests/notification-route-guard.test.mjs'
+      - 'tests/test-backend-source-identity.test.mjs'
+      - 'scripts/check-test-backend-source.mjs'
+      - 'scripts/probe-live-test-source.mjs'
+      - '.github/workflows/notification-route-security-test.yml'
+  pull_request:
+    paths:
+      - 'bharatmail-sw.js'
+      - 'index.html'
+      - 'tests/notification-route-guard.test.mjs'
+      - 'tests/test-backend-source-identity.test.mjs'
+      - 'scripts/check-test-backend-source.mjs'
+      - 'scripts/probe-live-test-source.mjs'
+      - '.github/workflows/notification-route-security-test.yml'
+permissions:
+  contents: read
+jobs:
+  offline-service-worker-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Parse Service Worker syntax
+        run: node --check bharatmail-sw.js
+      - name: Verify safe notification navigation (no deployment)
+        run: node --test tests/notification-route-guard.test.mjs
+
+  block-unverified-test-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BHARATHLINK_EXPECTED_TEST_PROJECT: fsdusofbpwdrdvgexxyw
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Unit-test API and WSS source identity gate with synthetic fixtures
+        run: node --test tests/test-backend-source-identity.test.mjs
+      - name: Reject candidate source bound to wrong Supabase backend
+        run: node scripts/check-test-backend-source.mjs
+
+  read-only-public-test-origin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BHARATHLINK_EXPECTED_TEST_PROJECT: fsdusofbpwdrdvgexxyw
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Read-only check served TEST root HTML and report SHA256 (NO DEPLOY)
+        run: node scripts/probe-live-test-source.mjs

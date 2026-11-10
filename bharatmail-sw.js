@@ -1,5 +1,31 @@
 'use strict';
 
+/**
+ * Notification URLs are attacker-controlled push data until validated.
+ * Never open another origin, a path outside this SW scope or an unreviewed
+ * in-app route. Revalidate even on notificationclick.
+ * TEST-only source change: no deployed sites or E2EE keys are affected.
+ */
+const SAFE_NOTIFICATION_HASH = /^#\/(?:home|chats|mail|reminders?|calls|profile)(?:\/[A-Za-z0-9_-]{1,128})?$/;
+function safeNotificationUrl(raw, fallback = './#/home') {
+  const scope = new URL(self.registration.scope);
+  const safeFallback = new URL(fallback, scope).href;
+  if (typeof raw !== 'string' || raw.length > 300 || /[\u0000-\u001f\u007f]/.test(raw)) {
+    return safeFallback;
+  }
+  try {
+    const url = new URL(raw, scope);
+    if (url.username !== '' || url.password !== '' ||
+        url.origin !== scope.origin || url.pathname !== scope.pathname ||
+        url.search !== '' || !SAFE_NOTIFICATION_HASH.test(url.hash)) {
+      return safeFallback;
+    }
+    return url.href;
+  } catch (_) {
+    return safeFallback;
+  }
+}
+
 self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', event => {
@@ -12,6 +38,10 @@ self.addEventListener('push', event => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch (_) {
+    payload = {};
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     payload = {};
   }
 
@@ -32,10 +62,7 @@ self.addEventListener('push', event => {
         ? payload.body
         : 'You have a reminder.';
 
-    const url =
-      typeof payload.url === 'string' && payload.url
-        ? payload.url
-        : './#/home';
+    const url = safeNotificationUrl(payload.url, './#/home');
 
     event.waitUntil(
       self.registration.showNotification(title, {
@@ -70,7 +97,7 @@ self.addEventListener('push', event => {
             ? `bharathlink-message-${eventId}`
             : 'bharathlink-message-new',
           data: {
-            url: './#/chats',
+            url: safeNotificationUrl('./#/chats'),
             type: 'message',
             event_id: eventId
           }
@@ -96,7 +123,7 @@ self.addEventListener('push', event => {
           ? `bharatmail-${mailId}`
           : 'bharatmail-new',
         data: {
-          url: './#/mail',
+          url: safeNotificationUrl('./#/mail'),
           mail_id: mailId,
           type: 'bharatmail'
         }
@@ -108,10 +135,10 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
 
-  const target =
-    (event.notification.data &&
-      event.notification.data.url) ||
-    './#/home';
+  const data = event.notification.data || {};
+  const fallback = data.type === 'message' ? './#/chats' :
+    data.type === 'bharatmail' ? './#/mail' : './#/home';
+  const target = safeNotificationUrl(data.url, fallback);
 
   event.waitUntil((async () => {
     const list = await self.clients.matchAll({
