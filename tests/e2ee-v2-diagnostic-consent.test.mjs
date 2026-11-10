@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {runInNewContext} from 'node:vm';
+import {runInNewContext,Script} from 'node:vm';
 
 // Static source gate on the isolated branch: no backend or user data accessed.
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
@@ -92,4 +92,10 @@ test('direct diagnostic run checks exact origin and backend before local writes'
  const write=run.indexOf('this.running = true');
  assert.ok(gate>=0 && write>gate,'Backend/origin gate must precede diagnostic state mutations');
  assert.match(run,/CONFIG\.SUPABASE_URL !== 'https:\/\/fsdusofbpwdrdvgexxyw\.supabase\.co'/);
+});
+
+test('complete self-contained frontend inline JS parses (syntax only)',()=>{
+ const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
+ assert.equal(scripts.length,1,'Expected exactly one inline main JavaScript bundle');
+ assert.doesNotThrow(()=>new Script(scripts[0],{filename:'bhl-inline-main.js'}));
 });
