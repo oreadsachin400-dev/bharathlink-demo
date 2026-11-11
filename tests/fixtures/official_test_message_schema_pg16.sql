@@ -32,7 +32,8 @@ CREATE TABLE public.messages (
  ciphertext text,
  iv text,
  encryption_version integer,
- created_at timestamptz NOT NULL DEFAULT now()
+ created_at timestamptz NOT NULL DEFAULT now(),
+ deleted_at timestamptz
 );
 CREATE TABLE public.message_envelopes (
  id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
@@ -206,6 +207,81 @@ BEGIN
   END LOOP;
 
   RETURN v_message_id;
+END;
+$function$
+;
+
+
+-- Block check stub ONLY for disposable test; real TEST blocked-users schema
+-- is not copied. This fixture tests protected-read metadata/expiry gaps.
+CREATE SCHEMA bl_private;
+CREATE FUNCTION bl_private.direct_conversation_blocked_for(uuid,uuid)
+RETURNS boolean LANGUAGE sql STABLE AS $blocked$ SELECT false $blocked$;
+
+-- Exact official TEST history retrieval RPC definition (read only snapshot).
+CREATE OR REPLACE FUNCTION public.get_my_encrypted_messages_v2_for_conversation(p_device_id uuid, p_conversation_id uuid, p_limit integer DEFAULT 20, p_before_created_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_before_message_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(message_id uuid, conversation_id uuid, sender_id uuid, sender_device_id uuid, client_message_id uuid, message_ciphertext text, message_iv text, wrapped_key text, wrap_iv text, eph_pub jsonb, sender_public_key_jwk jsonb, created_at timestamp with time zone)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.messaging_devices d
+    WHERE d.id = p_device_id
+      AND d.user_id = auth.uid()
+      AND d.revoked_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Invalid device';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.conversation_members cm
+    WHERE cm.conversation_id = p_conversation_id
+      AND cm.user_id = auth.uid()
+  ) OR bl_private.direct_conversation_blocked_for(
+    p_conversation_id, auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Conversation unavailable';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    m.id, m.conversation_id, m.sender_id,
+    m.sender_device_id, m.client_message_id,
+    m.ciphertext, m.iv,
+    e.ciphertext, e.iv, e.eph_pub,
+    sd.public_key_jwk, m.created_at
+  FROM public.message_envelopes e
+  JOIN public.messages m ON m.id = e.message_id
+  JOIN public.messaging_devices sd
+    ON sd.id = m.sender_device_id
+   AND sd.user_id = m.sender_id
+  WHERE e.recipient_user_id = auth.uid()
+    AND e.recipient_device_id = p_device_id
+    AND m.conversation_id = p_conversation_id
+    AND m.deleted_at IS NULL
+    AND e.encryption_version = 2
+    AND m.encryption_version = 2
+    AND m.client_message_id IS NOT NULL
+    AND m.ciphertext IS NOT NULL
+    AND m.iv IS NOT NULL
+    AND e.eph_pub IS NOT NULL
+    AND (
+      p_before_created_at IS NULL
+      OR m.created_at < p_before_created_at
+      OR (
+        m.created_at = p_before_created_at
+        AND p_before_message_id IS NOT NULL
+        AND m.id < p_before_message_id
+      )
+    )
+  ORDER BY m.created_at DESC, m.id DESC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 20), 1), 50);
 END;
 $function$
 ;
