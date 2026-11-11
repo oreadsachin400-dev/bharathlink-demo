@@ -23,6 +23,19 @@ CREATE TABLE public.messaging_devices (
  key_algorithm text NOT NULL DEFAULT 'ECDH-P256',
  public_key_jwk jsonb NOT NULL
 );
+-- Device signer custody approximation for independent review-only claim tests.
+-- Official TEST currently has zero verified signer rows; tests seed synthetic
+-- rows here and never activate the real first-device enrollment service.
+CREATE TABLE public.messaging_device_signing_keys (
+ device_id uuid PRIMARY KEY REFERENCES public.messaging_devices(id),
+ user_id uuid NOT NULL,
+ signing_public_key_jwk jsonb NOT NULL,
+ verified_at timestamptz NOT NULL,
+ verification_method text NOT NULL,
+ revoked_at timestamptz
+);
+ALTER TABLE public.messaging_device_signing_keys ENABLE ROW LEVEL SECURITY;
+
 CREATE TABLE public.messages (
  id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
  conversation_id uuid NOT NULL REFERENCES public.conversations(id),
