@@ -211,6 +211,11 @@ BEGIN
       v_item->>'iv',
       v_item->'eph_pub'
     );
+    -- Immutable, key-free recipient index for metadata-only listings.
+    -- It must survive one-time key deletion, including for sender devices.
+    INSERT INTO bl_protected_lab.authorized_readers(message_id,user_id)
+    VALUES (v_message_id,(v_item->>'recipient_user_id')::uuid)
+    ON CONFLICT (message_id,user_id) DO NOTHING;
   END LOOP;
 
   RETURN v_message_id;
