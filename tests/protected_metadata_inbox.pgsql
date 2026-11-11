@@ -201,7 +201,7 @@ INSERT INTO public.messaging_device_signing_keys(
   device_id,user_id,signing_public_key_jwk,verified_at,verification_method)
 VALUES ('dddddddd-dddd-4ddd-8ddd-dddddddddddc',
         '44444444-4444-4444-8444-444444444444',
-        '{"kty":"EC"}',pg_catalog.clock_timestamp(),'trusted_device_signature');
+        '{"kty":"EC","crv":"P-256","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}',pg_catalog.clock_timestamp(),'trusted_device_signature');
 SET ROLE authenticated;
 SET request.jwt.claim.sub='44444444-4444-4444-8444-444444444444';
 DO $check$
