@@ -27,7 +27,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
 AS $bhl_dir$
 DECLARE
   v_me uuid := (SELECT auth.uid());
-  v_query text := pg_catalog.btrim(pg_catalog.coalesce(p_query,''));
+  v_query text := pg_catalog.btrim(coalesce(p_query,''));
   v_phone_like boolean;
   v_phone text;
   v_now timestamptz := pg_catalog.now();
