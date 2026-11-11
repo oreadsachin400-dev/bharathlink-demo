@@ -6,11 +6,13 @@ on:
       - 'sql/review-only/protected_send_v2_candidate.sql'
       - 'sql/review-only/protected_key_claim_lab.sql'
       - 'sql/review-only/protected_key_expiry_purge_lab.sql'
+      - 'sql/review-only/protected_vault_only_sender_lab.sql'
       - 'tests/fixtures/official_test_message_schema_pg16.sql'
       - 'tests/protected_send_v2.pgsql'
       - 'tests/protected_claim_lab.pgsql'
       - 'tests/protected_expiry_cleanup_lab.pgsql'
       - 'tests/protected_claim_rollback_lab.pgsql'
+      - 'tests/protected_vault_only_sender.pgsql'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
   pull_request:
@@ -18,11 +20,13 @@ on:
       - 'sql/review-only/protected_send_v2_candidate.sql'
       - 'sql/review-only/protected_key_claim_lab.sql'
       - 'sql/review-only/protected_key_expiry_purge_lab.sql'
+      - 'sql/review-only/protected_vault_only_sender_lab.sql'
       - 'tests/fixtures/official_test_message_schema_pg16.sql'
       - 'tests/protected_send_v2.pgsql'
       - 'tests/protected_claim_lab.pgsql'
       - 'tests/protected_expiry_cleanup_lab.pgsql'
       - 'tests/protected_claim_rollback_lab.pgsql'
+      - 'tests/protected_vault_only_sender.pgsql'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
 permissions:
@@ -75,3 +79,7 @@ jobs:
         run: bash tests/run-protected-claim-race.sh
       - name: Force vault failure and verify claim transaction rollback
         run: psql -v ON_ERROR_STOP=1 -f tests/protected_claim_rollback_lab.pgsql
+      - name: Install vault-only sender (all client EXECUTE denied)
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_vault_only_sender_lab.sql
+      - name: Integration prove send-to-claim without any normal history envelope
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_vault_only_sender.pgsql
