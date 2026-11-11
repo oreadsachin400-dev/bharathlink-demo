@@ -23,16 +23,16 @@ INSERT INTO public.messaging_device_signing_keys
 VALUES
 ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
  '22222222-2222-4222-8222-222222222222',
- '{"kty":"EC"}',pg_catalog.clock_timestamp(),'trusted_device_signature'),
+ '{"kty":"EC","crv":"P-256","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}',pg_catalog.clock_timestamp(),'trusted_device_signature'),
 ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbc',
  '22222222-2222-4222-8222-222222222222',
- '{"kty":"EC"}',pg_catalog.clock_timestamp(),'trusted_device_signature'),
+ '{"kty":"EC","crv":"P-256","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}',pg_catalog.clock_timestamp(),'trusted_device_signature'),
 ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbd',
  '22222222-2222-4222-8222-222222222222',
- '{"kty":"EC"}',pg_catalog.clock_timestamp(),'trusted_device_signature'),
+ '{"kty":"EC","crv":"P-256","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}',pg_catalog.clock_timestamp(),'trusted_device_signature'),
 ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
  '33333333-3333-4333-8333-333333333333',
- '{"kty":"EC"}',pg_catalog.clock_timestamp(),'trusted_device_signature');
+ '{"kty":"EC","crv":"P-256","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}',pg_catalog.clock_timestamp(),'trusted_device_signature');
 
 -- Protected messages have PUBLIC ciphertext metadata, but NO wrapped keys in
 -- public.message_envelopes. Only private vault receives wrapped keys.
