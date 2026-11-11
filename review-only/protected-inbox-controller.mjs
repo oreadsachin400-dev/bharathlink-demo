@@ -9,10 +9,10 @@ export const EXPECTED_ORIGIN = 'https://bharathlink-20-test.netlify.app';
 export const EXPECTED_PROJECT = 'fsdusofbpwdrdvgexxyw';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const KEY_NAMES = new Set([
-  'wrappedKey', 'wrapped_key', 'wrap_iv', 'wrapIv',
-  'ephPub', 'eph_pub', 'recipient_device_id',
-  'signing_public_key_jwk', 'sender_public_key_jwk',
+const ALLOWED_INBOX_FIELDS = new Set([
+  'message_id','conversation_id','sender_id','sender_device_id',
+  'created_at','is_view_once','expires_at','availability',
+  'message_ciphertext','message_iv',
 ]);
 const UNKNOWN = 'CLAIM_OUTCOME_UNKNOWN_NO_AUTO_RETRY';
 
@@ -61,8 +61,8 @@ function itemFromRpc(input, expectedConversation) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new ProtectedFlowError('INVALID_INBOX_RESPONSE');
   }
-  if (Object.keys(input).some(k => KEY_NAMES.has(k))) {
-    throw new ProtectedFlowError('INBOX_LEAKED_KEY_MATERIAL');
+  if (Object.keys(input).some(k => !ALLOWED_INBOX_FIELDS.has(k))) {
+    throw new ProtectedFlowError('INBOX_UNEXPECTED_FIELD_OR_KEY');
   }
   const messageId = requireUuid(input.message_id);
   if (requireUuid(input.conversation_id) !== expectedConversation) {
@@ -118,6 +118,9 @@ export function createProtectedInboxController({
   // Keep prior attempts even across account switches within controller
   // lifetime. Server is the actual cross-tab/cross-device replay guard.
   const claimedAttempts = new Set();
+  // Never re-present locally uncertain/consumed claims as "Open" after
+  // a stale inbox refresh, tab switch or account switch.
+  const attemptStatuses = new Map();
   const active = new Set();
   let boundContext = null;
 
@@ -185,8 +188,18 @@ export function createProtectedInboxController({
       if (ids.size !== parsed.length) {
         throw new ProtectedFlowError('DUPLICATE_INBOX_ITEM');
       }
-      for (const item of parsed) items.set(item.messageId, item);
-      return Object.freeze(parsed.map(publicItem));
+      const presented = parsed.map(item => {
+        const attemptId = current.userId + ':' + current.deviceId + ':' + item.messageId;
+        const localStatus = attemptStatuses.get(attemptId);
+        if (item.availability === 'available' && localStatus) {
+          return Object.freeze({
+            ...item, availability: localStatus, ciphertext: null, iv: null,
+          });
+        }
+        return item;
+      });
+      for (const item of presented) items.set(item.messageId, item);
+      return Object.freeze(presented.map(publicItem));
     },
     /**
      * Caller MUST invoke from real user click, not automatically.
@@ -196,6 +209,10 @@ export function createProtectedInboxController({
     async openOnce(messageId, {confirmOpen}={}) {
       const current = snapshot();
       const id = requireUuid(messageId);
+      const attemptId = current.userId + ':' + current.deviceId + ':' + id;
+      if (claimedAttempts.has(attemptId) || active.has(attemptId)) {
+        throw new ProtectedFlowError('CLAIM_ALREADY_ATTEMPTED_NO_RETRY');
+      }
       const message = items.get(id);
       if (!message || message.availability !== 'available' ||
           message.isViewOnce !== true) {
@@ -204,13 +221,10 @@ export function createProtectedInboxController({
       if (typeof confirmOpen !== 'function' || confirmOpen(publicItem(message)) !== true) {
         return Object.freeze({status: 'cancelled'});
       }
-      const attemptId = current.userId + ':' + current.deviceId + ':' + id;
-      if (claimedAttempts.has(attemptId) || active.has(attemptId)) {
-        throw new ProtectedFlowError('CLAIM_ALREADY_ATTEMPTED_NO_RETRY');
-      }
       // Mark before FIRST await. Any lost HTTP response might mean
       // consumed server-side; never automatically replay.
       claimedAttempts.add(attemptId);
+      attemptStatuses.set(attemptId, 'consumption_unknown');
       active.add(attemptId);
       try {
         assertStable(current);
@@ -242,11 +256,15 @@ export function createProtectedInboxController({
           ...message, ciphertext: null, iv: null,
           availability: 'consumed',
         }));
+        attemptStatuses.set(attemptId, 'consumed');
         return Object.freeze({status: 'opened', plaintext});
       } catch (_error) {
         // Do not infer whether the server consumed or client decrypted.
         // Do not return backend errors, key material, tokens or plaintext.
-        items.delete(id);
+        items.set(id, Object.freeze({
+          ...message, ciphertext: null, iv: null,
+          availability: 'consumption_unknown',
+        }));
         return Object.freeze({status: 'consumption_unknown', code: UNKNOWN});
       } finally {
         active.delete(attemptId);
