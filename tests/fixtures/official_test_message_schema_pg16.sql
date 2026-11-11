@@ -48,6 +48,11 @@ CREATE TABLE public.messages (
  created_at timestamptz NOT NULL DEFAULT now(),
  deleted_at timestamptz
 );
+-- Captured official TEST unique sender/client message ID constraint.
+CREATE UNIQUE INDEX messages_sender_client_unique
+ON public.messages(sender_id,client_message_id)
+WHERE client_message_id IS NOT NULL;
+
 CREATE TABLE public.message_envelopes (
  id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
  message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
