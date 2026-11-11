@@ -17,7 +17,7 @@
  * deploy: no API signatures, RLS, live accounts, signer trust or UX verified.
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const OFFICIAL_TEST_REF = 'fsdusofbpwdrdvgexxyw';
@@ -128,7 +128,7 @@ if (cliUrl && fileURLToPath(import.meta.url) === resolve(cliUrl)) {
     process.stderr.write('Usage: --audit OR --release\n');
     process.exitCode = 64;
   } else {
-    const root = resolve(fileURLToPath(import.meta.url),'../../..');
+    const root = resolve(dirname(fileURLToPath(import.meta.url)),'..');
     // Resolve project root from scripts/ directory without network calls.
     const html = readFileSync(resolve(root,'index.html'),'utf8');
     const snapshot = JSON.parse(readFileSync(resolve(
