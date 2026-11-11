@@ -1,0 +1,54 @@
+name: Verified Directory review-only RPC — disposable PostgreSQL 16
+on:
+  push:
+    branches: [security/verified-directory-rpc-review-20261112]
+    paths:
+      - 'sql/review-only/search_verified_directory_candidate.sql'
+      - 'tests/fixtures/verified_directory_pg16.sql'
+      - 'tests/verified_directory_contract.pgsql'
+      - '.github/workflows/verified-directory-contract.yml'
+  pull_request:
+    paths:
+      - 'sql/review-only/search_verified_directory_candidate.sql'
+      - 'tests/fixtures/verified_directory_pg16.sql'
+      - 'tests/verified_directory_contract.pgsql'
+      - '.github/workflows/verified-directory-contract.yml'
+permissions:
+  contents: read
+jobs:
+  security-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: bharathlink_verified_directory_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bharathlink_verified_directory_lab"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: '127.0.0.1'
+      PGPORT: '5432'
+      PGDATABASE: bharathlink_verified_directory_lab
+      PGUSER: postgres
+      PGPASSWORD: isolated-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm disposable database destination
+        run: |
+          test "$PGHOST" = "127.0.0.1"
+          test "$PGDATABASE" = "bharathlink_verified_directory_lab"
+          psql -v ON_ERROR_STOP=1 -Atc "SELECT current_database()" | grep -qx bharathlink_verified_directory_lab
+      - name: Create synthetic entity schema and actual TEST normalizer
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/verified_directory_pg16.sql
+      - name: Install review candidate with default EXECUTE denied
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/search_verified_directory_candidate.sql
+      - name: Run verification, contact, ambiguity and access-control tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/verified_directory_contract.pgsql
