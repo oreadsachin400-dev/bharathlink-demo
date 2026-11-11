@@ -253,6 +253,128 @@ END $check$;
 RESET ROLE;
 \echo 'PASS: Expired tombstone remains after private key erasure.'
 
+-- Create two more protected direct messages in the isolated lab to
+-- exercise keyset pagination, without granting direct table SELECT.
+GRANT EXECUTE ON FUNCTION public.send_protected_vault_message_v1(
+ uuid,uuid,uuid,text,text,jsonb,integer,boolean) TO authenticated;
+SET ROLE authenticated;
+SET request.jwt.claim.sub='11111111-1111-4111-8111-111111111111';
+SELECT public.send_protected_vault_message_v1(
+ 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'e0000000-0000-4000-8000-000000000010',
+ 'encrypted-new-10','iv',public.test_vault_env_direct(),3600,false);
+SELECT public.send_protected_vault_message_v1(
+ 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'e0000000-0000-4000-8000-000000000011',
+ 'encrypted-new-11','iv',public.test_vault_env_direct(),3600,false);
+RESET ROLE;
+REVOKE EXECUTE ON FUNCTION public.send_protected_vault_message_v1(
+ uuid,uuid,uuid,text,text,jsonb,integer,boolean) FROM authenticated;
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
+DO $page$
+DECLARE
+  first_page record;
+  second_page record;
+  third_page record;
+  total integer;
+  i jsonb;
+BEGIN
+  SELECT count(*) INTO total
+  FROM public.list_my_protected_messages_v1(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',20,NULL,NULL);
+  IF total<>3 THEN RAISE EXCEPTION 'Expected three protected items for pagination'; END IF;
+
+  SELECT * INTO first_page
+  FROM public.list_my_protected_messages_v1(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',1,NULL,NULL);
+  SELECT * INTO second_page
+  FROM public.list_my_protected_messages_v1(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',1,
+    first_page.created_at,first_page.message_id);
+  SELECT * INTO third_page
+  FROM public.list_my_protected_messages_v1(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',1,
+    second_page.created_at,second_page.message_id);
+
+  IF first_page.message_id IS NULL OR second_page.message_id IS NULL
+     OR third_page.message_id IS NULL
+     OR first_page.message_id=second_page.message_id
+     OR second_page.message_id=third_page.message_id
+     OR first_page.message_id=third_page.message_id
+     OR (first_page.created_at,first_page.message_id)<=
+        (second_page.created_at,second_page.message_id)
+     OR (second_page.created_at,second_page.message_id)<=
+        (third_page.created_at,third_page.message_id)
+  THEN RAISE EXCEPTION 'Unstable or overlapping metadata pagination'; END IF;
+  SELECT pg_catalog.to_jsonb(x) INTO i
+  FROM public.list_my_protected_messages_v1(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',1,NULL,NULL) x;
+  IF i ?| ARRAY['wrappedKey','wrapped_key','eph_pub',
+                 'wrap_iv','recipient_device_id','public_key_jwk']
+     OR i::text LIKE '%recipient-first-key%'
+  THEN RAISE EXCEPTION 'Inbox page contains wrapped key material'; END IF;
+END $page$;
+RESET ROLE;
+\echo 'PASS: Stable 3-page keyset pagination without duplicate rows or wrapped keys.'
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
+DO $deny$
+DECLARE denied boolean:=false;
+BEGIN
+  BEGIN
+    PERFORM public.list_my_protected_messages_v1(
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',20,NULL,NULL);
+  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'Account B could list using Account A device'; END IF;
+  denied:=false;
+  BEGIN
+    PERFORM * FROM bl_protected_lab.authorized_readers;
+  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'Authenticated user directly read private reader index'; END IF;
+END $deny$;
+RESET ROLE;
+\echo 'PASS: Account/device binding and private reader index are inaccessible.'
+
+-- Synthetic block predicate demonstrates the inbox checks direct blocks.
+-- Real TEST block implementation still requires independent integration.
+CREATE OR REPLACE FUNCTION bl_private.direct_conversation_blocked_for(
+  p_conversation_id uuid,p_user_id uuid
+) RETURNS boolean LANGUAGE sql STABLE
+AS $blocked$
+  SELECT p_conversation_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+     AND p_user_id::text=pg_catalog.current_setting('bhl.lab.blocked_user',true)
+$blocked$;
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
+SET bhl.lab.blocked_user='22222222-2222-4222-8222-222222222222';
+DO $blocked$
+DECLARE denied boolean:=false;
+BEGIN
+  BEGIN
+    PERFORM public.list_my_protected_messages_v1(
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',20,NULL,NULL);
+  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'Block predicate did not deny protected inbox'; END IF;
+END $blocked$;
+RESET ROLE;
+\echo 'PASS: Simulated direct-chat block fails protected inbox closed.'
+
 -- No production client grants are left behind after isolated tests.
 REVOKE EXECUTE ON FUNCTION public.list_my_protected_messages_v1(
  uuid,uuid,integer,timestamptz,uuid) FROM authenticated;
