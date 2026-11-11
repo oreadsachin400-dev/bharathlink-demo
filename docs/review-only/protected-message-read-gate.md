@@ -133,3 +133,52 @@ users/devices and no real account, message content, JWT or secrets.
 
 **Release guard stays active.** No claim RPC grants, app deployment,
 merging, or real TEST schema writes are authorized by this CI result.
+
+
+## 11 Nov — Key-free original-reader inbox (isolated)
+
+[Disposable PG16 CI #43014011153](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/43014011153) — SUCCESS.
+
+New review-only files:
+- sql/review-only/protected_metadata_inbox_lab.sql
+- tests/protected_metadata_inbox.pgsql
+
+**Design.** A private bl_protected_lab.authorized_readers index persists the
+exact original recipients of each newly sent protected message.
+The vault-only sender inserts this key-free index in the SAME
+transaction as message metadata and private E2EE-wrapped keys. The index
+has no direct role grants and is not in the exposed public Data API.
+
+The new list_my_protected_messages_v1 RPC requires authentication,
+an active signer-approved owned device, chat membership, non-blocked
+conversation, original recipient-index membership and bounded keyset
+pagination. Its output includes IDs, timestamp, state, and encrypted
+message body/IV only while available. It NEVER returns an E2EE wrapped
+device key, key wrapping IV, ephemeral JWK, signing key, or plaintext.
+
+Consumed View Once and expired TTL items remain as key-free tombstones:
+availability consumed/expired, ciphertext and IV returned as NULL.
+This stays true if expiry cleanup runs late or has already erased keys.
+The first View Once claim's deletion of vault keys does not delete the
+original recipient index.
+
+Verified on disposable PostgreSQL 16:
+- Vault-only sender inserts key-free reader index atomically.
+- Authorized original sender and recipient see message entries without
+  keys; newly added group member cannot enumerate old protected entries.
+- Non-member, unsigned/revoked device and account/device switch blocked.
+- Synthetic direct-chat block predicate denies access; actual TEST
+  function is not yet dynamically verified.
+- Stable keyset pagination across 3 pages, bounded limits and no key leaks.
+- Direct authenticated reader-table access denied; inbox RPC default
+  EXECUTE denied before and after isolated test.
+
+**Remaining release hold:** Existing TEST public.messages RLS may still
+expose encrypted ciphertext (not the separated vault key) to chat members.
+Every other read path, Realtime, backup, media and storage requires review.
+Real TEST signer enrollment has no verified signing-key rows. No live
+Android/client integration or response-loss/ACK recovery protocol exists
+yet. An earlier candidate protected-send wrapper still writes keys to
+public.message_envelopes; that candidate is INCOMPATIBLE with private
+vault protection and must NOT be enabled. Do not deploy any part of
+this draft branch to TEST/PROD without full release security review.
