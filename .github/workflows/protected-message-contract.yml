@@ -4,14 +4,20 @@ on:
     branches: [security/protected-message-rpc-contract-20261111]
     paths:
       - 'sql/review-only/protected_send_v2_candidate.sql'
+      - 'sql/review-only/protected_key_claim_lab.sql'
       - 'tests/fixtures/official_test_message_schema_pg16.sql'
       - 'tests/protected_send_v2.pgsql'
+      - 'tests/protected_claim_lab.pgsql'
+      - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
   pull_request:
     paths:
       - 'sql/review-only/protected_send_v2_candidate.sql'
+      - 'sql/review-only/protected_key_claim_lab.sql'
       - 'tests/fixtures/official_test_message_schema_pg16.sql'
       - 'tests/protected_send_v2.pgsql'
+      - 'tests/protected_claim_lab.pgsql'
+      - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
 permissions:
   contents: read
@@ -49,3 +55,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_send_v2_candidate.sql
       - name: Exercise authorization, atomicity and default-deny regression cases
         run: psql -v ON_ERROR_STOP=1 -f tests/protected_send_v2.pgsql
+      - name: Install private claim vault with all client EXECUTE revoked
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_key_claim_lab.sql
+      - name: Verify claim, replay, expiry, revocation and data isolation
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_claim_lab.pgsql
