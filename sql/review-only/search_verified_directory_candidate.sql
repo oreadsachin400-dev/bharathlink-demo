@@ -60,7 +60,8 @@ BEGIN
     SELECT count(DISTINCT e.id) INTO v_claims
     FROM public.entity_profiles e
     JOIN public.entity_endpoints ep ON ep.entity_id=e.id
-    WHERE e.verification_status='verified'
+    WHERE e.country_code='IN'
+      AND e.verification_status='verified'
       AND e.verified_at IS NOT NULL AND e.verified_at<=v_now
       AND (e.verification_expires_at IS NULL OR e.verification_expires_at>v_now)
       AND ep.endpoint_type='mobile'
@@ -93,6 +94,7 @@ BEGIN
     FROM public.entity_profiles e
     JOIN public.entity_endpoints ep ON ep.entity_id=e.id
     WHERE v_claims=1
+      AND e.country_code='IN'
       AND e.verification_status='verified'
       AND e.verified_at IS NOT NULL AND e.verified_at<=v_now
       AND (e.verification_expires_at IS NULL OR e.verification_expires_at>v_now)
