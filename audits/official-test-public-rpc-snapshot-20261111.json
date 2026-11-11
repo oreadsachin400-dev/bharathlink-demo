@@ -1,0 +1,428 @@
+{
+  "description": "Read-only function-name and authenticated EXECUTE inventory of official BharathLink-20-TEST Supabase public schema, captured 2026-11-11. Contains no account data or secrets. NOT live availability, RLS assurance, return-type compatibility or deploy authorization.",
+  "project_id": "fsdusofbpwdrdvgexxyw",
+  "captured_date": "2026-11-11",
+  "source": "Supabase read-only pg_catalog.pg_proc + has_function_privilege query",
+  "functions": [
+    {
+      "name": "add_group_member",
+      "authenticated_execute": true
+    },
+    {
+      "name": "add_group_message_mentions",
+      "authenticated_execute": true
+    },
+    {
+      "name": "archive_conversation",
+      "authenticated_execute": true
+    },
+    {
+      "name": "are_direct_contacts",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_external_send_allow",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_get_reply_token",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_retry_authorize",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_retry_claim",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_retry_enqueue",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_retry_finish",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_retry_schedule_tick",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bharatmail_route_inbound_event",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bind_encrypted_media_to_message",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_candidate_proof_context",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_candidate_proof_finish",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_candidate_proof_payload",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_candidate_proof_start",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_check_trusted_device",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_commit_device_approval",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_device_approval_context",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_instant_push",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_answer_direct_call",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_answer_group_call",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_cancel_devices_on_transition",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_claim_device",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_create_direct_call",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_create_group_call_push",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_decline_group_call",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_end_direct_call",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_end_group_call",
+      "authenticated_execute": true
+    },
+    {
+      "name": "bl20_v7_enqueue_devices",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_expire_direct_calls",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_finish_device",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_kick_worker_on_outbox",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_worker_readiness",
+      "authenticated_execute": false
+    },
+    {
+      "name": "bl20_v7_worker_token_valid",
+      "authenticated_execute": false
+    },
+    {
+      "name": "block_conversation_peer",
+      "authenticated_execute": true
+    },
+    {
+      "name": "can_access_encrypted_media_object",
+      "authenticated_execute": true
+    },
+    {
+      "name": "can_read_bharatmail_attachment",
+      "authenticated_execute": true
+    },
+    {
+      "name": "can_read_bharatmail_external_attachment",
+      "authenticated_execute": true
+    },
+    {
+      "name": "can_read_profile_media_object",
+      "authenticated_execute": true
+    },
+    {
+      "name": "can_read_status_story_media_object",
+      "authenticated_execute": true
+    },
+    {
+      "name": "cancel_my_messaging_device_enrollment",
+      "authenticated_execute": true
+    },
+    {
+      "name": "clear_conversation_for_me",
+      "authenticated_execute": true
+    },
+    {
+      "name": "consume_view_once_message",
+      "authenticated_execute": true
+    },
+    {
+      "name": "create_direct_conversation",
+      "authenticated_execute": true
+    },
+    {
+      "name": "create_group_conversation",
+      "authenticated_execute": true
+    },
+    {
+      "name": "create_group_notification_events",
+      "authenticated_execute": true
+    },
+    {
+      "name": "delete_my_message",
+      "authenticated_execute": true
+    },
+    {
+      "name": "edit_my_encrypted_message",
+      "authenticated_execute": true
+    },
+    {
+      "name": "enforce_group_member_limit",
+      "authenticated_execute": false
+    },
+    {
+      "name": "find_user_by_any_messaging_id",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_archive_state",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_block_state",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_messaging_devices",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_mute_state",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_pin_state",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_read_state",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_conversation_unread_count",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_group_member_count",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_group_member_display_names",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_group_members",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_group_message_receipt_details",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_group_notification_setting",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_group_pinned_messages",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_message_mutation_status",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_message_reactions",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_message_receipt_status",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_archived_conversations",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_deleted_conversations",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_direct_conversations_v4",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_encrypted_messages_v2_for_conversation",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_group_mentions",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_groups",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_messaging_device_enrollment_challenge",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_messaging_device_enrollment_status",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_pending_messaging_device_enrollments",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_pinned_conversations",
+      "authenticated_execute": true
+    },
+    {
+      "name": "get_my_unread_conversations",
+      "authenticated_execute": true
+    },
+    {
+      "name": "guard_messaging_device_update",
+      "authenticated_execute": false
+    },
+    {
+      "name": "handle_new_bharathlink_user",
+      "authenticated_execute": false
+    },
+    {
+      "name": "is_conversation_member",
+      "authenticated_execute": true
+    },
+    {
+      "name": "is_entity_authorized",
+      "authenticated_execute": true
+    },
+    {
+      "name": "is_my_messaging_device_active",
+      "authenticated_execute": true
+    },
+    {
+      "name": "list_my_bharatmail",
+      "authenticated_execute": true
+    },
+    {
+      "name": "log_guardian_control_grant_change",
+      "authenticated_execute": false
+    },
+    {
+      "name": "mark_message_delivered",
+      "authenticated_execute": true
+    },
+    {
+      "name": "mark_message_read",
+      "authenticated_execute": true
+    },
+    {
+      "name": "normalize_entity_endpoint",
+      "authenticated_execute": true
+    },
+    {
+      "name": "prevent_cross_entity_endpoint_claim",
+      "authenticated_execute": false
+    },
+    {
+      "name": "protect_entity_endpoint_verification_fields",
+      "authenticated_execute": false
+    },
+    {
+      "name": "protect_entity_verification_fields",
+      "authenticated_execute": false
+    },
+    {
+      "name": "protect_permanent_identity_columns",
+      "authenticated_execute": false
+    },
+    {
+      "name": "protect_verified_identity_fields",
+      "authenticated_execute": false
+    },
+    {
+      "name": "queue_messaging_push_from_envelope",
+      "authenticated_execute": false
+    },
+    {
+      "name": "queue_messaging_push_from_group_event",
+      "authenticated_execute": false
+    },
+    {
+      "name": "register_e2ee_v2_device",
+      "authenticated_execute": true
+    },
+    {
+      "name": "register_pending_encrypted_media",
+      "authenticated_execute": true
+    },
+    {
+      "name": "request_messaging_device_enrollment",
+      "authenticated_execute": true
+    },
+    {
+      "name": "revoke_guardian_dependent_age_assertions",
+      "authenticated_execute": false
+    },
+    {
+      "name": "rls_auto_enable",
+      "authenticated_execute": false
+    },
+    {
+      "name": "send_encrypted_message_v2",
+      "authenticated_execute": true
+    },
+    {
+      "name": "sync_guardian_control_grants_on_link_change",
+      "authenticated_execute": false
+    },
+    {
+      "name": "sync_guardian_mobile_access_on_guardian_change",
+      "authenticated_execute": false
+    },
+    {
+      "name": "validate_age_trust_policy",
+      "authenticated_execute": false
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+name: TEST frontend–backend compatibility audit (offline, no deploy)
+on:
+  push:
+    branches: [security/test-backend-compatibility-gate-20261111]
+    paths:
+      - index.html
+      - scripts/audit-test-backend-compatibility.mjs
+      - audits/official-test-public-rpc-snapshot-20261111.json
+      - tests/test-backend-compatibility-gate.test.mjs
+      - .github/workflows/test-backend-compatibility-gate.yml
+  pull_request:
+    paths:
+      - index.html
+      - scripts/audit-test-backend-compatibility.mjs
+      - audits/official-test-public-rpc-snapshot-20261111.json
+      - tests/test-backend-compatibility-gate.test.mjs
+      - .github/workflows/test-backend-compatibility-gate.yml
+permissions:
+  contents: read
+jobs:
+  static-compatibility:
+    name: Record blockers and assert release hold (NO SUPABASE/NETLIFY ACCESS)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert source and inventory invariants
+        run: node --test tests/test-backend-compatibility-gate.test.mjs
+      - name: Print read-only reconciliation findings
+        run: node scripts/audit-test-backend-compatibility.mjs --audit
+      - name: Check fail-closed release mode rejects current unsafe source
+        shell: bash
+        run: |
+          set +e
+          node scripts/audit-test-backend-compatibility.mjs --release > /tmp/bhl_release_gate.json
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -q 'SECURITY_HOLD_RECONCILIATION_REQUIRED' /tmp/bhl_release_gate.json
+          echo "PASS: release check correctly rejects incompatible TEST source"
