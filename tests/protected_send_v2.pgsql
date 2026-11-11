@@ -260,6 +260,57 @@ END
 $check$;
 \echo 'PASS: Forced post-send metadata failure rolls back message and envelopes.'
 
+-- EXPECTED RELEASE BLOCKER: the actual current TEST history RPC returns
+-- wrapped keys for View Once without consume/claim, repeatedly. It also
+-- returns expired disappearing messages until a separate purge occurs.
+-- This assertion PASSES only when the gap is observed in this fixture;
+-- therefore an isolated send function PASS is NEVER a shipping green light.
+SET ROLE authenticated;
+SET request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
+DO $gap$
+DECLARE a text; b text;
+BEGIN
+ SELECT r.wrapped_key INTO a
+ FROM public.get_my_encrypted_messages_v2_for_conversation(
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',50,NULL,NULL
+ ) r WHERE r.client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff1';
+ SELECT r.wrapped_key INTO b
+ FROM public.get_my_encrypted_messages_v2_for_conversation(
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',50,NULL,NULL
+ ) r WHERE r.client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff1';
+ IF a IS NULL OR b IS NULL OR a <> b THEN
+  RAISE EXCEPTION 'Unexpected: current history RPC did not expose repeated View Once envelope';
+ END IF;
+END
+$gap$;
+RESET ROLE;
+\echo 'EXPECTED RELEASE HOLD: View Once wrapped key is retrievable repeatedly without consume.'
+
+-- Simulate expiry; no actual production data is touched.
+UPDATE public.disappearing_messages
+SET expires_at=pg_catalog.clock_timestamp()-interval '1 second'
+WHERE message_id=(SELECT id FROM public.messages
+ WHERE client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff2');
+SET ROLE authenticated;
+SET request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
+DO $gap$
+DECLARE keyfound text;
+BEGIN
+ SELECT r.wrapped_key INTO keyfound
+ FROM public.get_my_encrypted_messages_v2_for_conversation(
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',50,NULL,NULL
+ ) r WHERE r.client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff2';
+ IF keyfound IS NULL THEN
+  RAISE EXCEPTION 'Unexpected: current history RPC did not expose expired TTL envelope';
+ END IF;
+END
+$gap$;
+RESET ROLE;
+\echo 'EXPECTED RELEASE HOLD: expired TTL wrapped key remains readable pending purge/read gate.'
+
 -- Explicitly remove sandbox temporary execute grant to restore release state.
 REVOKE EXECUTE ON FUNCTION public.send_protected_encrypted_message_v2(
   uuid,uuid,uuid,text,text,jsonb,integer,boolean
