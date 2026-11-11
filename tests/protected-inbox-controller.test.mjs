@@ -160,6 +160,7 @@ test('switch during listing fails closed and clears prior account items',async()
 test('malicious inbox keys or mismatched conversations rejected, not forwarded',async()=>{
   for(const injected of [
     row({wrappedKey:'do-not-render-this'}),
+    row({unrecognized_wrapping_key:'never-forward-unknown-fields'}),
     row({eph_pub:{kty:'EC'}}),
     row({conversation_id:USER_B}),
     row({availability:'expired',message_ciphertext:'leak'}),
@@ -230,4 +231,51 @@ test('decrypt failure is ambiguous; do not call claim again after refreshed list
   await assert.rejects(x.controller.openOnce(MSG,{confirmOpen:()=>true}),
     codeIs('CLAIM_ALREADY_ATTEMPTED_NO_RETRY'));
   assert.equal(x.calls.filter(c=>c.method==='claim_protected_wrapped_key_v1').length,1);
+});
+
+
+test('stale inbox refresh cannot display Open after an uncertain claim',async()=>{
+  const x=setup({rpcOverride:async name=>{
+    if(name==='list_my_protected_messages_v1')return [row()];
+    throw Error('SIMULATED_RESPONSE_LOST');
+  }});
+  await x.controller.loadPage();
+  const r=await x.controller.openOnce(MSG,{confirmOpen:()=>true});
+  assert.equal(r.status,'consumption_unknown');
+  const stalePage=await x.controller.loadPage();
+  assert.equal(stalePage[0].availability,'consumption_unknown');
+  assert.equal(JSON.stringify(stalePage).includes('ciphertext'),false);
+  let extraConfirms=0;
+  await assert.rejects(x.controller.openOnce(MSG,{confirmOpen:()=>{
+    extraConfirms++;return true;
+  }}),codeIs('CLAIM_ALREADY_ATTEMPTED_NO_RETRY'));
+  assert.equal(extraConfirms,0);
+  assert.equal(x.calls.filter(c=>c.method==='claim_protected_wrapped_key_v1').length,1);
+});
+
+test('stale server Available after successful claim still renders Consumed',async()=>{
+  const x=setup();
+  await x.controller.loadPage();
+  assert.equal((await x.controller.openOnce(MSG,{confirmOpen:()=>true})).status,'opened');
+  const stalePage=await x.controller.loadPage();
+  assert.equal(stalePage[0].availability,'consumed');
+  await assert.rejects(x.controller.openOnce(MSG,{confirmOpen:()=>true}),
+    codeIs('CLAIM_ALREADY_ATTEMPTED_NO_RETRY'));
+});
+
+test('account-switch cancellation never restores old-user message cache',async()=>{
+  let release;
+  const x=setup({rpcOverride:async method=>{
+    if(method==='list_my_protected_messages_v1')return [row()];
+    return new Promise(resolve=>{release=resolve});
+  }});
+  await x.controller.loadPage();
+  const pending=x.controller.openOnce(MSG,{confirmOpen:()=>true});
+  x.env.context={...x.env.context,userId:USER_B,deviceId:DEVICE_B,sessionEpoch:'next-login'};
+  release({wrappedKey:'wrapped',wrapIv:'iv',ephPub:{kty:'EC'},viewOnce:true});
+  assert.equal((await pending).status,'consumption_unknown');
+  // The old message must not remain openable without a fresh, verified
+  // inbox read owned by the new account.
+  await assert.rejects(x.controller.openOnce(MSG,{confirmOpen:()=>true}),
+    codeIs('NOT_OPENABLE_VIEW_ONCE'));
 });
