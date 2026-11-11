@@ -105,6 +105,14 @@ BEGIN
     RAISE EXCEPTION 'Protected claim denied' USING ERRCODE='42501';
   END IF;
 
+  -- Strong invariant: if ANY public envelope exists, the key was already
+  -- retrievable through normal history/Data API. Deny instead of claiming a
+  -- false View Once guarantee. Sender migration must guarantee vault-only.
+  IF EXISTS (SELECT 1 FROM public.message_envelopes pe
+             WHERE pe.message_id=p_message_id) THEN
+    RAISE EXCEPTION 'Protected claim denied' USING ERRCODE='42501';
+  END IF;
+
   SELECT k.wrapped_key,k.wrap_iv,k.eph_pub
     INTO v_key,v_iv,v_ephemeral
   FROM bl_protected_lab.wrapped_keys k
