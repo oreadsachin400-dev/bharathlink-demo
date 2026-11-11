@@ -264,7 +264,11 @@ $check$;
 REVOKE EXECUTE ON FUNCTION public.send_protected_encrypted_message_v2(
   uuid,uuid,uuid,text,text,jsonb,integer,boolean
 ) FROM authenticated;
-SELECT CASE WHEN has_function_privilege('authenticated',
- 'public.send_protected_encrypted_message_v2(uuid,uuid,uuid,text,text,jsonb,integer,boolean)','EXECUTE')
-THEN 1/0 ELSE 1 END AS remains_locked;
+DO $check$
+BEGIN
+  IF has_function_privilege('authenticated',
+    'public.send_protected_encrypted_message_v2(uuid,uuid,uuid,text,text,jsonb,integer,boolean)', 'EXECUTE')
+  THEN RAISE EXCEPTION 'Release guard failed: RPC callable'; END IF;
+END
+$check$;
 \echo 'PASS: Final RPC EXECUTE remains DENIED.'
