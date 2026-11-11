@@ -15,6 +15,8 @@ on:
       - 'tests/protected_claim_rollback_lab.pgsql'
       - 'tests/protected_vault_only_sender.pgsql'
       - 'tests/protected_metadata_inbox.pgsql'
+      - 'review-only/protected-inbox-controller.mjs'
+      - 'tests/protected-inbox-controller.test.mjs'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
   pull_request:
@@ -31,6 +33,8 @@ on:
       - 'tests/protected_claim_rollback_lab.pgsql'
       - 'tests/protected_vault_only_sender.pgsql'
       - 'tests/protected_metadata_inbox.pgsql'
+      - 'review-only/protected-inbox-controller.mjs'
+      - 'tests/protected-inbox-controller.test.mjs'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
 permissions:
@@ -61,6 +65,8 @@ jobs:
       PGPASSWORD: test-only-local-password
     steps:
       - uses: actions/checkout@v4
+      - name: Review-only Android protected inbox controller tests
+        run: node --test tests/protected-inbox-controller.test.mjs
       - name: Confirm PostgreSQL CLI
         run: psql --version
       - name: Build disposable schema with exact captured TEST sender function
