@@ -5,18 +5,22 @@ on:
     paths:
       - 'sql/review-only/protected_send_v2_candidate.sql'
       - 'sql/review-only/protected_key_claim_lab.sql'
+      - 'sql/review-only/protected_key_expiry_purge_lab.sql'
       - 'tests/fixtures/official_test_message_schema_pg16.sql'
       - 'tests/protected_send_v2.pgsql'
       - 'tests/protected_claim_lab.pgsql'
+      - 'tests/protected_expiry_cleanup_lab.pgsql'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
   pull_request:
     paths:
       - 'sql/review-only/protected_send_v2_candidate.sql'
       - 'sql/review-only/protected_key_claim_lab.sql'
+      - 'sql/review-only/protected_key_expiry_purge_lab.sql'
       - 'tests/fixtures/official_test_message_schema_pg16.sql'
       - 'tests/protected_send_v2.pgsql'
       - 'tests/protected_claim_lab.pgsql'
+      - 'tests/protected_expiry_cleanup_lab.pgsql'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
 permissions:
@@ -59,3 +63,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_key_claim_lab.sql
       - name: Verify claim, replay, expiry, revocation and data isolation
         run: psql -v ON_ERROR_STOP=1 -f tests/protected_claim_lab.pgsql
+      - name: Install private bounded expiry cleanup with no client grant
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_key_expiry_purge_lab.sql
+      - name: Verify mixed-storage denial and expiry cleanup security
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_expiry_cleanup_lab.pgsql
