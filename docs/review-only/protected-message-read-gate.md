@@ -79,3 +79,57 @@ Isolated CI: https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs
 Fixture intentionally simplified. The sender/history functions were captured
 as code definitions from official TEST metadata only. It uses synthetic
 users/devices and no real account, message content, JWT or secrets.
+
+
+## 11 Nov update — isolated private key vault claim tests
+
+**New evidence:** [GitHub PG16 isolated CI #43006222951](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/43006222951) — SUCCESS.
+
+- A new NON-EXPOSED schema, bl_protected_lab, holds E2EE-wrapped
+  per-device message keys rather than public.message_envelopes.
+  No authenticated/anon/service role has direct USAGE or SELECT.
+- Client-callable-looking claim RPC is created **with EXECUTE revoked**.
+  CI temporarily grants authenticated only in a disposable DB and re-revokes.
+- Tests demonstrate first-claim-wins, repeat and cross-device denial,
+  all alternate key copies erased on commit, expired TTL denied at read,
+  unsigned, revoked, outsider, deleted-message and unauthenticated denial.
+- Unsafe mixed public+private key storage is explicitly rejected. This
+  means the already-existing protected-send wrapper (which uses the
+  normal public-envelope sender) is **NOT** compatible with this claim
+  approach and MUST NOT be released unchanged.
+- A private, bounded, idempotent cleanup prototype erases expired vault
+  envelopes and records purged_at, leaving unexpired envelopes intact.
+  Cleanup is NOT connected to any real Supabase scheduler or storage job.
+- A real two-PostgreSQL-session race under READ COMMITTED showed the
+  second claimant waiting for the first row lock, then being rejected.
+- Forced deletion failure rolled back the one-time consumed marker AND
+  preserved both vault keys; a subsequent normal claim succeeded.
+- No existing PROD/TEST data, keys, session, frontend, or database was
+  modified. All test principals, messages and device IDs are fabricated.
+
+### Architectural blockers remaining
+
+1. Implement a NEW sender transaction that puts protected envelopes
+   ONLY in the private vault (never normal message_envelopes), yet
+   preserves sender device authorization, coverage and message indexing.
+   Existing send wrapper is not that sender.
+2. Provide metadata-only listing and verified, user-triggered claim UI;
+   no cached decrypt-key payload via message Realtime, push,
+   normal history, backups, or direct Data API.
+3. Review all grants, private schema exposure, RLS policies, alternate
+   endpoints, sensitive logs and SQL function ownership under real
+   Supabase roles. Test actual signer-device revocation races.
+4. Reconcile first-device signing trust: official TEST currently has
+   zero trusted signer rows. The lab seeds invented verified signers,
+   so it cannot prove real first-device enrollment or Android behavior.
+5. Define loss-on-disconnect behavior: an atomic claim is consumed when
+   the server commits, even if the HTTP response never reaches the
+   client. A safe UX/recovery/ACK protocol requires separate review.
+6. Ensure independent server-side purge, media key handling, storage
+   lifecycle, cron failure handling, offline replay and two-physical-
+   Android-device acceptance before any release.
+7. No digital feature can guarantee a human cannot photograph/copy
+   content they have already viewed. Communicate realistic limitations.
+
+**Release guard stays active.** No claim RPC grants, app deployment,
+merging, or real TEST schema writes are authorized by this CI result.
