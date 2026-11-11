@@ -1,0 +1,51 @@
+name: Protected-message SQL contract — disposable PG16 only
+on:
+  push:
+    branches: [security/protected-message-rpc-contract-20261111]
+    paths:
+      - 'sql/review-only/protected_send_v2_candidate.sql'
+      - 'tests/fixtures/official_test_message_schema_pg16.sql'
+      - 'tests/protected_send_v2.pgsql'
+      - '.github/workflows/protected-message-contract.yml'
+  pull_request:
+    paths:
+      - 'sql/review-only/protected_send_v2_candidate.sql'
+      - 'tests/fixtures/official_test_message_schema_pg16.sql'
+      - 'tests/protected_send_v2.pgsql'
+      - '.github/workflows/protected-message-contract.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: bharathlink_isolated
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-local-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bharathlink_isolated"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: bharathlink_isolated
+      PGUSER: postgres
+      PGPASSWORD: test-only-local-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm PostgreSQL CLI
+        run: psql --version
+      - name: Build disposable schema with exact captured TEST sender function
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/official_test_message_schema_pg16.sql
+      - name: Install review-only wrapper; do NOT grant EXECUTE
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_send_v2_candidate.sql
+      - name: Exercise authorization, atomicity and default-deny regression cases
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_send_v2.pgsql
