@@ -1,0 +1,99 @@
+name: Protected-message SQL contract — disposable PG16 only
+on:
+  push:
+    branches: [security/protected-message-rpc-contract-20261111]
+    paths:
+      - 'sql/review-only/protected_send_v2_candidate.sql'
+      - 'sql/review-only/protected_key_claim_lab.sql'
+      - 'sql/review-only/protected_key_expiry_purge_lab.sql'
+      - 'sql/review-only/protected_vault_only_sender_lab.sql'
+      - 'sql/review-only/protected_metadata_inbox_lab.sql'
+      - 'tests/fixtures/official_test_message_schema_pg16.sql'
+      - 'tests/protected_send_v2.pgsql'
+      - 'tests/protected_claim_lab.pgsql'
+      - 'tests/protected_expiry_cleanup_lab.pgsql'
+      - 'tests/protected_claim_rollback_lab.pgsql'
+      - 'tests/protected_vault_only_sender.pgsql'
+      - 'tests/protected_metadata_inbox.pgsql'
+      - 'review-only/protected-inbox-controller.mjs'
+      - 'tests/protected-inbox-controller.test.mjs'
+      - 'tests/run-protected-claim-race.sh'
+      - '.github/workflows/protected-message-contract.yml'
+  pull_request:
+    paths:
+      - 'sql/review-only/protected_send_v2_candidate.sql'
+      - 'sql/review-only/protected_key_claim_lab.sql'
+      - 'sql/review-only/protected_key_expiry_purge_lab.sql'
+      - 'sql/review-only/protected_vault_only_sender_lab.sql'
+      - 'sql/review-only/protected_metadata_inbox_lab.sql'
+      - 'tests/fixtures/official_test_message_schema_pg16.sql'
+      - 'tests/protected_send_v2.pgsql'
+      - 'tests/protected_claim_lab.pgsql'
+      - 'tests/protected_expiry_cleanup_lab.pgsql'
+      - 'tests/protected_claim_rollback_lab.pgsql'
+      - 'tests/protected_vault_only_sender.pgsql'
+      - 'tests/protected_metadata_inbox.pgsql'
+      - 'review-only/protected-inbox-controller.mjs'
+      - 'tests/protected-inbox-controller.test.mjs'
+      - 'tests/run-protected-claim-race.sh'
+      - '.github/workflows/protected-message-contract.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: bharathlink_isolated
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-local-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bharathlink_isolated"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: bharathlink_isolated
+      PGUSER: postgres
+      PGPASSWORD: test-only-local-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Review-only Android protected inbox controller tests
+        run: node --test tests/protected-inbox-controller.test.mjs
+      - name: Confirm PostgreSQL CLI
+        run: psql --version
+      - name: Build disposable schema with exact captured TEST sender function
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/official_test_message_schema_pg16.sql
+      - name: Install review-only wrapper; do NOT grant EXECUTE
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_send_v2_candidate.sql
+      - name: Exercise authorization, atomicity and default-deny regression cases
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_send_v2.pgsql
+      - name: Install private claim vault with all client EXECUTE revoked
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_key_claim_lab.sql
+      - name: Verify claim, replay, expiry, revocation and data isolation
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_claim_lab.pgsql
+      - name: Install private bounded expiry cleanup with no client grant
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_key_expiry_purge_lab.sql
+      - name: Verify mixed-storage denial and expiry cleanup security
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_expiry_cleanup_lab.pgsql
+      - name: Verify true two-session concurrent claim row-lock behavior
+        env:
+          BHL_ISOLATED_PG_ONLY: '1'
+        run: bash tests/run-protected-claim-race.sh
+      - name: Force vault failure and verify claim transaction rollback
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_claim_rollback_lab.pgsql
+      - name: Install private key-free reader index and default-deny inbox
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_metadata_inbox_lab.sql
+      - name: Install vault-only sender (all client EXECUTE denied)
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_vault_only_sender_lab.sql
+      - name: Integration prove send-to-claim without any normal history envelope
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_vault_only_sender.pgsql
+      - name: Verify metadata-only inbox, tombstones, original readers and expiry
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_metadata_inbox.pgsql
