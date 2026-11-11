@@ -10,6 +10,10 @@
 -- public.conversation_read_settings(user_id,conversation_id,
 --   manually_unread,updated_at) PK(user_id,conversation_id)
 -- bl_private.direct_conversation_blocked_for(conversation_id,user_id)
+-- Keep CREATE + REVOKE in a single DB transaction if this is ever reviewed.
+-- No privilege window while a SECURITY DEFINER function is created.
+BEGIN;
+
 CREATE OR REPLACE FUNCTION public.mark_conversation_unread(
   p_conversation_id uuid
 ) RETURNS void
@@ -74,3 +78,5 @@ $bl_read$;
 
 REVOKE ALL ON FUNCTION public.mark_conversation_read(uuid)
   FROM PUBLIC,anon,authenticated,service_role;
+
+COMMIT;
