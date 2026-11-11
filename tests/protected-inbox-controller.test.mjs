@@ -97,7 +97,7 @@ test('confirmed click -> one server claim -> trusted decrypt -> local consumed s
   assert.equal(x.calls.filter(c=>c.method==='claim_protected_wrapped_key_v1').length,1);
   assert.deepEqual(x.calls[1].args,{p_message_id:MSG,p_device_id:DEVICE_A});
   await assert.rejects(x.controller.openOnce(MSG,{confirmOpen:()=>true}),
-    codeIs('NOT_OPENABLE_VIEW_ONCE'));
+    codeIs('CLAIM_ALREADY_ATTEMPTED_NO_RETRY'));
 });
 
 test('lost HTTP response is ambiguous and MUST NOT trigger automatic or manual retry',async()=>{
