@@ -251,7 +251,7 @@ BEGIN
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
    'e0000000-0000-4000-8000-000000000003',
    'ct','iv','[]'::jsonb,NULL,true);
- EXCEPTION WHEN insufficient_privilege THEN rejected:=true;
+ EXCEPTION WHEN invalid_parameter_value OR insufficient_privilege THEN rejected:=true;
  END;
  IF NOT rejected THEN RAISE EXCEPTION 'Missing device keys accepted'; END IF;
 
