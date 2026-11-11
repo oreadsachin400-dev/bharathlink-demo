@@ -200,6 +200,37 @@ END $deny$;
 RESET ROLE;
 \echo 'PASS: No account identity means directory search denied.'
 
+-- Country scoping: a foreign entity claiming the same ten digits must
+-- NOT make the India-specific mobile lookup ambiguous or look verified.
+INSERT INTO public.entity_profiles(
+ id,entity_type,legal_name,display_name,country_code,
+ verification_status,verification_method,verified_at
+) VALUES (
+ '10000000-0000-4000-8000-000000000011','business','Foreign Example Claim',
+ 'Foreign Claim','US','verified','foreign_registry',now()-interval '2 days'
+);
+INSERT INTO public.entity_endpoints(
+ id,entity_id,endpoint_type,endpoint_value,display_value,
+ verification_status,verified_at
+) VALUES (
+ '20000000-0000-4000-8000-000000000011',
+ '10000000-0000-4000-8000-000000000011',
+ 'mobile','9876543210','9876543210',
+ 'verified',now()-interval '1 day'
+);
+SET ROLE authenticated;
+SET request.jwt.claim.sub='11111111-1111-4111-8111-111111111111';
+DO $country$
+DECLARE r record;
+BEGIN
+ SELECT * INTO r FROM public.search_verified_directory('9876543210',25);
+ IF r.entity_id IS DISTINCT FROM '10000000-0000-4000-8000-000000000001'::uuid THEN
+   RAISE EXCEPTION 'Foreign mobile claim confused Indian directory';
+ END IF;
+END $country$;
+RESET ROLE;
+\echo 'PASS: India mobile lookup cannot inherit foreign-country endpoint claim.'
+
 -- A duplicate verified claim from a different entity must not falsely
 -- affirm two owners for one number, despite each endpoint being verified.
 UPDATE public.entity_profiles SET verification_status='verified',
