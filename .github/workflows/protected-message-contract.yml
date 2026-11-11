@@ -10,6 +10,7 @@ on:
       - 'tests/protected_send_v2.pgsql'
       - 'tests/protected_claim_lab.pgsql'
       - 'tests/protected_expiry_cleanup_lab.pgsql'
+      - 'tests/protected_claim_rollback_lab.pgsql'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
   pull_request:
@@ -21,6 +22,7 @@ on:
       - 'tests/protected_send_v2.pgsql'
       - 'tests/protected_claim_lab.pgsql'
       - 'tests/protected_expiry_cleanup_lab.pgsql'
+      - 'tests/protected_claim_rollback_lab.pgsql'
       - 'tests/run-protected-claim-race.sh'
       - '.github/workflows/protected-message-contract.yml'
 permissions:
@@ -71,3 +73,5 @@ jobs:
         env:
           BHL_ISOLATED_PG_ONLY: '1'
         run: bash tests/run-protected-claim-race.sh
+      - name: Force vault failure and verify claim transaction rollback
+        run: psql -v ON_ERROR_STOP=1 -f tests/protected_claim_rollback_lab.pgsql
