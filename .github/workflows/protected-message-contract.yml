@@ -67,3 +67,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/protected_key_expiry_purge_lab.sql
       - name: Verify mixed-storage denial and expiry cleanup security
         run: psql -v ON_ERROR_STOP=1 -f tests/protected_expiry_cleanup_lab.pgsql
+      - name: Verify true two-session concurrent claim row-lock behavior
+        env:
+          BHL_ISOLATED_PG_ONLY: '1'
+        run: bash tests/run-protected-claim-race.sh
