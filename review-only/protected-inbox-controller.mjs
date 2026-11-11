@@ -261,10 +261,23 @@ export function createProtectedInboxController({
       } catch (_error) {
         // Do not infer whether the server consumed or client decrypted.
         // Do not return backend errors, key material, tokens or plaintext.
-        items.set(id, Object.freeze({
-          ...message, ciphertext: null, iv: null,
-          availability: 'consumption_unknown',
-        }));
+        // A late response from an old account must never repopulate the
+        // new account's inbox with old-user metadata, even as a tombstone.
+        let ownerStillCurrent = false;
+        try {
+          checkOrigin();
+          ownerStillCurrent = sameContext(current, readerContext(getContext));
+        } catch (_ignored) {
+          ownerStillCurrent = false;
+        }
+        if (ownerStillCurrent) {
+          items.set(id, Object.freeze({
+            ...message, ciphertext: null, iv: null,
+            availability: 'consumption_unknown',
+          }));
+        } else {
+          items.clear();
+        }
         return Object.freeze({status: 'consumption_unknown', code: UNKNOWN});
       } finally {
         active.delete(attemptId);
