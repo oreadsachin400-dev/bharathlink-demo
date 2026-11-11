@@ -69,19 +69,19 @@ SELECT public.send_protected_encrypted_message_v2(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
  'ffffffff-ffff-4fff-8fff-fffffffffff1','ciphertext-1','iv-1',
  public.test_envelopes(),NULL,true
-) AS protected_id \gset
+) AS protected_id;
 RESET ROLE;
 DO $check$
 BEGIN
   IF (SELECT count(*) FROM public.messages) <> 1 THEN
     RAISE EXCEPTION 'View Once message not inserted once';
   END IF;
-  IF (SELECT count(*) FROM public.message_envelopes WHERE message_id=:'protected_id'::uuid) <> 2 THEN
+  IF (SELECT count(*) FROM public.message_envelopes WHERE message_id=(SELECT id FROM public.messages WHERE client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff1')) <> 2 THEN
     RAISE EXCEPTION 'Device envelope coverage failed';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.view_once_messages
-    WHERE message_id=:'protected_id'::uuid
+    WHERE message_id=(SELECT id FROM public.messages WHERE client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff1')
       AND sender_id='11111111-1111-4111-8111-111111111111'
       AND recipient_user_id='22222222-2222-4222-8222-222222222222'
       AND consumed_at IS NULL
@@ -97,17 +97,17 @@ SELECT public.send_protected_encrypted_message_v2(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
  'ffffffff-ffff-4fff-8fff-fffffffffff2','ciphertext-2','iv-2',
  public.test_envelopes(),30,false
-) AS ttl_id \gset
+) AS ttl_id;
 RESET ROLE;
 DO $check$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.disappearing_messages
-    WHERE message_id=:'ttl_id'::uuid AND ttl_sec=30
+    WHERE message_id=(SELECT id FROM public.messages WHERE client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff2') AND ttl_sec=30
       AND expires_at BETWEEN pg_catalog.clock_timestamp()+interval '15 seconds'
                          AND pg_catalog.clock_timestamp()+interval '40 seconds'
   ) THEN RAISE EXCEPTION 'TTL registration missing or invalid'; END IF;
-  IF EXISTS (SELECT 1 FROM public.view_once_messages WHERE message_id=:'ttl_id'::uuid) THEN
+  IF EXISTS (SELECT 1 FROM public.view_once_messages WHERE message_id=(SELECT id FROM public.messages WHERE client_message_id='ffffffff-ffff-4fff-8fff-fffffffffff2')) THEN
     RAISE EXCEPTION 'Unexpected View Once metadata for TTL-only message';
   END IF;
 END
