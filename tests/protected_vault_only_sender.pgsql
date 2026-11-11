@@ -158,16 +158,21 @@ END $check$;
 RESET ROLE;
 \echo 'PASS: Exact TEST history function cannot retrieve vault-only decryption key.'
 
+-- Use the server-returned message ID from the privileged disposable test
+-- setup, not a direct SELECT by the client. Production RLS remains untouched.
+SELECT pg_catalog.set_config('bhl.test_claim_message_id',id::text,false)
+FROM public.messages
+WHERE client_message_id='e0000000-0000-4000-8000-000000000001';
+
 -- A true end-to-end send -> read-once -> cleanup path.
 GRANT EXECUTE ON FUNCTION public.claim_protected_wrapped_key_v1(uuid,uuid)
  TO authenticated;
 SET ROLE authenticated;
 SET request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
 DO $claim$
-DECLARE mid uuid; envelope jsonb; denied boolean:=false;
+DECLARE mid uuid := pg_catalog.current_setting('bhl.test_claim_message_id')::uuid;
+ envelope jsonb; denied boolean:=false;
 BEGIN
- SELECT id INTO mid FROM public.messages
- WHERE client_message_id='e0000000-0000-4000-8000-000000000001';
  envelope:=public.claim_protected_wrapped_key_v1(
  mid,'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
  IF envelope->>'wrappedKey'<>'recipient-first-key'
