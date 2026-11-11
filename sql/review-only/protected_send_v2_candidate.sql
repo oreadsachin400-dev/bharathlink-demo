@@ -54,7 +54,7 @@ BEGIN
     END IF;
     SELECT count(*)::integer,
            count(*) FILTER (WHERE cm.user_id = v_sender)::integer,
-           max(cm.user_id) FILTER (WHERE cm.user_id <> v_sender)
+           (array_agg(cm.user_id) FILTER (WHERE cm.user_id <> v_sender))[1]
       INTO v_member_count, v_sender_count, v_recipient
     FROM public.conversation_members cm
     WHERE cm.conversation_id = p_conversation_id;
