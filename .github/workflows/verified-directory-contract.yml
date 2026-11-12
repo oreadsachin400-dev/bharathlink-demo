@@ -14,6 +14,8 @@ on:
       - 'tests/run-directory-quota-race.sh'
       - 'sql/review-only/entity_publication_preparation_lab.sql'
       - 'tests/entity_publication_preparation_contract.pgsql'
+      - 'sql/review-only/entity_badge_issue_revoke_lab.sql'
+      - 'tests/entity_badge_issue_revoke_contract.pgsql'
       - '.github/workflows/verified-directory-contract.yml'
   pull_request:
     paths:
@@ -28,6 +30,8 @@ on:
       - 'tests/run-directory-quota-race.sh'
       - 'sql/review-only/entity_publication_preparation_lab.sql'
       - 'tests/entity_publication_preparation_contract.pgsql'
+      - 'sql/review-only/entity_badge_issue_revoke_lab.sql'
+      - 'tests/entity_badge_issue_revoke_contract.pgsql'
       - '.github/workflows/verified-directory-contract.yml'
 permissions:
   contents: read
@@ -78,6 +82,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_publication_preparation_lab.sql
       - name: Verify attestation, no-badge publication preparation and independent revocation
         run: psql -v ON_ERROR_STOP=1 -f tests/entity_publication_preparation_contract.pgsql
+      - name: Install INTERNAL service-only entity badge issue and revoke state machine
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_badge_issue_revoke_lab.sql
+      - name: Prove publisher separation, no free endpoint badges, duplicate registry, and atomic revocation
+        run: psql -v ON_ERROR_STOP=1 -f tests/entity_badge_issue_revoke_contract.pgsql
       - name: Install disabled per-account search quota wrapper
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
       - name: Test minute/day quotas, raw-API denial and rollback
