@@ -12,6 +12,8 @@ on:
       - 'tests/entity_dual_review_contract.pgsql'
       - 'tests/directory_search_quota_contract.pgsql'
       - 'tests/run-directory-quota-race.sh'
+      - 'sql/review-only/entity_publication_preparation_lab.sql'
+      - 'tests/entity_publication_preparation_contract.pgsql'
       - '.github/workflows/verified-directory-contract.yml'
   pull_request:
     paths:
@@ -24,6 +26,8 @@ on:
       - 'tests/entity_dual_review_contract.pgsql'
       - 'tests/directory_search_quota_contract.pgsql'
       - 'tests/run-directory-quota-race.sh'
+      - 'sql/review-only/entity_publication_preparation_lab.sql'
+      - 'tests/entity_publication_preparation_contract.pgsql'
       - '.github/workflows/verified-directory-contract.yml'
 permissions:
   contents: read
@@ -70,6 +74,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_dual_review_ledger_lab.sql
       - name: Test independent reviewers, self-approval denial and no badge issuance
         run: psql -v ON_ERROR_STOP=1 -f tests/entity_dual_review_contract.pgsql
+      - name: Install private evidence and publication-preparation gate without client permissions
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_publication_preparation_lab.sql
+      - name: Verify attestation, no-badge publication preparation and independent revocation
+        run: psql -v ON_ERROR_STOP=1 -f tests/entity_publication_preparation_contract.pgsql
       - name: Install disabled per-account search quota wrapper
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
       - name: Test minute/day quotas, raw-API denial and rollback
