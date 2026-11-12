@@ -422,6 +422,12 @@ BEGIN
    WHERE id='20000000-0000-4000-8000-000000000020') <> 'revoked'
  OR (SELECT verification_status FROM public.entity_endpoints
    WHERE id='20000000-0000-4000-8000-000000000022') <> 'revoked'
+ OR (SELECT revoked_by FROM public.entity_endpoints
+   WHERE id='20000000-0000-4000-8000-000000000020')
+   IS DISTINCT FROM '33333333-3333-4333-8333-333333333333'::uuid
+ OR (SELECT revoked_by FROM public.entity_endpoints
+   WHERE id='20000000-0000-4000-8000-000000000022')
+   IS DISTINCT FROM '33333333-3333-4333-8333-333333333333'::uuid
  OR (SELECT verification_status FROM public.entity_endpoints
    WHERE id='20000000-0000-4000-8000-000000000023') <> 'verified'
  OR (SELECT count(*) FROM bl_directory_lab.badge_events
