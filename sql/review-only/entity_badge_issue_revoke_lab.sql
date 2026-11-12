@@ -234,7 +234,7 @@ BEGIN
  LOOP
    UPDATE public.entity_endpoints
    SET verification_status='revoked',revoked_at=v_now,
-       revocation_reason=pg_catalog.btrim(p_reason)
+       revoked_by=p_actor,revocation_reason=pg_catalog.btrim(p_reason)
    WHERE id=v_id AND verification_status IN ('verified','suspended');
    INSERT INTO bl_directory_lab.badge_events(
      entity_id,request_id,action,actor_user_id,endpoint_id,reason
