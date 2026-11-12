@@ -6,12 +6,24 @@ on:
       - 'sql/review-only/search_verified_directory_candidate.sql'
       - 'tests/fixtures/verified_directory_pg16.sql'
       - 'tests/verified_directory_contract.pgsql'
+      - 'sql/review-only/entity_dual_review_ledger_lab.sql'
+      - 'sql/review-only/directory_search_quota_lab.sql'
+      - 'tests/fixtures/entity_approval_lab_pg16.sql'
+      - 'tests/entity_dual_review_contract.pgsql'
+      - 'tests/directory_search_quota_contract.pgsql'
+      - 'tests/run-directory-quota-race.sh'
       - '.github/workflows/verified-directory-contract.yml'
   pull_request:
     paths:
       - 'sql/review-only/search_verified_directory_candidate.sql'
       - 'tests/fixtures/verified_directory_pg16.sql'
       - 'tests/verified_directory_contract.pgsql'
+      - 'sql/review-only/entity_dual_review_ledger_lab.sql'
+      - 'sql/review-only/directory_search_quota_lab.sql'
+      - 'tests/fixtures/entity_approval_lab_pg16.sql'
+      - 'tests/entity_dual_review_contract.pgsql'
+      - 'tests/directory_search_quota_contract.pgsql'
+      - 'tests/run-directory-quota-race.sh'
       - '.github/workflows/verified-directory-contract.yml'
 permissions:
   contents: read
@@ -52,3 +64,17 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/search_verified_directory_candidate.sql
       - name: Run verification, contact, ambiguity and access-control tests
         run: psql -v ON_ERROR_STOP=1 -f tests/verified_directory_contract.pgsql
+      - name: Build independent-review lab request and ownership schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/entity_approval_lab_pg16.sql
+      - name: Install default-denied append-only two-reviewer ledger
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_dual_review_ledger_lab.sql
+      - name: Test independent reviewers, self-approval denial and no badge issuance
+        run: psql -v ON_ERROR_STOP=1 -f tests/entity_dual_review_contract.pgsql
+      - name: Install disabled per-account search quota wrapper
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
+      - name: Test minute/day quotas, raw-API denial and rollback
+        run: psql -v ON_ERROR_STOP=1 -f tests/directory_search_quota_contract.pgsql
+      - name: Test two concurrent searches against final daily budget slot
+        env:
+          BHL_ISOLATED_PG_ONLY: '1'
+        run: bash tests/run-directory-quota-race.sh
