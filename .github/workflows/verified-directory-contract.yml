@@ -21,6 +21,11 @@ on:
       - 'tests/operator_session_binding_contract.pgsql'
       - 'security/review-only/operator_auth_gate.mjs'
       - 'tests/operator_auth_gate.test.mjs'
+      - 'security/review-only/operator_backoffice_adapters.mjs'
+      - 'tests/operator_backoffice_adapters.test.mjs'
+      - 'sql/review-only/operator_action_scopes_lab.sql'
+      - 'tests/operator_action_scope_contract.pgsql'
+      - 'tests/run_operator_backoffice_pg_contract.mjs'
       - '.github/workflows/verified-directory-contract.yml'
   pull_request:
     paths:
@@ -42,6 +47,11 @@ on:
       - 'tests/operator_session_binding_contract.pgsql'
       - 'security/review-only/operator_auth_gate.mjs'
       - 'tests/operator_auth_gate.test.mjs'
+      - 'security/review-only/operator_backoffice_adapters.mjs'
+      - 'tests/operator_backoffice_adapters.test.mjs'
+      - 'sql/review-only/operator_action_scopes_lab.sql'
+      - 'tests/operator_action_scope_contract.pgsql'
+      - 'tests/run_operator_backoffice_pg_contract.mjs'
       - '.github/workflows/verified-directory-contract.yml'
 permissions:
   contents: read
@@ -104,6 +114,16 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/operator_session_binding_contract.pgsql
       - name: Test server-only operator Auth gate with 27 mocked fail-closed cases (no live network)
         run: node --test tests/operator_auth_gate.test.mjs
+      - name: Install private operator action scopes (isolated PG16 only)
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/operator_action_scopes_lab.sql
+      - name: Exercise independent scope grant, terminal revoke, immutable audit and synthetic Auth session shape
+        run: psql -v ON_ERROR_STOP=1 -f tests/operator_action_scope_contract.pgsql
+      - name: Execute exact Node adapter SQL against synthetic PostgreSQL Auth session and scope records
+        env:
+          BHL_ISOLATED_PG_ONLY: '1'
+        run: node tests/run_operator_backoffice_pg_contract.mjs
+      - name: Test 18 fail-closed Node backoffice adapter contracts with mocked privileged DB
+        run: node --test tests/operator_backoffice_adapters.test.mjs
       - name: Install disabled per-account search quota wrapper
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
       - name: Test minute/day quotas, raw-API denial and rollback
