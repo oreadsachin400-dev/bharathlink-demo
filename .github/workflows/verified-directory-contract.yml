@@ -17,6 +17,8 @@ on:
       - 'tests/entity_publication_preparation_contract.pgsql'
       - 'sql/review-only/entity_badge_issue_revoke_lab.sql'
       - 'tests/entity_badge_issue_revoke_contract.pgsql'
+      - 'sql/review-only/operator_session_binding_lab.sql'
+      - 'tests/operator_session_binding_contract.pgsql'
       - '.github/workflows/verified-directory-contract.yml'
   pull_request:
     paths:
@@ -34,6 +36,8 @@ on:
       - 'tests/entity_publication_preparation_contract.pgsql'
       - 'sql/review-only/entity_badge_issue_revoke_lab.sql'
       - 'tests/entity_badge_issue_revoke_contract.pgsql'
+      - 'sql/review-only/operator_session_binding_lab.sql'
+      - 'tests/operator_session_binding_contract.pgsql'
       - '.github/workflows/verified-directory-contract.yml'
 permissions:
   contents: read
@@ -90,6 +94,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/entity_live_verification_triggers_pg16.sql
       - name: Prove publisher separation, no free endpoint badges, duplicate registry, and atomic revocation
         run: psql -v ON_ERROR_STOP=1 -f tests/entity_badge_issue_revoke_contract.pgsql
+      - name: Install private session-bound operator wrappers with default-denied grants
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/operator_session_binding_lab.sql
+      - name: Verify separate simulated DB logins bind issuer and revoker without trusting JWT-subject spoofing
+        run: psql -v ON_ERROR_STOP=1 -f tests/operator_session_binding_contract.pgsql
       - name: Install disabled per-account search quota wrapper
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
       - name: Test minute/day quotas, raw-API denial and rollback
