@@ -1,11 +1,8 @@
 \set ON_ERROR_STOP on
 \echo 'INTERNAL BADGE ISSUE/REVOKE — synthetic service-only PG16'
 
--- Lab fixture omits some actual official TEST endpoint audit fields.
-ALTER TABLE public.entity_endpoints
- ADD COLUMN verification_method text,
- ADD COLUMN revoked_by uuid,
- ADD COLUMN revocation_reason text;
+-- Official TEST verification triggers and audit columns were installed in the
+-- separate disposable PG16 step; only synthetic users/records follow here.
 -- A new synthetic, pending organization and request (not the revoked
 -- preparation from earlier tests). All actor UUIDs are fake.
 INSERT INTO public.entity_profiles(
@@ -29,6 +26,36 @@ INSERT INTO public.entity_endpoints(
 ('20000000-0000-4000-8000-000000000020',
  '10000000-0000-4000-8000-000000000020',
  'mobile','9000000020','+91 90000 00020','pending',NULL);
+
+-- Check actual TEST trigger bodies with a simulated JWT role. This uses
+-- postgres only to exercise trigger logic; it does not emulate grants/RLS.
+DO $trigger_compat$
+DECLARE entity_denied boolean:=false; endpoint_denied boolean:=false;
+BEGIN
+ PERFORM pg_catalog.set_config('request.jwt.claim.role','authenticated',true);
+ BEGIN
+  UPDATE public.entity_profiles SET verification_status='verified'
+  WHERE id='10000000-0000-4000-8000-000000000020';
+ EXCEPTION WHEN others THEN
+  IF SQLERRM='Entity verification fields are server-authoritative'
+  THEN entity_denied:=true; ELSE RAISE; END IF;
+ END;
+ BEGIN
+  UPDATE public.entity_endpoints SET verification_status='verified'
+  WHERE id='20000000-0000-4000-8000-000000000020';
+ EXCEPTION WHEN others THEN
+  IF SQLERRM='Endpoint verification fields are server-authoritative'
+  THEN endpoint_denied:=true; ELSE RAISE; END IF;
+ END;
+ IF NOT entity_denied OR NOT endpoint_denied
+ THEN RAISE EXCEPTION 'Real TEST verification trigger permitted client-style status mutation'; END IF;
+ IF (SELECT verification_status FROM public.entity_profiles
+     WHERE id='10000000-0000-4000-8000-000000000020')<>'pending'
+ OR (SELECT verification_status FROM public.entity_endpoints
+     WHERE id='20000000-0000-4000-8000-000000000020')<>'pending'
+ THEN RAISE EXCEPTION 'Rejected client-style mutation still changed a row'; END IF;
+END $trigger_compat$;
+\echo 'PASS: Exact TEST entity and endpoint triggers reject simulated authenticated verification writes.'
 
 -- A distinct third operator is needed for independent revocation.
 INSERT INTO bl_directory_lab.publisher_operators(
@@ -326,6 +353,31 @@ UPDATE public.entity_endpoints
 SET verification_status='verified',verified_at=clock_timestamp()-interval '1 day',
  verification_method='synthetic_lab_only'
 WHERE id='20000000-0000-4000-8000-000000000020';
+-- The exact TEST cross-claim trigger forbids another entity from claiming
+-- the same normalized number while the existing verified claim is active.
+DO $duplicate_mobile$
+DECLARE refused boolean:=false;
+BEGIN
+ BEGIN
+  INSERT INTO public.entity_endpoints(
+   id,entity_id,endpoint_type,endpoint_value,display_value,
+   verification_status
+  ) VALUES (
+   '20000000-0000-4000-8000-000000000029',
+   '10000000-0000-4000-8000-000000000021',
+   'mobile','+91 90000 00020','+91 90000 00020','pending'
+  );
+ EXCEPTION WHEN others THEN
+  IF SQLERRM='Endpoint already verified or reserved for another organisation'
+  THEN refused:=true; ELSE RAISE; END IF;
+ END;
+ IF NOT refused OR EXISTS(
+  SELECT 1 FROM public.entity_endpoints
+  WHERE id='20000000-0000-4000-8000-000000000029'
+ ) THEN RAISE EXCEPTION 'Real TEST cross-entity number conflict not blocked'; END IF;
+END $duplicate_mobile$;
+\echo 'PASS: Exact TEST cross-entity trigger blocks competing normalized verified phone claim.'
+
 INSERT INTO public.entity_endpoints(
  id,entity_id,endpoint_type,endpoint_value,display_value,
  verification_status,verified_at
