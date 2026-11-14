@@ -19,6 +19,8 @@ on:
       - 'tests/entity_badge_issue_revoke_contract.pgsql'
       - 'sql/review-only/operator_session_binding_lab.sql'
       - 'tests/operator_session_binding_contract.pgsql'
+      - 'security/review-only/operator_auth_gate.mjs'
+      - 'tests/operator_auth_gate.test.mjs'
       - '.github/workflows/verified-directory-contract.yml'
   pull_request:
     paths:
@@ -38,6 +40,8 @@ on:
       - 'tests/entity_badge_issue_revoke_contract.pgsql'
       - 'sql/review-only/operator_session_binding_lab.sql'
       - 'tests/operator_session_binding_contract.pgsql'
+      - 'security/review-only/operator_auth_gate.mjs'
+      - 'tests/operator_auth_gate.test.mjs'
       - '.github/workflows/verified-directory-contract.yml'
 permissions:
   contents: read
@@ -98,6 +102,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/operator_session_binding_lab.sql
       - name: Verify separate simulated DB logins bind issuer and revoker without trusting JWT-subject spoofing
         run: psql -v ON_ERROR_STOP=1 -f tests/operator_session_binding_contract.pgsql
+      - name: Test server-only operator Auth gate with 27 mocked fail-closed cases (no live network)
+        run: node --test tests/operator_auth_gate.test.mjs
       - name: Install disabled per-account search quota wrapper
         run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
       - name: Test minute/day quotas, raw-API denial and rollback
