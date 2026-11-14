@@ -63,4 +63,4 @@ assertSql('DB adapter does not return terminally revoked operator scope',
   '55555555-5555-4555-8555-555555555555|22222222-2222-4222-8222-222222222222|IN|t|{}');
 assertSql('DB adapter returns no unknown operator row',
   `PREPARE op(uuid) AS ${OPERATOR_SCOPE_SQL};
-   EXECUTE op('66666666-6666-4666-8666-666666666666');`, '');
+   EXECUTE op('ffffffff-ffff-4fff-8fff-ffffffffffff');`, '');
