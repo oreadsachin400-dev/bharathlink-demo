@@ -1,6 +1,6 @@
 # BharathLink — Final Verified Entity Badge State Machine (LAB ONLY)
 
-**12 Nov 2026 | DRAFT / SECURITY HOLD | NO ACTIVE TEST OR PROD WRITES**
+**Updated 14 Nov 2026 | DRAFT / SECURITY HOLD | NO ACTIVE TEST OR PROD WRITES**
 
 ## What was built
 
@@ -60,14 +60,32 @@ twice.
 
 ## Tests
 
-[Disposable GitHub PostgreSQL CI](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/43243545162)
-runs approximately **50 named security checks plus one real concurrent
-per-account directory quota test**:
-9 exact verified directory, 11 independent reviewer ledger,
-9 publication preparation/revocation, 15 private final badge state tests,
-6 search quota checks, and 1 two-session lock race.
+[Disposable PostgreSQL 16 CI — 14 Nov, 53 PASS](https://github.com/oreadsachin400-dev/bharathlink-demo/actions/runs/43604915899)
+includes 9 verified-directory, 11 independent-reviewer, 9 private
+publication-preparation, **17 badge/real-trigger compatibility**, 6 search
+quota checks, and 1 real two-session concurrent quota-lock race.
 
-The 15 new tests cover client inaccessibility, unprepared request,
+In addition to the prior 15 badge state checks, the harness now replays
+**exact read-only snapshots of three official TEST trigger definitions**
+in the synthetic PostgreSQL fixture:
+`protect_entity_verification_fields`,
+`protect_entity_endpoint_verification_fields`, and
+`trg_prevent_cross_entity_endpoint_claim`.
+Two new checks demonstrate that the captured trigger bodies reject
+simulated authenticated client writes to entity/endpoint verification
+status, and block a second organization claiming an already verified
+normalized phone number. End-to-end synthetic issuance/revocation and
+all previous checks pass with these same trigger bodies installed.
+
+Files added/updated:
+- `tests/fixtures/entity_live_verification_triggers_pg16.sql` — source snapshot
+  from **official TEST read-only inspection on 14 Nov**, with a tiny
+  `auth.role()` GUC stub and missing synthetic audit fields.
+- `tests/entity_badge_issue_revoke_contract.pgsql` — added 2 trigger checks.
+- `.github/workflows/verified-directory-contract.yml` — loads fixture
+  before badge tests, never points at any live database.
+
+The original 15 tests cover client inaccessibility, unprepared request,
 preparer/reviewer/requester separation, certificate expiry, altered evidence,
 atomic issuer rollback, organization-only publication, repeat issuance,
 duplicate registry identity, independent revocation, revocation rollback,
@@ -84,9 +102,12 @@ reactivation, immutable audit and no final client privileges.
   A real service must bind actor identity to verified operator session
   and enforce multi-person separation outside SQL.
 - Actual TEST has triggers guarding verification fields and preventing
-  cross-entity endpoint claims. Their definitions have been inspected
-  read-only, but these tests use a simplified synthetic fixture and do
-  **not** establish live trigger/RLS/service-role compatibility.
+  cross-entity endpoint claims. **Those three actual trigger function
+  bodies are now replayed verbatim** in a simplified PostgreSQL 16
+  fixture; this strengthens **logic compatibility**, but still does
+  **not** establish live schema, grants, RLS, service-role permissions,
+  auth runtime, transaction isolation or migration compatibility.
+  Fixture's `auth.role()` is a stand-in, not real Supabase Auth.
 - The existing TEST trigger implementation only checks client auth.role
   to block verification mutations; it is not a complete authorization
   system for a privileged publisher. The final deployment would require
