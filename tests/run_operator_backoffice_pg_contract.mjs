@@ -56,7 +56,7 @@ sessionCase('Service-role Auth user denied',
 
 assertSql('DB adapter returns separately provisioned issuer scope only',
   `PREPARE op(uuid) AS ${OPERATOR_SCOPE_SQL}; EXECUTE op('${USER}');`,
-  `${USER}|22222222-2222-4222-8222-222222222222|IN|t|{issue}`);
+  `${USER}|33333333-3333-4333-8333-333333333333|IN|t|{issue}`);
 assertSql('DB adapter does not return terminally revoked operator scope',
   `PREPARE op(uuid) AS ${OPERATOR_SCOPE_SQL};
    EXECUTE op('55555555-5555-4555-8555-555555555555');`,
