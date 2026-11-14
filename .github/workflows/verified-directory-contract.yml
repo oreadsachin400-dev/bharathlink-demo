@@ -1,0 +1,134 @@
+name: Verified Directory review-only RPC — disposable PostgreSQL 16
+on:
+  push:
+    branches: [security/verified-directory-rpc-review-20261112]
+    paths:
+      - 'sql/review-only/search_verified_directory_candidate.sql'
+      - 'tests/fixtures/verified_directory_pg16.sql'
+      - 'tests/verified_directory_contract.pgsql'
+      - 'sql/review-only/entity_dual_review_ledger_lab.sql'
+      - 'sql/review-only/directory_search_quota_lab.sql'
+      - 'tests/fixtures/entity_approval_lab_pg16.sql'
+      - 'tests/fixtures/entity_live_verification_triggers_pg16.sql'
+      - 'tests/entity_dual_review_contract.pgsql'
+      - 'tests/directory_search_quota_contract.pgsql'
+      - 'tests/run-directory-quota-race.sh'
+      - 'sql/review-only/entity_publication_preparation_lab.sql'
+      - 'tests/entity_publication_preparation_contract.pgsql'
+      - 'sql/review-only/entity_badge_issue_revoke_lab.sql'
+      - 'tests/entity_badge_issue_revoke_contract.pgsql'
+      - 'sql/review-only/operator_session_binding_lab.sql'
+      - 'tests/operator_session_binding_contract.pgsql'
+      - 'security/review-only/operator_auth_gate.mjs'
+      - 'tests/operator_auth_gate.test.mjs'
+      - 'security/review-only/operator_backoffice_adapters.mjs'
+      - 'tests/operator_backoffice_adapters.test.mjs'
+      - 'sql/review-only/operator_action_scopes_lab.sql'
+      - 'tests/operator_action_scope_contract.pgsql'
+      - 'tests/run_operator_backoffice_pg_contract.mjs'
+      - '.github/workflows/verified-directory-contract.yml'
+  pull_request:
+    paths:
+      - 'sql/review-only/search_verified_directory_candidate.sql'
+      - 'tests/fixtures/verified_directory_pg16.sql'
+      - 'tests/verified_directory_contract.pgsql'
+      - 'sql/review-only/entity_dual_review_ledger_lab.sql'
+      - 'sql/review-only/directory_search_quota_lab.sql'
+      - 'tests/fixtures/entity_approval_lab_pg16.sql'
+      - 'tests/fixtures/entity_live_verification_triggers_pg16.sql'
+      - 'tests/entity_dual_review_contract.pgsql'
+      - 'tests/directory_search_quota_contract.pgsql'
+      - 'tests/run-directory-quota-race.sh'
+      - 'sql/review-only/entity_publication_preparation_lab.sql'
+      - 'tests/entity_publication_preparation_contract.pgsql'
+      - 'sql/review-only/entity_badge_issue_revoke_lab.sql'
+      - 'tests/entity_badge_issue_revoke_contract.pgsql'
+      - 'sql/review-only/operator_session_binding_lab.sql'
+      - 'tests/operator_session_binding_contract.pgsql'
+      - 'security/review-only/operator_auth_gate.mjs'
+      - 'tests/operator_auth_gate.test.mjs'
+      - 'security/review-only/operator_backoffice_adapters.mjs'
+      - 'tests/operator_backoffice_adapters.test.mjs'
+      - 'sql/review-only/operator_action_scopes_lab.sql'
+      - 'tests/operator_action_scope_contract.pgsql'
+      - 'tests/run_operator_backoffice_pg_contract.mjs'
+      - '.github/workflows/verified-directory-contract.yml'
+permissions:
+  contents: read
+jobs:
+  security-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: bharathlink_verified_directory_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bharathlink_verified_directory_lab"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: '127.0.0.1'
+      PGPORT: '5432'
+      PGDATABASE: bharathlink_verified_directory_lab
+      PGUSER: postgres
+      PGPASSWORD: isolated-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm disposable database destination
+        run: |
+          test "$PGHOST" = "127.0.0.1"
+          test "$PGDATABASE" = "bharathlink_verified_directory_lab"
+          psql -v ON_ERROR_STOP=1 -Atc "SELECT current_database()" | grep -qx bharathlink_verified_directory_lab
+      - name: Create synthetic entity schema and actual TEST normalizer
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/verified_directory_pg16.sql
+      - name: Install review candidate with default EXECUTE denied
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/search_verified_directory_candidate.sql
+      - name: Run verification, contact, ambiguity and access-control tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/verified_directory_contract.pgsql
+      - name: Build independent-review lab request and ownership schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/entity_approval_lab_pg16.sql
+      - name: Install default-denied append-only two-reviewer ledger
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_dual_review_ledger_lab.sql
+      - name: Test independent reviewers, self-approval denial and no badge issuance
+        run: psql -v ON_ERROR_STOP=1 -f tests/entity_dual_review_contract.pgsql
+      - name: Install private evidence and publication-preparation gate without client permissions
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_publication_preparation_lab.sql
+      - name: Verify attestation, no-badge publication preparation and independent revocation
+        run: psql -v ON_ERROR_STOP=1 -f tests/entity_publication_preparation_contract.pgsql
+      - name: Install INTERNAL service-only entity badge issue and revoke state machine
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/entity_badge_issue_revoke_lab.sql
+      - name: Replay exact TEST verification triggers and endpoint-claim guard in disposable database
+        run: psql -v ON_ERROR_STOP=1 -f tests/fixtures/entity_live_verification_triggers_pg16.sql
+      - name: Prove publisher separation, no free endpoint badges, duplicate registry, and atomic revocation
+        run: psql -v ON_ERROR_STOP=1 -f tests/entity_badge_issue_revoke_contract.pgsql
+      - name: Install private session-bound operator wrappers with default-denied grants
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/operator_session_binding_lab.sql
+      - name: Verify separate simulated DB logins bind issuer and revoker without trusting JWT-subject spoofing
+        run: psql -v ON_ERROR_STOP=1 -f tests/operator_session_binding_contract.pgsql
+      - name: Test server-only operator Auth gate with 27 mocked fail-closed cases (no live network)
+        run: node --test tests/operator_auth_gate.test.mjs
+      - name: Install private operator action scopes (isolated PG16 only)
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/operator_action_scopes_lab.sql
+      - name: Exercise independent scope grant, terminal revoke, immutable audit and synthetic Auth session shape
+        run: psql -v ON_ERROR_STOP=1 -f tests/operator_action_scope_contract.pgsql
+      - name: Execute exact Node adapter SQL against synthetic PostgreSQL Auth session and scope records
+        env:
+          BHL_ISOLATED_PG_ONLY: '1'
+        run: node tests/run_operator_backoffice_pg_contract.mjs
+      - name: Test 18 fail-closed Node backoffice adapter contracts with mocked privileged DB
+        run: node --test tests/operator_backoffice_adapters.test.mjs
+      - name: Install disabled per-account search quota wrapper
+        run: psql -v ON_ERROR_STOP=1 -f sql/review-only/directory_search_quota_lab.sql
+      - name: Test minute/day quotas, raw-API denial and rollback
+        run: psql -v ON_ERROR_STOP=1 -f tests/directory_search_quota_contract.pgsql
+      - name: Test two concurrent searches against final daily budget slot
+        env:
+          BHL_ISOLATED_PG_ONLY: '1'
+        run: bash tests/run-directory-quota-race.sh
