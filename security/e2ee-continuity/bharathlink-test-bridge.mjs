@@ -1,6 +1,6 @@
 // BharathLink TEST integration point. REVIEW ONLY: not yet imported by index.html.
 // The TEST Edge Function is hard-disabled; this module also defaults disabled.
-// IMPORTANT: Never call E2EEBackend.activate() for continuity: it can create a new device.
+// IMPORTANT: Never call the auto-enrollment activation method; read only the existing local key.
 import {createDeviceHolderAdapter} from './device-holder-adapter.mjs';
 import {proveExistingDevice} from './bootstrap-client.mjs';
 import {signingKeyVault} from './signing-key-idb.mjs';
