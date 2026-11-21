@@ -2522,20 +2522,54 @@ const E2EEBackend = {
       if(lastErr)console.warn('Encrypted media registry bind pending:',path,lastErr);
     }
   },
+  // Existing-device-only readiness. Does not create, overwrite, revoke or export keys.
+  _localReadiness(local, userId) {
+    if (!local) return { status:'local_key_missing' };
+    if (local.userId !== userId) return { status:'account_mismatch' };
+    if (!local.deviceId || typeof local.deviceId !== 'string')
+      return { status:'local_record_incomplete' };
+    const key=local.privateKey;
+    if (!key || key.type !== 'private' || key.extractable !== false ||
+        key.algorithm?.name !== 'ECDH' || key.algorithm?.namedCurve !== 'P-256')
+      return { status:'local_record_incomplete' };
+    const pub=local.publicJwk;
+    if (!pub || pub.kty !== 'EC' || pub.crv !== 'P-256' ||
+        !pub.x || !pub.y || Object.prototype.hasOwnProperty.call(pub,'d'))
+      return { status:'local_record_incomplete' };
+    return { status:'local_key_present', deviceId:local.deviceId };
+  },
+  async deviceReadiness(){
+    if(!Supabase.accessToken)return { status:'sign_in_required' };
+    const me=await Supabase.currentAuthUser();
+    let local;
+    try{local=await this.getLocal(me.id);}
+    catch(_){return { status:'local_storage_unavailable' };}
+    const state=this._localReadiness(local,me.id);
+    if(state.status!=='local_key_present')return state;
+    try{
+      const active=await this.rpc('is_my_messaging_device_active',{p_device_id:state.deviceId});
+      return {status:active===true?'ready':'server_device_inactive'};
+    }catch(_){
+      return {status:'server_check_unavailable'};
+    }
+  },
   async activate(){
     if(this._activatePromise)return this._activatePromise;
     this._activatePromise=(async()=>{
       if(!Supabase.accessToken)throw new Error('Sign in first.');
-      const me=await Supabase.currentAuthUser(); let local=await this.getLocal(me.id);
-      if(local&&local.userId===me.id&&local.privateKey&&local.deviceId){
-        const st=await this.rpc('is_my_messaging_device_active',{p_device_id:local.deviceId});
-        if(st===true)return local;
+      const me=await Supabase.currentAuthUser();
+      let local;
+      try{local=await this.getLocal(me.id);}
+      catch(_){throw new Error('Local encrypted-key storage unavailable. Do not clear browser data.');}
+      const state=this._localReadiness(local,me.id);
+      if(state.status!=='local_key_present'){
+        throw new Error('Existing E2EE device key unavailable. Do not reset or reinstall. Use independently approved device linking or a previously created encrypted backup.');
       }
-      const kp=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},false,['deriveBits']);
-      const pub=await crypto.subtle.exportKey('jwk',kp.publicKey);
-      const rows=await Supabase.request('/rest/v1/messaging_devices',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:me.id,device_label:'BharathLink web E2EE v2',public_key_jwk:pub,key_algorithm:'ECDH-P256'})});
-      if(!Array.isArray(rows)||!rows[0]?.id)throw new Error('Device registration failed.');
-      local={userId:me.id,deviceId:rows[0].id,privateKey:kp.privateKey,publicJwk:pub};await this.putLocal(me.id,local);return local;
+      const active=await this.rpc('is_my_messaging_device_active',{p_device_id:state.deviceId});
+      if(active!==true){
+        throw new Error('This E2EE device is not active on the server. Device verification is required; existing keys were not changed.');
+      }
+      return local;
     })().finally(()=>{this._activatePromise=null;});
     return this._activatePromise;
   },
@@ -7284,6 +7318,33 @@ const Views = {
       h('p', { class: 'hint section' }, 'Profile photo and 24-hour Status/Stories never create a verified identity claim. With the optional contact-sync migration, direct contacts can see the photo/status and unseen/seen status ring without changing message E2EE.'),
       details
     ] });
+    // Read-only recovery check. No automatic new device or encryption-key reset.
+    const recoveryResult=h('div',{class:'stack','aria-live':'polite'},
+      Notice('info','Check whether this browser still has its original E2EE key. No keys are changed.'));
+    const checkLocalE2EE=async()=>{
+      recoveryResult.replaceChildren(h('p',{class:'hint'},'Checking original encrypted-device key…'));
+      const wording={
+        ready:'Existing encryption key is present and this device is active. This does not establish independently verified identity.',
+        sign_in_required:'Sign in with your existing TEST account to check this device.',
+        local_key_missing:'Original local encryption key is not stored in this browser. Check the original app/browser or a previously created encrypted backup.',
+        account_mismatch:'Stored E2EE key belongs to a different account. No changes were made.',
+        local_record_incomplete:'Saved encryption-key record is incomplete. Do not reset, reinstall or clear app data.',
+        local_storage_unavailable:'Encrypted-key storage is unavailable. Do not clear app data.',
+        server_device_inactive:'The existing device is not active on the server. Trusted-device verification is required.',
+        server_check_unavailable:'Server device check is temporarily unavailable. Local keys were not changed.'
+      };
+      try{
+        const state=await E2EEBackend.deviceReadiness();
+        recoveryResult.replaceChildren(
+          Notice('info',wording[state.status]||'E2EE device check is inconclusive. Nothing was changed.'),
+          h('p',{class:'hint'},'Security Hold: this check never registers, approves, replaces or resets a device.'));
+      }catch(_){
+        recoveryResult.replaceChildren(Notice('info','Unable to check device right now. Encryption keys were not changed.'));
+      }
+    };
+    details.append(Section('E2EE Device Recovery (read-only)',recoveryResult,
+      h('div',{class:'btn-row section'},
+        Button('Check this device (read-only)',{variant:'secondary',onClick:checkLocalE2EE}))));
     node.classList.add('bl-profile-v15');
     return node;
   },
