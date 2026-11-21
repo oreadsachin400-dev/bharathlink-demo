@@ -1,0 +1,41 @@
+name: Review E2EE Device Continuity (no deployment)
+
+on:
+  pull_request:
+    paths:
+      - "security/e2ee-continuity/**"
+      - ".github/workflows/e2ee-device-continuity-review.yml"
+      - "index.html"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-crypto-regression:
+    name: Local WebCrypto and device-security regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify JavaScript modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in security/e2ee-continuity/*.mjs; do
+            node --check "$file"
+          done
+      - name: Real WebCrypto + adapter negative tests
+        run: node --test security/e2ee-continuity/*.test.mjs
+      - name: Safety gates and no automatic enrollment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'continuityReleaseEnabled = false' security/e2ee-continuity/device-holder-adapter.mjs
+          grep -Fq 'releaseEnabled=false' security/e2ee-continuity/bharathlink-test-bridge.mjs
+          grep -Fq 'E2EEBackend.getLocal(userId)' security/e2ee-continuity/bharathlink-test-bridge.mjs
+          ! grep -Eq 'E2EEBackend[.]activate[(]' security/e2ee-continuity/bharathlink-test-bridge.mjs
+          grep -Fq "E2EE Device Security (TEST)" index.html
