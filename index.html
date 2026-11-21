@@ -7284,6 +7284,37 @@ const Views = {
       h('p', { class: 'hint section' }, 'Profile photo and 24-hour Status/Stories never create a verified identity claim. With the optional contact-sync migration, direct contacts can see the photo/status and unseen/seen status ring without changing message E2EE.'),
       details
     ] });
+    // TEST read-only status: never call E2EEBackend.activate() or set trust.
+    const e2eeDeviceStatus=h('div',{class:'stack','aria-live':'polite'},
+      Notice('info',Supabase.accessToken?'Select Refresh to check trusted-device status.':
+        'Sign in to inspect the security status of this account.'));
+    const loadE2EEDeviceStatus=async()=>{
+      if(!Supabase.accessToken){
+        e2eeDeviceStatus.replaceChildren(Notice('info','Sign in to check E2EE device status.'));
+        return;
+      }
+      e2eeDeviceStatus.replaceChildren(h('p',{class:'hint'},'Checking encrypted-device trust state…'));
+      try{
+        const {createBharathLinkContinuity}=await import(
+          './security/e2ee-continuity/bharathlink-test-bridge.mjs');
+        const bridge=createBharathLinkContinuity({Supabase,E2EEBackend,CONFIG});
+        const state=await bridge.status();
+        e2eeDeviceStatus.replaceChildren(
+          h('p',{class:'hint'},'Active devices: '+state.activeDeviceCount+
+            ' · Verified signing keys: '+state.verifiedSigningDeviceCount+
+            ' · Pending enrollment: '+state.pendingEnrollmentCount),
+          Notice('info','SECURITY HOLD — device trust approval is not enabled. No device has been automatically verified.')
+        );
+      }catch(_){
+        e2eeDeviceStatus.replaceChildren(Notice('warning',
+          'E2EE device status unavailable. No keys or chats were changed.'));
+      }
+    };
+    details.append(Section('E2EE Device Security (TEST)',
+      e2eeDeviceStatus,
+      h('div',{class:'btn-row section'},
+        Button('Refresh device security status',{variant:'secondary',
+          onClick:loadE2EEDeviceStatus}))));
     node.classList.add('bl-profile-v15');
     return node;
   },
