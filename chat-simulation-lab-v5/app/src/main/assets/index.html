@@ -2,7 +2,7 @@
 <html lang="hi"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>Chat Simulation Lab V5 TEST — Offline multiple demo chats</title>
+<title>Chat Simulation Lab V5.1 TEST — Name editing fixed</title>
 <style>
     :root { color-scheme: light; --green:#075e54; --sea:#128c7e; --paper:#ece5dd; --mine:#dcf8c6; --other:#fff; --ink:#18312b; --muted:#5e706b; --line:#d7e0dc; }
     * { box-sizing: border-box; }
@@ -80,7 +80,7 @@
     @media(max-width:420px) { .thread { gap:7px; padding:10px 7px; } .thread .del-chat { padding:7px 5px; } }
 </style></head><body>
 <div class="app">
-<header><h1>Chat Simulation Lab <span style="font-size:12px;font-weight:500;opacity:.9">V5 TEST</span></h1><p>Offline multiple demo chats • Data device par hi rehta hai</p></header>
+<header><h1>Chat Simulation Lab <span style="font-size:12px;font-weight:500;opacity:.9">V5.1 TEST</span></h1><p>Offline multiple demo chats • Data device par hi rehta hai</p></header>
 <div class="ribbon">⚠️ SIMULATED CHAT — asli WhatsApp conversation ya message ka proof nahi.</div>
 <section class="list-panel" id="list-view" aria-label="Simulated chat list">
 <div class="list-title"><h2>Demo chats</h2><button class="pill primary" type="button" id="toggle-new">+ New demo chat</button></div>
@@ -97,8 +97,10 @@
 <section id="detail-view" class="hidden" aria-label="Selected simulated conversation">
 <div class="navline"><button id="back-to-list" class="pill" type="button">← All chats</button><strong id="active-name">Demo Friend</strong><span class="count-note" id="active-count"></span></div>
 <section class="controls" aria-label="Chat options">
-<div class="row"><div class="input-with-label"><label for="contact">Demo contact name</label><input id="contact" value="Demo Friend" maxlength="60"></div>
-<div class="input-with-label"><label for="self">Aapka demo name</label><input id="self" value="Me" maxlength="60"></div></div>
+<div class="row"><div class="input-with-label"><label for="contact">Demo contact name (doosre person)</label><input id="contact" value="Demo Friend" maxlength="60" autocomplete="off"></div>
+<div class="input-with-label"><label for="self">Aapka demo name (aap)</label><input id="self" value="Me" maxlength="60" autocomplete="off"></div></div>
+<div class="row"><button class="pill primary" id="save-names" type="button">Save Names</button><button class="pill" id="undo-names" type="button">Undo changes</button></div>
+<div class="notice" id="names-hint" aria-live="polite">Naam badalne ke baad Save Names dabaiye. Typing ke beech naam reset nahi hoga.</div>
 <div class="row"><button class="pill" id="sample" type="button">Sample conversation</button><button class="pill" id="import" type="button">Import exported .txt (local copy)</button>
 <input type="file" id="file" accept=".txt,text/plain" hidden><button class="pill" id="backup" type="button">Save all demos .json</button><button class="pill" id="restore" type="button">Restore demo .json</button>
 <button class="pill danger" id="reset" type="button">Clear THIS demo chat</button></div>
@@ -155,7 +157,6 @@ function renderList(){
 }
 function render(scroll=true){
  const c=active(); if(!c){setView('list');return;}
- $('contact').value=c.contact; $('self').value=c.self;
  $('chat-title').textContent=c.contact;$('active-name').textContent=c.contact;
  $('active-count').textContent=c.items.length+' msgs';
  $('avatar').textContent=c.contact.trim().charAt(0).toUpperCase()||'D';
@@ -174,7 +175,8 @@ function render(scroll=true){
  if(scroll)timeline.scrollTop=timeline.scrollHeight;
 }
 function exitEdit(clear=true){editingId=null;$('form-heading').textContent='Insert a simulated message';$('submit-message').textContent='Add to simulation';$('cancel-edit').classList.add('hidden');$('edit-caption').classList.add('hidden');if(clear){$('message').value='';$('at').value=localDate(new Date());$('sender').value='contact';}}
-function selectChat(id){if(!app.chats.some(c=>c.id===id))return;app.active=id;exitEdit();$('search').value='';save();setView('detail');}
+function syncNames(){const c=active();if(!c)return;$('contact').value=c.contact;$('self').value=c.self;$('names-hint').textContent='Contact aur aapka naam edit karke Save Names dabaiye.';}
+function selectChat(id){if(!app.chats.some(c=>c.id===id))return;app.active=id;exitEdit();$('search').value='';syncNames();save();setView('detail');}
 function add(c,from,text,at,origin='added'){if(c.items.length>=MAX_MSGS){status('One conversation max 1500 messages.');return false;}c.items.push({id:nowId(),from,text,at,origin,edited:false});return true;}
 function loadSample(){const c=active();if(!c)return;if(c.items.length&&!confirm('Sirf is demo chat ka current content sample se replace karein?'))return;
  const d=new Date();d.setHours(10,0,0,0);d.setDate(d.getDate()-1);c.items=[];
@@ -204,8 +206,11 @@ $('back-to-list').onclick=()=>{exitEdit();app.active=null;save();setView('list')
 $('filter-chats').oninput=renderList;
 $('sample').onclick=loadSample;
 $('search').oninput=()=>render(false);
-$('contact').oninput=e=>{const c=active();if(c){c.contact=e.target.value||'Demo Friend';save();render(false);}};
-$('self').oninput=e=>{const c=active();if(c){c.self=e.target.value||'Me';save();render(false);}};
+const markUnsaved=()=>{$('names-hint').textContent='Unsaved name changes. Save Names dabaiye.';};
+$('contact').addEventListener('input',markUnsaved);
+$('self').addEventListener('input',markUnsaved);
+$('save-names').onclick=()=>{const c=active();if(!c)return;const contact=$('contact').value.trim(),self=$('self').value.trim();if(!contact||!self){$('names-hint').textContent='Contact aur aapka naam khali nahi ho sakte. Dono fields bhariye.';return;}if(contact.length>60||self.length>60){$('names-hint').textContent='Naam 60 characters se chhota rakhein.';return;}c.contact=contact;c.self=self;save();syncNames();render(false);status('Demo names saved. Sirf local simulation update hui.');};
+$('undo-names').onclick=()=>{syncNames();status('Unsaved name changes cancelled.');};
 $('reset').onclick=()=>{const c=active();if(c&&confirm('Sirf is simulated chat ke messages clear karein? Original WhatsApp unchanged.')){c.items=[];exitEdit();save();render();status('Selected demo chat clear hui.');}};
 $('chat').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)return;const c=active();const m=c?.items.find(x=>x.id===b.dataset.msg);if(!m)return;
  if(b.dataset.action==='edit'){editingId=m.id;$('form-heading').textContent='Edit simulated message';$('submit-message').textContent='Save simulated edit';$('cancel-edit').classList.remove('hidden');$('edit-caption').classList.remove('hidden');$('sender').value=m.from;$('message').value=m.text;$('at').value=localDate(new Date(m.at));$('add-form').scrollIntoView({behavior:'smooth',block:'start'});status('Edit only simulated copy.');}
@@ -218,7 +223,7 @@ $('add-form').onsubmit=e=>{e.preventDefault();const c=active();if(!c)return;cons
 };
 $('file').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>10*1024*1024)throw Error('Max TXT size 10 MB.');const entries=parseExport(await file.text());if(!entries.length)throw Error('Export .txt format parse nahi hua.');const authors=[...new Set(entries.map(x=>x.author))];const guess=authors[0]||'Me',self=authors.length>1?prompt('Export mein apna naam choose karein:\n'+authors.join(' / '),guess):'Me';if(self===null)return;
  const contact=authors.find(x=>x!==self)||'Demo Contact';const c=active();if(!c)return;if(c.items.length&&!confirm('Current demo chat ke messages imported TXT se replace karein?'))return;
- c.contact=contact;c.self=self||'Me';c.items=[];for(const m of entries.slice(-MAX_MSGS))add(c,m.author===self?'me':'contact',m.text.slice(0,8000),m.at,'imported');exitEdit();save();render();status(c.items.length+' messages ki LOCAL copy import hui. Original WhatsApp unchanged.');
+ c.contact=contact;c.self=self||'Me';c.items=[];for(const m of entries.slice(-MAX_MSGS))add(c,m.author===self?'me':'contact',m.text.slice(0,8000),m.at,'imported');exitEdit();save();syncNames();render();status(c.items.length+' messages ki LOCAL copy import hui. Original WhatsApp unchanged.');
  }catch(err){status('Import failed: '+(err?.message||'Invalid TXT'));}finally{e.target.value='';}};
 $('import').onclick=()=>$('file').click();
 $('backup').onclick=doBackup;$('global-backup').onclick=doBackup;
