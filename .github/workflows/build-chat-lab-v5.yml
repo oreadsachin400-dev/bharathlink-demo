@@ -1,7 +1,7 @@
-name: Build Chat Simulation Lab V5 TEST APK
+name: Build Chat Simulation Lab V5.1 Name-Fix APK
 on:
   push:
-    branches: [chat-simulation-lab-v5-test-20261122]
+    branches: [chat-simulation-lab-v5-namefix-20261122]
     paths:
       - 'chat-simulation-lab-v5/**'
       - '.github/workflows/build-chat-lab-v5.yml'
@@ -32,7 +32,7 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: Chat-Simulation-Lab-V5-TEST-APK
+          name: Chat-Simulation-Lab-V5.1-NAME-FIX-APK
           path: chat-simulation-lab-v5/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
