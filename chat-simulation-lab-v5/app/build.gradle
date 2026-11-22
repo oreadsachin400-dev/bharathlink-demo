@@ -3,11 +3,11 @@ android {
   namespace 'app.chatsimulation.lab'
   compileSdk 35
   defaultConfig {
-    applicationId 'app.chatsimulation.lab.v5'
+    applicationId 'app.chatsimulation.lab.v51'
     minSdk 26
     targetSdk 35
     versionCode 1
-    versionName '5.0-test'
+    versionName '5.1-test'
   }
   buildTypes {
     debug { minifyEnabled false }
