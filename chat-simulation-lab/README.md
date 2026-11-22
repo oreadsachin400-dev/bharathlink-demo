@@ -1,12 +1,7 @@
-# Chat Simulation Lab Android TEST
+# Chat Simulation Lab V4 — Android TEST
 
-Offline, clearly labeled chat simulation for Android. This app is not WhatsApp and cannot modify original WhatsApp chats or databases.
+Offline, clearly labeled chat simulator. Android 8+ (API 26); independent package ID `app.chatsimulation.lab.v4` so it installs alongside the earlier TEST app without signature conflict.
 
-Features: exported TXT import, simulated incoming/outgoing messages with date and time, JSON backup and restore, local storage. No INTERNET, SMS, contacts, or storage-wide permission.
+Features: WhatsApp exported TXT **local copy** import, fictional incoming/outgoing messages, date/time, search, edit, delete, JSON backup/restore. Persistent SIMULATED labels and warnings. No permissions for network, SMS, contacts or WhatsApp private storage. No actual WhatsApp data is bundled.
 
-Build with JDK 17, Gradle 8.9, Android SDK Platform 35:
-`gradle --no-daemon :app:assembleDebug`
-
-APK output: `app/build/outputs/apk/debug/app-debug.apk`
-
-Personal chat data or exported transcripts are never included in source or APK. Only generic sample text ships with the app. Back up the local simulation before clearing storage or uninstalling. APK is debug signed for testing and not intended for release.
+Build: JDK 17, Gradle 8.9 and Android SDK Platform 35. Run from project directory: `gradle :app:assembleDebug`. Debug APK is for testing only. Original WhatsApp database not accessed or changed.

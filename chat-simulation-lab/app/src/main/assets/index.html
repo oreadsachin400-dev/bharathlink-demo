@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Offline Chat Simulation Lab — Backup Restore V3</title>
+  <title>Offline Chat Simulation Lab — Edit Delete Search V4</title>
   <style>
     :root { color-scheme: light; --green:#075e54; --sea:#128c7e; --paper:#ece5dd; --mine:#dcf8c6; --other:#fff; --ink:#18312b; --muted:#5e706b; --line:#d7e0dc; }
     * { box-sizing: border-box; }
@@ -28,6 +28,19 @@
     .avatar { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; background:#66877e; color:white; font-weight:700; }
     .chat-head strong { display:block; }
     .chat-head small { color:#597269; }
+    .chat-tools { display:grid; gap:5px; padding:9px 13px 10px; background:#f0f7f4; border-bottom:1px solid var(--line); }
+    .chat-tools input { padding:9px 12px; }
+    .chat-tools small { font-size:11px; color:#52756b; }
+    .date-stamp { text-align:center; width:max-content; max-width:90%; margin:14px auto 11px; background:#f5f9f6ed; border-radius:9px; padding:4px 12px; color:#4e6e63; font-size:11px; box-shadow:0 1px 2px #0001; position:relative; z-index:1; }
+    .msg-actions { display:flex; gap:5px; justify-content:flex-end; margin:6px 0 1px; }
+    .msg-actions button { background:#edf3f0; border:1px solid #d3dfd9; border-radius:7px; padding:4px 7px; font-size:11px; min-width:44px; color:#315e4e; }
+    .msg-actions button.danger-text { color:#9a352a; background:#fff4f0; border-color:#eedbd5; }
+    .msg-actions button:focus-visible { outline:2px solid #057f6a; }
+    .msg.is-match { outline:2px solid #4ba388; }
+    .edit-caption { background:#fff6de; color:#704f18; border-radius:8px; padding:8px 10px; font-size:12px; }
+    .edit-buttons { display:flex; gap:8px; flex-wrap:wrap; }
+    .edit-buttons .pill { flex:1 1 150px; }
+    .hidden { display:none !important; }
     .chat { position:relative; min-height:300px; height:min(49dvh,540px); overflow:auto; padding:20px 13px 25px; background-color:var(--paper); background-image:radial-gradient(#d4cdc4 0.75px,transparent 0.75px); background-size:22px 22px; isolation:isolate; }
     .chat::before { content:'SIMULATED • NOT WHATSAPP'; position:sticky; top:40%; left:0; width:100%; display:block; text-align:center; color:#3f7d7350; font-size:clamp(20px,5vw,38px); transform:rotate(-16deg); font-weight:900; letter-spacing:1px; pointer-events:none; z-index:0; margin-bottom:-48px; }
     .msg { max-width:85%; min-width:105px; width:max-content; background:var(--other); margin:8px auto 8px 0; border-radius:10px; padding:7px 9px 5px; box-shadow:0 1px 3px #00000015; position:relative; z-index:1; overflow-wrap:anywhere; }
@@ -47,7 +60,7 @@
 </head>
 <body>
 <div class="app">
-  <header><h1>Chat Simulation Lab <span style="font-size:12px;font-weight:500;opacity:.8">V3</span></h1><p>Offline Android demo • Data device par hi rehta hai</p></header>
+  <header><h1>Chat Simulation Lab <span style="font-size:12px;font-weight:500;opacity:.8">V4 TEST</span></h1><p>Offline Android demo • Data device par hi rehta hai</p></header>
   <div class="ribbon">⚠️ SIMULATED CHAT — original WhatsApp ya asli message ka proof nahi.</div>
   <section class="controls" aria-label="Chat options">
     <div class="row">
@@ -63,18 +76,27 @@
       <input type="file" id="restore-file" hidden>
       <button class="pill danger" id="reset">Clear simulation</button>
     </div>
-    <div class="notice">V3: Android ke file picker se koi bhi file select ho sakti hai; restore sirf valid simulated-chat JSON backup se hoga. Sab kuch device par hota hai; original WhatsApp ki chat nahi badlegi.</div>
+    <div class="notice">V4: Search, Edit aur Delete sirf LOCAL simulated copy mein. Backup/restore enabled. Original WhatsApp ki chat nahi badlegi.</div>
   </section>
   <div class="chat-head"><div class="avatar" id="avatar">D</div><div><strong id="chat-title">Demo Friend</strong><small>SIMULATED COPY • NOT A REAL WHATSAPP CHAT</small></div></div>
+  <div class="chat-tools">
+    <label for="search">Search simulated messages</label>
+    <input id="search" type="search" placeholder="Message ya sender search karein" autocomplete="off" maxlength="120">
+    <small id="search-count" role="status">0 simulated messages</small>
+  </div>
   <div class="chat" id="chat" aria-label="Simulated message timeline"></div>
   <form class="form" id="add-form">
-    <h2>Insert a simulated message</h2>
+    <h2 id="form-heading">Insert a simulated message</h2>
+    <div id="edit-caption" class="edit-caption hidden">SIMULATED COPY EDIT MODE — Original WhatsApp unchanged.</div>
     <div class="row">
       <div class="input-with-label"><label for="sender">Message kis taraf se?</label><select id="sender"><option value="contact">Demo contact (incoming)</option><option value="me">Me (outgoing)</option></select></div>
       <div class="input-with-label"><label for="at">Date & time</label><input type="datetime-local" id="at" required></div>
     </div>
     <div><label for="message">Message</label><textarea id="message" rows="3" placeholder="Test message yahan likhein" required maxlength="8000"></textarea></div>
-    <button class="pill primary" type="submit">Add to simulation</button>
+    <div class="edit-buttons">
+      <button class="pill primary" id="submit-message" type="submit">Add to simulation</button>
+      <button class="pill hidden" id="cancel-edit" type="button">Cancel edit</button>
+    </div>
     <div class="status" id="status" role="status">Demo ready. Original WhatsApp untouched.</div>
   </form>
   <p class="fine">Educational mockup. Yeh asli WhatsApp ka hissa nahi hai. Messages date ke hisaab se timeline mein sort hote hain. Browser storage clear karne se demo data hat sakta hai — Save demo .json se backup lein.</p>
@@ -85,6 +107,7 @@
   const $ = id => document.getElementById(id);
   const STORAGE = 'chat_simulation_lab_v1';
   let state = { contact: 'Demo Friend', self: 'Me', items: [] };
+  let editingIndex = null;
   const pad = n => String(n).padStart(2, '0');
   const localDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const escape = str => String(str).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -94,23 +117,79 @@
   function render(scroll=true) {
     $('chat-title').textContent=state.contact;
     $('avatar').textContent=state.contact.trim().charAt(0).toUpperCase() || 'D';
-    const timeline = $('chat');
-    const sorted = [...state.items].sort((a,b)=>a.at-b.at || a.id-b.id);
-    if(!sorted.length) timeline.innerHTML='<div class="empty">Abhi koi simulated message nahi. Sample conversation load karein ya neeche add karein.</div>';
-    else timeline.innerHTML=sorted.map(x=>{
-      const who = x.from==='me'?state.self:state.contact;
-      return `<article class="msg ${x.from==='me'?'mine':''}"><div class="who">${escape(who)}</div><div class="content">${escape(x.text)}</div><div class="meta">${escape(timeFormat(new Date(x.at)))} · SIMULATED</div></article>`;
-    }).join('');
-    if(scroll) timeline.scrollTop=timeline.scrollHeight;
+    const timeline=$('chat');
+    const term=$('search').value.trim().toLocaleLowerCase();
+    const sorted=state.items.map((msg,index)=>({...msg,_index:index}))
+      .sort((a,b)=>a.at-b.at || a.id-b.id);
+    const matches=term ? sorted.filter(x=>(x.text+' '+(x.from==='me'?state.self:state.contact)).toLocaleLowerCase().includes(term)) : sorted;
+    $('search-count').textContent=term
+      ? matches.length+' of '+state.items.length+' simulated messages match'
+      : state.items.length+' simulated messages · Tap Edit/Delete to change LOCAL copy';
+    if(!matches.length) {
+      timeline.innerHTML='<div class="empty">'+(term?'Search mein koi matching simulated message nahi.':'Abhi koi simulated message nahi. Sample conversation load karein ya neeche add karein.')+'</div>';
+    } else {
+      let prevDay='';
+      timeline.innerHTML=matches.map(x=>{
+        const who=x.from==='me'?state.self:state.contact;
+        const day=new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(x.at));
+        const group=day!==prevDay?'<div class="date-stamp">'+escape(day)+' · SIMULATED</div>':'';
+        prevDay=day;
+        const label=x.edited?'EDITED SIMULATION':'SIMULATED';
+        return group+'<article class="msg '+(x.from==='me'?'mine':'')+' '+(term?'is-match':'')+'">'+
+          '<div class="who">'+escape(who)+'</div><div class="content">'+escape(x.text)+'</div>'+
+          '<div class="meta">'+escape(timeFormat(new Date(x.at)))+' · '+label+'</div>'+
+          '<div class="msg-actions"><button type="button" data-action="edit" data-idx="'+x._index+'" aria-label="Edit simulated message">Edit</button>'+
+          '<button type="button" class="danger-text" data-action="delete" data-idx="'+x._index+'" aria-label="Delete simulated message">Delete</button></div></article>';
+      }).join('');
+    }
+    if(scroll)timeline.scrollTop=timeline.scrollHeight;
   }
-  function add(from,text,at){ state.items.push({id: Date.now()+Math.floor(Math.random()*100000),from,text,at}); }
+  function add(from,text,at,origin='added') {
+    state.items.push({id:Date.now()+Math.floor(Math.random()*100000),from,text,at,origin,edited:false});
+  }
+  function exitEdit(clear=true) {
+    editingIndex=null;
+    $('form-heading').textContent='Insert a simulated message';
+    $('submit-message').textContent='Add to simulation';
+    $('cancel-edit').classList.add('hidden');
+    $('edit-caption').classList.add('hidden');
+    if(clear){$('message').value='';$('at').value=localDate(new Date());$('sender').value='contact';}
+  }
+  function beginEdit(index) {
+    const item=state.items[index];if(!item)return;
+    editingIndex=index;
+    $('form-heading').textContent='Edit simulated message';
+    $('edit-caption').classList.remove('hidden');
+    $('cancel-edit').classList.remove('hidden');
+    $('submit-message').textContent='Save simulated edit';
+    $('sender').value=item.from;
+    $('message').value=item.text;
+    $('at').value=localDate(new Date(item.at));
+    $('add-form').scrollIntoView({behavior:'smooth',block:'start'});
+    status('Edit mode: Sirf simulated copy badlegi. Original WhatsApp unchanged.');
+  }
+  $('chat').addEventListener('click',e=>{
+    const btn=e.target.closest('button[data-action]');if(!btn || !$('chat').contains(btn))return;
+    const index=Number(btn.dataset.idx);
+    if(!Number.isSafeInteger(index)||index<0||index>=state.items.length)return;
+    if(btn.dataset.action==='edit')beginEdit(index);
+    if(btn.dataset.action==='delete'){
+      if(!confirm('Sirf SIMULATED copy se selected message delete karein? Original WhatsApp par koi asar nahi hoga.'))return;
+      state.items.splice(index,1);
+      if(editingIndex===index)exitEdit();
+      else if(editingIndex!==null&&editingIndex>index)editingIndex--;
+      save();render(false);
+      status('Message sirf simulated copy se delete hua. Original WhatsApp unchanged.');
+    }
+  });
+  $('cancel-edit').addEventListener('click',()=>{exitEdit();status('Edit cancelled.');});
   function loadSample(){
     const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()-1);
     state={contact:'Demo Friend',self:'Me',items:[]};
-    add('contact','Hello! Kal coffee pe milte hain?',d.getTime());
-    add('me','Haan, milte hain.',d.getTime()+2*60000);
+    add('contact','Hello! Kal coffee pe milte hain?',d.getTime(),'sample');
+    add('me','Haan, milte hain.',d.getTime()+2*60000,'sample');
     $('contact').value=state.contact; $('self').value=state.self;
-    save();render();status('Sample conversation load ho gayi. Beech ki date select karke message add kijiye.');
+    exitEdit();save();render();status('Sample conversation load ho gayi. Beech ki date select karke message add kijiye.');
   }
   function parseExport(text){
     // WhatsApp txt export variants: 22/11/26, 9:52 am - Name: msg OR [22/11/26, 09:52:01] Name: msg
@@ -140,7 +219,8 @@
   $('contact').addEventListener('input',e=>{state.contact=e.target.value||'Demo Friend';save();render(false);});
   $('self').addEventListener('input',e=>{state.self=e.target.value||'Me';save();render(false);});
   $('sample').addEventListener('click',loadSample);
-  $('reset').addEventListener('click',()=>{if(confirm('Sirf SIMULATED chat clear karein? Original WhatsApp par koi asar nahi hoga.')){state.items=[];save();render();status('Simulation clear ho gayi.');}});
+  $('search').addEventListener('input',()=>render(false));
+  $('reset').addEventListener('click',()=>{if(confirm('Sirf SIMULATED chat clear karein? Original WhatsApp par koi asar nahi hoga.')){state.items=[];exitEdit();save();render();status('Simulation clear ho gayi.');}});
   $('backup').addEventListener('click',()=>{const json=JSON.stringify({simulated:true,notice:'NOT A REAL WHATSAPP CHAT',...state},null,2);if(window.ChatLabNative?.saveBackup){window.ChatLabNative.saveBackup(json);status('Android file picker mein backup save destination select karein.');}else{download('simulated-chat-backup.json',json,'application/json');status('Simulation ki JSON copy save ki gayi.');}});
   $('import').addEventListener('click',()=>$('file').click());
   $('restore').addEventListener('click',()=>$('restore-file').click());
@@ -164,12 +244,12 @@
            x.at<0 || x.at>8640000000000000){
           throw new Error(`Backup message ${i+1} invalid hai.`);
         }
-        return {id:Number.isSafeInteger(x.id)?x.id:i,from:x.from,text:x.text,at:x.at};
+        return {id:Number.isSafeInteger(x.id)?x.id:i,from:x.from,text:x.text,at:x.at,edited:x.edited===true,origin:typeof x.origin==='string'?x.origin:'legacy'};
       });
       if(state.items.length && !confirm(`Current simulation (${state.items.length} messages) ko restore backup (${items.length} messages) se replace karein? Original WhatsApp par koi asar nahi hoga.`))return;
       state={contact:obj.contact||'Demo Friend',self:obj.self||'Me',items};
       $('contact').value=state.contact; $('self').value=state.self;
-      save(); render(); status(`RESTORE PASS: ${state.items.length} simulated messages backup se load hue. Original WhatsApp unchanged.`);
+      exitEdit();save();render();status(`RESTORE PASS: ${state.items.length} simulated messages backup se load hue. Original WhatsApp unchanged.`);
     } catch(err){status('Restore failed: '+(err?.message||'Invalid JSON file'));}
     finally{e.target.value='';}
   });
@@ -184,15 +264,24 @@
       if(chosen===null)return;
       const self=chosen||'Me'; const contact=labels.find(n=>n!==self)||'Demo Friend';
       state={contact,self,items:[]};
-      for(const entry of entries.slice(-1500)) add(entry.author===self?'me':'contact',entry.text,entry.at);
+      for(const entry of entries.slice(-1500)) add(entry.author===self?'me':'contact',entry.text,entry.at,'imported');
       $('contact').value=state.contact; $('self').value=state.self;
-      save();render();status(`${state.items.length} messages ki LOCAL simulated copy import hui. Original WhatsApp unchanged.`);
+      exitEdit();save();render();status(`${state.items.length} messages ki LOCAL simulated copy import hui. Original WhatsApp unchanged.`);
     } catch {status('File read nahi ho saki.');}
     finally{e.target.value='';}
   });
   $('add-form').addEventListener('submit',e=>{
-    e.preventDefault();const text=$('message').value.trim();const at=new Date($('at').value).getTime();if(!text||!Number.isFinite(at))return;
-    add($('sender').value,text,at);save();render();$('message').value='';status('Simulated message add ho gaya. Original WhatsApp mein nahi gaya.');
+    e.preventDefault();
+    const text=$('message').value.trim();const at=new Date($('at').value).getTime();
+    if(!text||!Number.isFinite(at))return;
+    if(editingIndex!==null){
+      const item=state.items[editingIndex];if(!item){exitEdit();return;}
+      item.from=$('sender').value;item.text=text;item.at=at;item.edited=true;
+      exitEdit();save();render();status('Simulated message edit saved. Original WhatsApp unchanged.');
+    } else {
+      add($('sender').value,text,at);save();render();$('message').value='';
+      status('Simulated message add ho gaya. Original WhatsApp mein nahi gaya.');
+    }
   });
 })();
 </script>

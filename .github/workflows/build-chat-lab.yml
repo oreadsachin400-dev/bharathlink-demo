@@ -1,7 +1,7 @@
-name: Build Chat Simulation Lab TEST APK
+name: Build Chat Simulation Lab V4 TEST APK
 on:
   push:
-    branches: [chat-simulation-lab-test-20261122]
+    branches: [chat-simulation-lab-v4-test-20261122]
     paths:
       - 'chat-simulation-lab/**'
       - '.github/workflows/build-chat-lab.yml'
@@ -27,12 +27,23 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Check embedded JavaScript syntax
+        working-directory: chat-simulation-lab
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html=Path('app/src/main/assets/index.html').read_text()
+          script=html.split('<script>',1)[1].split('</script>',1)[0]
+          Path('chatlab-check.js').write_text(script)
+          assert 'EDITED SIMULATION' in script and 'Search simulated messages' in html
+          PY
+          node --check chatlab-check.js
       - name: Build debug APK
         working-directory: chat-simulation-lab
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: Chat-Simulation-Lab-TEST-APK
+          name: Chat-Simulation-Lab-V4-TEST-APK
           path: chat-simulation-lab/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
