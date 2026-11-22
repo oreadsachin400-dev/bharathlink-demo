@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="hi"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Chat Simulation Lab V5 TEST — Offline multiple demo chats</title>
+<style>
+    :root { color-scheme: light; --green:#075e54; --sea:#128c7e; --paper:#ece5dd; --mine:#dcf8c6; --other:#fff; --ink:#18312b; --muted:#5e706b; --line:#d7e0dc; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif; color:var(--ink); background:#f1f4f2; }
+    button,input,select,textarea { font:inherit; }
+    button { cursor:pointer; border:0; }
+    .app { max-width:920px; margin:auto; min-height:100dvh; background:white; box-shadow:0 0 24px #0d422311; }
+    header { background:var(--green); color:white; padding:16px 16px 13px; position:sticky; top:0; z-index:10; }
+    header h1 { font-size:18px; margin:0 0 5px; }
+    header p { margin:0; color:#d5eee8; font-size:12px; }
+    .ribbon { background:#ffedb5; color:#5c3e00; padding:10px 15px; font-size:13px; font-weight:650; border-bottom:1px solid #e9d793; }
+    .controls { padding:13px; display:grid; gap:10px; background:#fbfdfb; border-bottom:1px solid var(--line); }
+    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    label { font-size:13px; font-weight:600; color:#3b5951; }
+    input, select, textarea { width:100%; padding:11px; border:1px solid #bacbc4; border-radius:10px; background:white; color:#1b342e; min-width:0; }
+    input:focus,select:focus,textarea:focus { outline:2px solid #43a48c; outline-offset:1px; }
+    .input-with-label { display:grid; flex:1 1 180px; gap:4px; }
+    .pill { background:#eaf3f0; color:#174438; border-radius:9px; padding:10px 12px; border:1px solid #cce0d9; font-weight:650; }
+    .pill.primary { background:#087d67; color:white; border-color:#087d67; }
+    .pill.danger { background:#fff0ed; color:#8b3026; border-color:#f5cec8; }
+    .chat-head { background:#e0ebe7; padding:12px 14px; display:flex; gap:11px; align-items:center; }
+    .avatar { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; background:#66877e; color:white; font-weight:700; }
+    .chat-head strong { display:block; }
+    .chat-head small { color:#597269; }
+    .chat-tools { display:grid; gap:5px; padding:9px 13px 10px; background:#f0f7f4; border-bottom:1px solid var(--line); }
+    .chat-tools input { padding:9px 12px; }
+    .chat-tools small { font-size:11px; color:#52756b; }
+    .date-stamp { text-align:center; width:max-content; max-width:90%; margin:14px auto 11px; background:#f5f9f6ed; border-radius:9px; padding:4px 12px; color:#4e6e63; font-size:11px; box-shadow:0 1px 2px #0001; position:relative; z-index:1; }
+    .msg-actions { display:flex; gap:5px; justify-content:flex-end; margin:6px 0 1px; }
+    .msg-actions button { background:#edf3f0; border:1px solid #d3dfd9; border-radius:7px; padding:4px 7px; font-size:11px; min-width:44px; color:#315e4e; }
+    .msg-actions button.danger-text { color:#9a352a; background:#fff4f0; border-color:#eedbd5; }
+    .msg-actions button:focus-visible { outline:2px solid #057f6a; }
+    .msg.is-match { outline:2px solid #4ba388; }
+    .edit-caption { background:#fff6de; color:#704f18; border-radius:8px; padding:8px 10px; font-size:12px; }
+    .edit-buttons { display:flex; gap:8px; flex-wrap:wrap; }
+    .edit-buttons .pill { flex:1 1 150px; }
+    .hidden { display:none !important; }
+    .chat { position:relative; min-height:300px; height:min(52dvh,570px); overflow:auto; padding:20px 13px 25px; background-color:var(--paper); background-image:radial-gradient(#d4cdc4 0.75px,transparent 0.75px); background-size:22px 22px; isolation:isolate; }
+    .chat::before { content:'SIMULATED • NOT WHATSAPP'; position:sticky; top:40%; left:0; width:100%; display:block; text-align:center; color:#3f7d7350; font-size:clamp(20px,5vw,38px); transform:rotate(-16deg); font-weight:900; letter-spacing:1px; pointer-events:none; z-index:0; margin-bottom:-48px; }
+    .msg { max-width:85%; min-width:105px; width:max-content; background:var(--other); margin:8px auto 8px 0; border-radius:10px; padding:7px 9px 5px; box-shadow:0 1px 3px #00000015; position:relative; z-index:1; overflow-wrap:anywhere; }
+    .msg.mine { background:var(--mine); margin-left:auto; margin-right:0; }
+    .msg .who { font-weight:700; font-size:11px; margin-bottom:3px; color:#13634b; }
+    .msg.mine .who { color:#366b36; }
+    .msg .content { white-space:pre-wrap; }
+    .meta { text-align:right; color:#60776f; font-size:10px; margin-top:4px; }
+    .empty { text-align:center; position:relative; z-index:1; background:#fff9; padding:20px; border-radius:12px; margin:50px auto; max-width:320px; }
+    .form { padding:15px 13px 20px; display:grid; gap:10px; }
+    .form h2 { font-size:17px; margin:0; }
+    .notice { font-size:12px; color:#516f66; }
+    .status { background:#e9f4ee; border-radius:8px; padding:9px 12px; color:#23583f; font-size:13px; min-height:36px; }
+    .fine { font-size:12px; color:#708079; padding:0 14px 24px; }
+    @media(min-width:700px) { .msg { max-width:65%; } .controls { padding:15px 18px; } .form { padding:17px 18px; } }
+  
+    .navline { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#e1eee9; border-bottom:1px solid var(--line); }
+    .navline .pill { padding:8px 13px; }
+    .navline strong { flex:1; }
+    .list-panel { padding:16px 14px 22px; min-height:66dvh; }
+    .list-title { display:flex; gap:10px; align-items:center; justify-content:space-between; }
+    .list-title h2 { font-size:19px; margin:0; }
+    .list-tools { display:grid; gap:9px; margin:14px 0; }
+    .list-meta { color:#61756d; font-size:12px; }
+    .new-chat { display:grid; gap:10px; padding:13px; border:1px solid var(--line); background:#f7fbf9; border-radius:12px; margin:14px 0; }
+    .new-chat h3 { margin:0; font-size:15px; }
+    .chat-list { display:grid; gap:10px; }
+    .thread { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:11px; align-items:center; padding:12px 10px; border-radius:12px; border:1px solid #d8e5df; background:#fff; }
+    .thread .avatar { width:44px; height:44px; font-size:18px; }
+    .thread button.thread-open { min-width:0; padding:0; text-align:left; background:transparent; color:inherit; }
+    .thread strong { display:block; font-size:15px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+    .thread small { display:block; color:#597268; font-size:11px; }
+    .thread .preview { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; color:#567169; font-size:13px; padding-top:3px; }
+    .thread .del-chat { background:#fff4f0; color:#922d24; padding:8px; border-radius:8px; border:1px solid #f4d3cc; font-size:11px; }
+    .list-note { font-size:12px; color:#5c786e; margin:12px 0; }
+    #detail-view { background:#fff; }
+    .count-note { text-align:right; color:#68847a; font-size:12px; }
+    @media(max-width:420px) { .thread { gap:7px; padding:10px 7px; } .thread .del-chat { padding:7px 5px; } }
+</style></head><body>
+<div class="app">
+<header><h1>Chat Simulation Lab <span style="font-size:12px;font-weight:500;opacity:.9">V5 TEST</span></h1><p>Offline multiple demo chats • Data device par hi rehta hai</p></header>
+<div class="ribbon">⚠️ SIMULATED CHAT — asli WhatsApp conversation ya message ka proof nahi.</div>
+<section class="list-panel" id="list-view" aria-label="Simulated chat list">
+<div class="list-title"><h2>Demo chats</h2><button class="pill primary" type="button" id="toggle-new">+ New demo chat</button></div>
+<div class="list-tools"><label for="filter-chats">Search demo conversations</label><input id="filter-chats" type="search" placeholder="Demo contact ya message search karein" maxlength="120" autocomplete="off"/><div class="list-meta" id="list-count">0 demo chats</div></div>
+<form class="new-chat hidden" id="new-chat-form"><h3>Create a simulated conversation</h3>
+<div class="input-with-label"><label for="new-contact">Demo contact name</label><input id="new-contact" type="text" maxlength="60" placeholder="Example: Demo Friend 2" required/></div>
+<div class="input-with-label"><label for="new-self">Aapka demo name</label><input id="new-self" type="text" maxlength="60" value="Me" required/></div>
+<div class="row"><button class="pill primary" type="submit">Create demo chat</button><button class="pill" id="cancel-new" type="button">Cancel</button></div></form>
+<div class="chat-list" id="chat-list"></div>
+<div class="list-note">SIMULATION ONLY • Sabhi conversations alag hain, aur sirf isi app mein dikhti hain. Real WhatsApp unchanged.</div>
+<div class="row"><button id="global-backup" class="pill">Save all demos .json</button><button id="global-restore" class="pill">Restore demo .json</button></div>
+<p id="list-status" class="status" role="status">V5 demo ready. Existing V4 JSON backups can be restored.</p>
+</section>
+<section id="detail-view" class="hidden" aria-label="Selected simulated conversation">
+<div class="navline"><button id="back-to-list" class="pill" type="button">← All chats</button><strong id="active-name">Demo Friend</strong><span class="count-note" id="active-count"></span></div>
+<section class="controls" aria-label="Chat options">
+<div class="row"><div class="input-with-label"><label for="contact">Demo contact name</label><input id="contact" value="Demo Friend" maxlength="60"></div>
+<div class="input-with-label"><label for="self">Aapka demo name</label><input id="self" value="Me" maxlength="60"></div></div>
+<div class="row"><button class="pill" id="sample" type="button">Sample conversation</button><button class="pill" id="import" type="button">Import exported .txt (local copy)</button>
+<input type="file" id="file" accept=".txt,text/plain" hidden><button class="pill" id="backup" type="button">Save all demos .json</button><button class="pill" id="restore" type="button">Restore demo .json</button>
+<button class="pill danger" id="reset" type="button">Clear THIS demo chat</button></div>
+<div class="notice">V5: Search/Edit/Delete sirf current simulated conversation mein. Backup mein sabhi demo chats aayenge. Original WhatsApp untouched.</div>
+</section>
+<div class="chat-head"><div class="avatar" id="avatar">D</div><div><strong id="chat-title">Demo Friend</strong><small>SIMULATED COPY • NOT A REAL WHATSAPP CHAT</small></div></div>
+<div class="chat-tools"><label for="search">Search current simulated conversation</label><input id="search" type="search" placeholder="Message ya sender search karein" autocomplete="off" maxlength="120"/><small id="search-count" role="status">0 simulated messages</small></div>
+<div class="chat" id="chat" aria-label="Simulated message timeline"></div>
+<form class="form" id="add-form"><h2 id="form-heading">Insert a simulated message</h2><div id="edit-caption" class="edit-caption hidden">SIMULATED COPY EDIT MODE — Original WhatsApp unchanged.</div>
+<div class="row"><div class="input-with-label"><label for="sender">Message kis taraf se?</label><select id="sender"><option value="contact">Demo contact (incoming)</option><option value="me">Me (outgoing)</option></select></div>
+<div class="input-with-label"><label for="at">Date &amp; time</label><input type="datetime-local" id="at" required></div></div>
+<div><label for="message">Message</label><textarea id="message" rows="3" placeholder="Test message yahan likhein" required maxlength="8000"></textarea></div>
+<div class="edit-buttons"><button class="pill primary" id="submit-message" type="submit">Add to simulation</button><button class="pill hidden" id="cancel-edit" type="button">Cancel edit</button></div>
+<div class="status" id="status" role="status">Demo ready. Original WhatsApp untouched.</div></form>
+<p class="fine">Educational simulated copy. Yeh asli WhatsApp ka hissa nahi hai. Local storage clear karne se data hat sakta hai. Save all demos .json mein backup lein.</p>
+</section>
+<input type="file" id="restore-file" hidden>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const KEY='chat_simulation_lab_v5_multi_v1';
+const MAX_CHATS=30, MAX_MSGS=1500;
+const pad=n=>String(n).padStart(2,'0');
+const localDate=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nowId=()=>Date.now().toString(36)+'-'+Math.floor(Math.random()*1e9).toString(36);
+const makeChat=(contact='Demo Friend',self='Me',items=[])=>({id:nowId(),contact,self,items});
+const timeFmt=d=>new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}).format(d);
+const dayFmt=d=>new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'}).format(d);
+let app={chats:[makeChat()],active:null};
+let editingId=null,view='list';
+const active=()=>app.chats.find(c=>c.id===app.active);
+const stateOk=()=>app.chats.every(c=>c.items.length<=MAX_MSGS);
+const status=s=>{$('status').textContent=s; $('list-status').textContent=s;};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(app));}catch{status('Storage unavailable. Save all demos .json se backup lein.');}}
+function setView(mode){
+ view=mode; $('list-view').classList.toggle('hidden',mode!=='list');$('detail-view').classList.toggle('hidden',mode!=='detail');
+ if(mode==='list'){renderList();window.scrollTo(0,0);} else {render();window.scrollTo(0,0);}
+}
+function renderList(){
+ const term=$('filter-chats').value.trim().toLocaleLowerCase();
+ const filtered=app.chats.filter(c=>[c.contact,c.self,...c.items.map(m=>m.text)].join(' ').toLocaleLowerCase().includes(term));
+ $('list-count').textContent=term?filtered.length+' of '+app.chats.length+' demo chats match':app.chats.length+' simulated conversations';
+ $('chat-list').innerHTML=filtered.length?filtered.map(c=>{
+   const recent=[...c.items].sort((a,b)=>b.at-a.at)[0];
+   const preview=recent?.text || 'Abhi koi simulated message nahi';
+   return `<article class="thread"><div class="avatar">${esc(c.contact.charAt(0).toUpperCase()||'D')}</div>
+   <button type="button" class="thread-open" data-open="${esc(c.id)}" aria-label="Open demo chat ${esc(c.contact)}"><strong>${esc(c.contact)}</strong>
+   <small>${c.items.length} simulated messages • LOCAL DEMO</small><span class="preview">${esc(preview)}</span></button>
+   <button type="button" class="del-chat" data-remove="${esc(c.id)}" aria-label="Delete demo chat ${esc(c.contact)}">Delete</button></article>`;
+ }).join(''):'<div class="empty">Koi matching demo chat nahi. + New demo chat se banayein.</div>';
+}
+function render(scroll=true){
+ const c=active(); if(!c){setView('list');return;}
+ $('contact').value=c.contact; $('self').value=c.self;
+ $('chat-title').textContent=c.contact;$('active-name').textContent=c.contact;
+ $('active-count').textContent=c.items.length+' msgs';
+ $('avatar').textContent=c.contact.trim().charAt(0).toUpperCase()||'D';
+ const timeline=$('chat');const term=$('search').value.trim().toLocaleLowerCase();
+ const sorted=[...c.items].sort((a,b)=>a.at-b.at || String(a.id).localeCompare(String(b.id)));
+ const matches=term?sorted.filter(x=>(x.text+' '+(x.from==='me'?c.self:c.contact)).toLocaleLowerCase().includes(term)):sorted;
+ $('search-count').textContent=term?matches.length+' of '+c.items.length+' simulated messages match':c.items.length+' simulated messages · LOCAL DEMO';
+ if(!matches.length){timeline.innerHTML=`<div class="empty">${term?'Search mein koi matching simulated message nahi.':'Abhi koi simulated message nahi. Sample conversation load karein ya neeche add karein.'}</div>`;}
+ else {let prev='';timeline.innerHTML=matches.map(x=>{
+   const day=dayFmt(new Date(x.at));const sep=prev!==day?`<div class="date-stamp">${esc(day)} · SIMULATED</div>`:'';prev=day;
+   const who=x.from==='me'?c.self:c.contact;
+   return `${sep}<article class="msg ${x.from==='me'?'mine':''} ${term?'is-match':''}"><div class="who">${esc(who)}</div><div class="content">${esc(x.text)}</div>
+   <div class="meta">${esc(timeFmt(new Date(x.at)))} · ${x.edited?'EDITED SIMULATION':'SIMULATED'}</div>
+   <div class="msg-actions"><button type="button" data-action="edit" data-msg="${esc(x.id)}">Edit</button><button type="button" class="danger-text" data-action="delete" data-msg="${esc(x.id)}">Delete</button></div></article>`;
+ }).join('');}
+ if(scroll)timeline.scrollTop=timeline.scrollHeight;
+}
+function exitEdit(clear=true){editingId=null;$('form-heading').textContent='Insert a simulated message';$('submit-message').textContent='Add to simulation';$('cancel-edit').classList.add('hidden');$('edit-caption').classList.add('hidden');if(clear){$('message').value='';$('at').value=localDate(new Date());$('sender').value='contact';}}
+function selectChat(id){if(!app.chats.some(c=>c.id===id))return;app.active=id;exitEdit();$('search').value='';save();setView('detail');}
+function add(c,from,text,at,origin='added'){if(c.items.length>=MAX_MSGS){status('One conversation max 1500 messages.');return false;}c.items.push({id:nowId(),from,text,at,origin,edited:false});return true;}
+function loadSample(){const c=active();if(!c)return;if(c.items.length&&!confirm('Sirf is demo chat ka current content sample se replace karein?'))return;
+ const d=new Date();d.setHours(10,0,0,0);d.setDate(d.getDate()-1);c.items=[];
+ add(c,'contact','Hello! Kal coffee pe milte hain?',d.getTime(),'sample');add(c,'me','Haan, milte hain.',d.getTime()+120000,'sample');
+ exitEdit();save();render();status('Sample chat mein 2 simulated messages load hue.');}
+function parseExport(text){
+ const lines=text.replace(/\r\n?/g,'\n').split('\n');
+ const re=/^\[?(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4}),?\s+(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm|AM|PM)?\]?\s*(?:-|–)?\s*([^:]+):\s([\s\S]*)$/;
+ const found=[];let last=null;for(const line of lines){const m=line.match(re);if(m){const a=+m[1],b=+m[2],yr=+m[3]<100?2000+(+m[3]):+m[3],raw=+m[4],h=m[6]?(raw%12+(/pm/i.test(m[6])?12:0)):raw,at=new Date(yr,b-1,a,h,+m[5]).getTime();if(!Number.isFinite(at)||raw>23||+m[5]>59||a<1||a>31||b<1||b>12)continue;last={author:m[7].trim(),text:m[8],at};found.push(last);}else if(last){last.text+='\n'+line;}}
+ return found;
+}
+function validateMessages(items){
+ if(!Array.isArray(items)||items.length>MAX_MSGS)throw Error('Message count supported limit se bahar hai.');
+ return items.map((x,i)=>{if(!x||(x.from!=='me'&&x.from!=='contact')||typeof x.text!=='string'||x.text.length>8000||typeof x.at!=='number'||!Number.isFinite(x.at)||x.at<0||x.at>8640000000000000)throw Error('Backup message '+(i+1)+' invalid.');
+ return {id:typeof x.id==='string'&&x.id.length<90?x.id:nowId(),from:x.from,text:x.text,at:x.at,edited:x.edited===true,origin:typeof x.origin==='string'?x.origin.slice(0,50):'legacy'};});
+}
+function validateChat(c){if(!c||typeof c.contact!=='string'||typeof c.self!=='string'||c.contact.length>60||c.self.length>60)throw Error('Invalid chat names.');return makeChat(c.contact||'Demo Friend',c.self||'Me',validateMessages(c.items));}
+function toBackup(){return JSON.stringify({simulated:true,format:'chat-simulation-lab-v5',version:5,notice:'NOT A REAL WHATSAPP CHAT',conversations:app.chats.map(c=>({contact:c.contact,self:c.self,items:c.items}))},null,2);}
+function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
+function doBackup(){const json=toBackup();if(json.length>10*1024*1024){status('Backup too large. Please reduce demo data.');return;}if(window.ChatLabNative?.saveBackup){window.ChatLabNative.saveBackup(json);status('Android picker mein V5 backup save location choose karein.');}else{download('chat-simulation-v5-backup.json',json,'application/json');status('V5 demo backup download started.');}}
+function openNew(show){$('new-chat-form').classList.toggle('hidden',!show);if(show)$('new-contact').focus();}
+$('toggle-new').onclick=()=>openNew($('new-chat-form').classList.contains('hidden'));
+$('cancel-new').onclick=()=>openNew(false);
+$('new-chat-form').onsubmit=e=>{e.preventDefault();if(app.chats.length>=MAX_CHATS){status('Maximum 30 demo chats.');return;}const contact=$('new-contact').value.trim(),self=$('new-self').value.trim();if(!contact||!self)return;const c=makeChat(contact,self);app.chats.unshift(c);save();openNew(false);$('new-contact').value='';selectChat(c.id);status('New simulated chat created.');};
+$('chat-list').onclick=e=>{const open=e.target.closest('[data-open]'),del=e.target.closest('[data-remove]');if(open){selectChat(open.dataset.open);return;}if(del){const c=app.chats.find(x=>x.id===del.dataset.remove);if(!c||!confirm('SIMULATED chat '+c.contact+' aur iske '+c.items.length+' messages delete karein? Original WhatsApp untouched.'))return;app.chats=app.chats.filter(x=>x.id!==c.id);if(app.active===c.id)app.active=null;save();renderList();status('Demo chat sirf app se delete hua.');}};
+$('back-to-list').onclick=()=>{exitEdit();app.active=null;save();setView('list');};
+$('filter-chats').oninput=renderList;
+$('sample').onclick=loadSample;
+$('search').oninput=()=>render(false);
+$('contact').oninput=e=>{const c=active();if(c){c.contact=e.target.value||'Demo Friend';save();render(false);}};
+$('self').oninput=e=>{const c=active();if(c){c.self=e.target.value||'Me';save();render(false);}};
+$('reset').onclick=()=>{const c=active();if(c&&confirm('Sirf is simulated chat ke messages clear karein? Original WhatsApp unchanged.')){c.items=[];exitEdit();save();render();status('Selected demo chat clear hui.');}};
+$('chat').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)return;const c=active();const m=c?.items.find(x=>x.id===b.dataset.msg);if(!m)return;
+ if(b.dataset.action==='edit'){editingId=m.id;$('form-heading').textContent='Edit simulated message';$('submit-message').textContent='Save simulated edit';$('cancel-edit').classList.remove('hidden');$('edit-caption').classList.remove('hidden');$('sender').value=m.from;$('message').value=m.text;$('at').value=localDate(new Date(m.at));$('add-form').scrollIntoView({behavior:'smooth',block:'start'});status('Edit only simulated copy.');}
+ if(b.dataset.action==='delete'){if(!confirm('Sirf selected SIMULATED message delete karein? Original WhatsApp unchanged.'))return;c.items=c.items.filter(x=>x.id!==m.id);if(editingId===m.id)exitEdit();save();render(false);status('Simulated message deleted.');}
+};
+$('cancel-edit').onclick=()=>{exitEdit();status('Edit cancelled.');};
+$('add-form').onsubmit=e=>{e.preventDefault();const c=active();if(!c)return;const text=$('message').value.trim(),at=new Date($('at').value).getTime();if(!text||!Number.isFinite(at))return;
+ if(editingId){const m=c.items.find(x=>x.id===editingId);if(!m){exitEdit();return;}m.from=$('sender').value;m.text=text;m.at=at;m.edited=true;exitEdit();save();render();status('Simulated edit saved.');}
+ else if(add(c,$('sender').value,text,at)){save();render();$('message').value='';status('Message sirf simulated chat mein add hua.');}
+};
+$('file').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>10*1024*1024)throw Error('Max TXT size 10 MB.');const entries=parseExport(await file.text());if(!entries.length)throw Error('Export .txt format parse nahi hua.');const authors=[...new Set(entries.map(x=>x.author))];const guess=authors[0]||'Me',self=authors.length>1?prompt('Export mein apna naam choose karein:\n'+authors.join(' / '),guess):'Me';if(self===null)return;
+ const contact=authors.find(x=>x!==self)||'Demo Contact';const c=active();if(!c)return;if(c.items.length&&!confirm('Current demo chat ke messages imported TXT se replace karein?'))return;
+ c.contact=contact;c.self=self||'Me';c.items=[];for(const m of entries.slice(-MAX_MSGS))add(c,m.author===self?'me':'contact',m.text.slice(0,8000),m.at,'imported');exitEdit();save();render();status(c.items.length+' messages ki LOCAL copy import hui. Original WhatsApp unchanged.');
+ }catch(err){status('Import failed: '+(err?.message||'Invalid TXT'));}finally{e.target.value='';}};
+$('import').onclick=()=>$('file').click();
+$('backup').onclick=doBackup;$('global-backup').onclick=doBackup;
+$('restore').onclick=()=>$('restore-file').click();$('global-restore').onclick=()=>$('restore-file').click();
+$('restore-file').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{if(!file.name.toLowerCase().endsWith('.json'))throw Error('Sirf JSON backup select karein.');if(file.size>10*1024*1024)throw Error('Backup max 10 MB.');const data=JSON.parse(await file.text());if(data?.simulated!==true)throw Error('Not a simulated Chat Lab backup.');let chats;
+ if(Array.isArray(data.conversations)&&data.format==='chat-simulation-lab-v5'){
+  if(data.conversations.length>MAX_CHATS)throw Error('Too many conversations in backup.');chats=data.conversations.map(validateChat);
+ }else if(Array.isArray(data.items)&&typeof data.contact==='string'&&typeof data.self==='string'){
+  chats=[validateChat(data)];
+ }else throw Error('Unsupported demo JSON schema.');
+ const existing=app.chats.reduce((n,c)=>n+c.items.length,0);if((existing||app.chats.length>1)&&!confirm('Current demo chats ko backup se replace karein? Original WhatsApp unchanged.'))return;
+ app={chats:chats.length?chats:[makeChat()],active:null};exitEdit();save();setView('list');status('RESTORE PASS: '+app.chats.length+' demo chat(s), '+app.chats.reduce((n,c)=>n+c.items.length,0)+' simulated messages loaded. Original WhatsApp unchanged.');
+ }catch(err){status('Restore failed: '+(err?.message||'Invalid backup'));}finally{e.target.value='';}};
+$('at').value=localDate(new Date());
+try{const raw=localStorage.getItem(KEY);if(raw){const data=JSON.parse(raw);if(Array.isArray(data.chats)&&data.chats.length<=MAX_CHATS){const valid=data.chats.map(validateChat);app={chats:valid.length?valid:[makeChat()],active:null};}}}catch{}
+setView('list');
+})();
+</script></body></html>
