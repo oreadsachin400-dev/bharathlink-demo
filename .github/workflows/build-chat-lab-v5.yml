@@ -28,7 +28,7 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build debug APK
-        working-directory: chat-simulation-lab
+        working-directory: chat-simulation-lab-v5
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
